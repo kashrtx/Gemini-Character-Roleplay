@@ -17,17 +17,41 @@ function setupMobileViewportFix() {
     
     // Fix for iOS keyboard issues
     const chatInput = document.getElementById('message-input');
+    const chatForm = document.getElementById('chat-form');
+    const sendButton = document.getElementById('send-message-btn');
+    
+    // Add chat-input-container class to the container div
+    const inputContainer = document.querySelector('#chat-window > div:last-of-type');
+    if (inputContainer) {
+        inputContainer.classList.add('chat-input-container');
+    }
+    
     if (chatInput) {
         // When chat input gets focus (keyboard shows)
         chatInput.addEventListener('focus', () => {
             // Prevent viewport from auto-zooming
             viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0');
             
-            // Scroll to the input after a brief delay to ensure keyboard is fully shown
+            // Ensure input is visible by scrolling to it
             setTimeout(() => {
-                const chatMessages = document.getElementById('chat-messages');
-                if (chatMessages) {
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                // Scroll input into view
+                chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Ensure the chat form and send button are visible
+                if (chatForm) {
+                    chatForm.style.position = 'fixed';
+                    chatForm.style.bottom = '0';
+                    chatForm.style.left = '0';
+                    chatForm.style.right = '0';
+                    chatForm.style.zIndex = '100';
+                    chatForm.style.backgroundColor = 'white';
+                    chatForm.style.padding = '8px';
+                }
+                
+                if (sendButton) {
+                    sendButton.style.display = 'flex';
+                    sendButton.style.alignItems = 'center';
+                    sendButton.style.justifyContent = 'center';
                 }
             }, 300);
         });
@@ -36,6 +60,11 @@ function setupMobileViewportFix() {
         chatInput.addEventListener('blur', () => {
             // Restore original viewport settings
             viewport.setAttribute('content', originalContent);
+            
+            // Reset positions after keyboard is hidden
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+            }, 100);
         });
     }
     
@@ -43,10 +72,22 @@ function setupMobileViewportFix() {
     let windowHeight = window.innerHeight;
     window.addEventListener('resize', () => {
         // If the window height changes dramatically (keyboard appearing)
-        if (window.innerHeight < windowHeight) {
-            // Don't allow the body to scroll/move
-            document.body.style.height = '100vh';
-            document.body.style.overflow = 'hidden';
+        if (window.innerHeight < windowHeight * 0.75) {
+            // Make sure our chat form is visible
+            if (chatForm) {
+                chatForm.style.position = 'fixed';
+                chatForm.style.bottom = '0';
+                chatForm.style.left = '0';
+                chatForm.style.right = '0';
+                chatForm.style.zIndex = '100';
+                chatForm.style.backgroundColor = 'white';
+                chatForm.style.padding = '8px';
+            }
+            
+            // Scroll to the input after a brief delay
+            setTimeout(() => {
+                if (chatInput) chatInput.scrollIntoView();
+            }, 300);
         } else {
             // When keyboard disappears, make sure we're at the right position
             setTimeout(() => {
@@ -55,20 +96,6 @@ function setupMobileViewportFix() {
         }
         windowHeight = window.innerHeight;
     });
-    
-    // Prevent document scrolling while allowing chat messages to scroll
-    document.addEventListener('touchmove', function(event) {
-        // Get the target element
-        const target = event.target;
-        
-        // Check if the touch is within the chat messages area
-        const isInChatMessages = target.closest('#chat-messages');
-        
-        // If not in chat messages and not in any other scrollable area, prevent default
-        if (!isInChatMessages && !target.closest('.overflow-y-auto') && !target.closest('.overflow-auto')) {
-            event.preventDefault();
-        }
-    }, { passive: false });
 }
 
 // App Settings

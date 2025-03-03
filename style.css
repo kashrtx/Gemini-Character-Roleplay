@@ -280,6 +280,84 @@ main {
         padding: 8px;
         min-height: 40px;
     }
+
+    /* Message input container positioning for mobile */
+    #chat-window > div:last-of-type {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: white;
+        padding: 8px;
+        z-index: 100;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Ensure chat messages don't get hidden behind the fixed input container */
+    #chat-messages {
+        padding-bottom: 70px !important; /* Make room for the fixed input container */
+        max-height: calc(100vh - 140px) !important; /* Adjust height to account for fixed input */
+    }
+    
+    /* Make chat form more compact on mobile */
+    #chat-form {
+        display: flex;
+        align-items: center;
+    }
+    
+    /* Ensure message input is properly sized */
+    #message-input {
+        max-height: 80px;
+        min-height: 40px;
+        padding: 8px;
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+    
+    /* Make sure send button is properly sized and positioned */
+    #send-message-btn {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
+        margin-left: 8px;
+    }
+
+    /* Ensure chat view takes up proper space */
+    #chat-view {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+    }
+    
+    /* Ensure chat window is properly positioned */
+    #chat-window {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        position: relative;
+        padding-bottom: 70px; /* Make room for the fixed input container */
+    }
+    
+    /* Keep chat messages area scrollable */
+    #chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 70px !important; /* Add padding to prevent content from being hidden */
+    }
+    
+    /* Fix input container at the bottom */
+    .chat-input-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: white;
+        padding: 8px;
+        z-index: 100;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    }
 }
 
 
@@ -879,8 +957,6 @@ header nav button {
         flex-direction: column;
     }
 }
-<<<<<<< HEAD
-=======
 
 /* Send message button styling to ensure it stays circular */
 #send-message-btn {
@@ -902,12 +978,8 @@ header nav button {
 
 /* Fix the icon centering within the button */
 #send-message-btn i {
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    width: 100%;
+    margin: 0 auto;
+    font-size: 1.1rem;
 }
 
 /* Message input area styling */
@@ -970,4 +1042,15 @@ header nav button {
         font-size: 14px;
     }
 }
->>>>>>> parent of 954b29b (mobile responsiveness fix attempt)
+
+/* Make message input more accessible on all devices */
+#message-input {
+    resize: none; /* Prevent manual resizing */
+    overflow-y: auto; /* Allow scrolling within the input */
+}
+
+/* Add this class to the chat input div via JavaScript */
+.chat-input-container {
+    background-color: white;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
