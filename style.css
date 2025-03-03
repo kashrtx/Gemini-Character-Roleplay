@@ -118,7 +118,7 @@ main {
         position: fixed;
         inset: 0;
         background-color: rgba(0, 0, 0, 0.5);
-        z-index: 45; /* Below the sidebar but above other content */
+        z-index: 40;
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.3s ease-in-out;
@@ -785,8 +785,11 @@ button:active:after {
 }
 
 #character-sidebar {
-    background-color: white; /* Ensure the sidebar has a white background */
-    z-index: 50 !important; /* Make sure sidebar is above overlay */
+    min-width: 240px;
+    max-width: 280px;
+    flex: 0 0 auto;
+    height: 100%;
+    overflow-y: auto;
 }
 
 /* Ensure header content is properly contained */
@@ -1062,109 +1065,5 @@ header nav button {
         #chat-messages {
             padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
         }
-    }
-}
-
-/* Fix the sidebar overlay to ensure it doesn't block interactions with the sidebar content */
-.sidebar-overlay {
-    position: fixed;
-    inset: 0;
-}
-
-/* Mobile-specific fixes */
-@media (max-width: 640px) {
-    /* Fix sidebar items to be tappable on mobile */
-    #character-sidebar {
-        z-index: 50 !important; /* Make sure sidebar is above overlay */
-        background-color: white !important;
-    }
-    
-    #sidebar-characters {
-        z-index: 51 !important; /* Higher than the sidebar container */
-        position: relative;
-        background: white;
-    }
-    
-    /* Ensure sidebar items are clickable */
-    #sidebar-characters > div {
-        position: relative;
-        z-index: 52;
-    }
-    
-    /* Ensure the toggle sidebar button is visible and clickable */
-    #toggle-sidebar-btn {
-        z-index: 53 !important;
-        position: relative;
-    }
-    
-    /* Ensure the sidebar overlay doesn't interfere with sidebar content */
-    .sidebar-overlay {
-        z-index: 45 !important; /* Below the sidebar but above other content */
-    }
-}
-
-/* iOS specific adjustments for better scrolling */
-@supports (-webkit-touch-callout: none) {
-    /* Handle the iOS notch and home indicator */
-    #chat-window > div:last-of-type {
-        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    
-    #chat-messages {
-        padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-}
-
-/* Improved character selection in sidebar */
-#sidebar-characters {
-    overflow-y: auto;
-    z-index: 51;
-    background: white;
-}
-
-#sidebar-characters > div {
-    cursor: pointer;
-    position: relative;
-    z-index: 2;
-    transition: background-color 0.15s ease;
-}
-
-#sidebar-characters > div:hover {
-    background-color: rgba(79, 70, 229, 0.1);
-}
-
-#sidebar-characters > div:active {
-    background-color: rgba(79, 70, 229, 0.2);
-}
-
-/* Mobile optimization for character selection */
-@media (max-width: 640px) {
-    /* Make character selection more tappable on mobile */
-    #sidebar-characters > div {
-        padding: 12px !important;
-        margin: 4px 0 !important;
-        border-radius: 8px !important;
-        background-color: rgba(249, 250, 251, 0.8) !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
-    }
-    
-    /* Add active state feedback for touch */
-    #sidebar-characters > div:active {
-        transform: scale(0.98);
-        background-color: rgba(79, 70, 229, 0.15) !important;
-    }
-    
-    /* Make sure sidebar header is also fully interactive */
-    #character-sidebar > div:first-child {
-        z-index: 52 !important;
-        position: relative;
-        background: white;
-        border-bottom: 1px solid #e5e7eb;
-    }
-    
-    /* Ensure scrolling works properly in sidebar */
-    #sidebar-characters {
-        -webkit-overflow-scrolling: touch !important;
-        padding-bottom: 50px !important;
     }
 }
