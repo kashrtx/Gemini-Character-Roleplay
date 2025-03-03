@@ -25,6 +25,7 @@ function setupMobileViewportFix() {
             
             // Scroll to the input after a brief delay to ensure keyboard is fully shown
             setTimeout(() => {
+                chatInput.scrollIntoView(false);
                 const chatMessages = document.getElementById('chat-messages');
                 if (chatMessages) {
                     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -44,9 +45,12 @@ function setupMobileViewportFix() {
     window.addEventListener('resize', () => {
         // If the window height changes dramatically (keyboard appearing)
         if (window.innerHeight < windowHeight) {
-            // Don't allow the body to scroll/move
-            document.body.style.height = '100vh';
-            document.body.style.overflow = 'hidden';
+            // When keyboard appears, make sure chat input is visible
+            if (document.activeElement === chatInput) {
+                setTimeout(() => {
+                    chatInput.scrollIntoView(false);
+                }, 100);
+            }
         } else {
             // When keyboard disappears, make sure we're at the right position
             setTimeout(() => {
@@ -56,19 +60,73 @@ function setupMobileViewportFix() {
         windowHeight = window.innerHeight;
     });
     
-    // Prevent document scrolling while allowing chat messages to scroll
-    document.addEventListener('touchmove', function(event) {
-        // Get the target element
-        const target = event.target;
+    // Fix scrolling for different views
+    const setupViewScrolling = () => {
+        const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         
-        // Check if the touch is within the chat messages area
-        const isInChatMessages = target.closest('#chat-messages');
-        
-        // If not in chat messages and not in any other scrollable area, prevent default
-        if (!isInChatMessages && !target.closest('.overflow-y-auto') && !target.closest('.overflow-auto')) {
-            event.preventDefault();
+        // Fix scrolling for settings view
+        const settingsView = document.getElementById('settings-view');
+        if (settingsView) {
+            if (isIOSDevice) {
+                settingsView.style.webkitOverflowScrolling = 'touch';
+            }
         }
-    }, { passive: false });
+        
+        // Fix scrolling for characters view
+        const charactersView = document.getElementById('characters-view');
+        if (charactersView) {
+            if (isIOSDevice) {
+                charactersView.style.webkitOverflowScrolling = 'touch';
+            }
+        }
+        
+        // Update the height calculation when the view changes
+        const updateViewLayout = () => {
+            // Get active view
+            const activeView = document.querySelector('#chat-view:not(.hidden), #settings-view:not(.hidden), #characters-view:not(.hidden)');
+            
+            if (activeView) {
+                if (activeView.id === 'chat-view') {
+                    document.body.classList.add('chat-view-active');
+                    
+                    // Make sure chat input is visible on iOS
+                    if (isIOSDevice) {
+                        const chatForm = document.querySelector('#chat-window > div:last-of-type');
+                        if (chatForm) {
+                            chatForm.style.position = 'fixed';
+                            chatForm.style.bottom = '0';
+                            chatForm.style.left = '0';
+                            chatForm.style.right = '0';
+                            chatForm.style.zIndex = '100';
+                        }
+                    }
+                } else {
+                    document.body.classList.remove('chat-view-active');
+                    
+                    // Force a small delay and then scroll to top
+                    setTimeout(() => {
+                        window.scrollTo(0, 0);
+                        activeView.scrollTop = 0;
+                    }, 100);
+                }
+            }
+        };
+        
+        // Initial update
+        updateViewLayout();
+        
+        // Update when view changes
+        const viewButtons = document.querySelectorAll('[onclick^="changeView"]');
+        viewButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Small delay to ensure DOM is updated
+                setTimeout(updateViewLayout, 50);
+            });
+        });
+    };
+    
+    // Initialize view scrolling fixes
+    setupViewScrolling();
 }
 
 // App Settings
