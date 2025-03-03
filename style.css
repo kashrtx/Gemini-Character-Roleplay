@@ -141,23 +141,6 @@
     }
 }
 
-/* Test chat button styling */
-#test-chat-btn {
-    background-color: #F97316;
-    font-weight: bold;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: all 0.2s ease;
-}
-
-#test-chat-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-/* Debug outlines - remove after debugging */
-.debug-outline {
-    outline: 2px solid red;
-}
 
 /* Message containers to ensure consistent alignment */
 .message-container-user {
