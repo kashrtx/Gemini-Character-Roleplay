@@ -478,6 +478,11 @@ function setupEventListeners() {
             });
         }
     }
+    
+    // Handle window resize for mobile/desktop detection
+    window.addEventListener('resize', debounce(() => {
+        initMessageDeleteButtons();
+    }, 250));
 }
 
 // Update sidebar character event listeners
@@ -1054,6 +1059,9 @@ function updateChatMessages() {
         
         // Scroll to bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Initialize delete buttons based on device type
+        initMessageDeleteButtons();
     }
 }
 
@@ -1167,16 +1175,22 @@ function createMessageHTML(message) {
 
 // Message action buttons
 function showMessageActions(messageId) {
-    const deleteButton = document.getElementById(`delete-msg-${messageId}`);
-    if (deleteButton) {
-        deleteButton.classList.remove('hidden');
+    // Only show/hide on desktop - on mobile they're always visible via CSS
+    if (window.innerWidth > 768) {
+        const deleteButton = document.getElementById(`delete-msg-${messageId}`);
+        if (deleteButton) {
+            deleteButton.classList.remove('hidden');
+        }
     }
 }
 
 function hideMessageActions(messageId) {
-    const deleteButton = document.getElementById(`delete-msg-${messageId}`);
-    if (deleteButton) {
-        deleteButton.classList.add('hidden');
+    // Only show/hide on desktop - on mobile they're always visible via CSS
+    if (window.innerWidth > 768) {
+        const deleteButton = document.getElementById(`delete-msg-${messageId}`);
+        if (deleteButton) {
+            deleteButton.classList.add('hidden');
+        }
     }
 }
 
@@ -2215,4 +2229,35 @@ async function testModelConfiguration() {
     } finally {
         testBtn.disabled = false;
     }
+}
+
+// Initialize message delete buttons based on screen size
+function initMessageDeleteButtons() {
+    // Check if we're on mobile or desktop
+    const isMobile = window.innerWidth <= 768;
+    
+    // Get all delete buttons
+    const deleteButtons = document.querySelectorAll('button[id^="delete-msg-"]');
+    
+    // Set initial visibility based on screen size
+    deleteButtons.forEach(button => {
+        if (isMobile) {
+            button.classList.remove('hidden');
+        } else {
+            button.classList.add('hidden');
+        }
+    });
+}
+
+// Utility function to debounce frequent events like resize
+function debounce(func, wait) {
+    let timeout;
+    return function() {
+        const context = this;
+        const args = arguments;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            func.apply(context, args);
+        }, wait);
+    };
 }
