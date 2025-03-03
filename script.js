@@ -940,9 +940,6 @@ function updateChatMessages() {
     } else {
         messagesContainer.innerHTML = messages.map(message => createMessageHTML(message)).join('');
         
-        // Set up message interactions (hover on desktop, long-press on mobile)
-        setupMessageInteractions();
-        
         // Scroll to bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
@@ -1000,7 +997,6 @@ function createMessageHTML(message) {
                 class="flex justify-end w-full ${message.isDeleted ? 'opacity-60' : ''}"
                 onmouseenter="showMessageActions('${message.id}')"
                 onmouseleave="hideMessageActions('${message.id}')"
-                data-message-id="${message.id}"
             >
                 <div class="message-container-user">
                     <div class="message-bubble user-message ${message.isDeleted ? 'deleted-message' : ''}">
@@ -1030,7 +1026,6 @@ function createMessageHTML(message) {
                 class="flex justify-start w-full ${message.isDeleted ? 'opacity-60' : ''}"
                 onmouseenter="showMessageActions('${message.id}')"
                 onmouseleave="hideMessageActions('${message.id}')"
-                data-message-id="${message.id}"
             >
                 <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1">
                     ${character.name.charAt(0).toUpperCase()}
@@ -1075,64 +1070,6 @@ function hideMessageActions(messageId) {
     if (deleteButton) {
         deleteButton.classList.add('hidden');
     }
-}
-
-// Long press variables for mobile
-let longPressTimer = null;
-let longPressActive = false;
-const LONG_PRESS_DURATION = 500; // ms
-
-// Setup touch events for message bubbles
-function setupMessageTouchEvents() {
-    console.log("Setting up message touch events");
-    
-    // Add long press event to message containers
-    document.querySelectorAll('.message-container-user, .message-container-character').forEach(container => {
-        // Get the parent element which has the message ID data
-        const messageElement = container.closest('[data-message-id]');
-        if (!messageElement) return;
-        
-        const messageId = messageElement.getAttribute('data-message-id');
-        if (!messageId) return;
-        
-        // Touch event handlers
-        container.addEventListener('touchstart', (e) => {
-            // Prevent default only for the message bubble, not for buttons inside it
-            if (e.target.classList.contains('message-bubble') || 
-                e.target.closest('.message-bubble') && !e.target.closest('button')) {
-                longPressTimer = setTimeout(() => {
-                    longPressActive = true;
-                    container.classList.add('long-press-active');
-                    showMessageActions(messageId);
-                }, LONG_PRESS_DURATION);
-            }
-        }, { passive: false });
-        
-        container.addEventListener('touchend', () => {
-            clearTimeout(longPressTimer);
-            if (longPressActive) {
-                // Prevent immediate hiding if we just showed via long press
-                setTimeout(() => {
-                    longPressActive = false;
-                    container.classList.remove('long-press-active');
-                }, 1500); // Keep delete button visible for a moment
-            }
-        });
-        
-        container.addEventListener('touchmove', () => {
-            clearTimeout(longPressTimer);
-            if (longPressActive) {
-                longPressActive = false;
-                container.classList.remove('long-press-active');
-                hideMessageActions(messageId);
-            }
-        });
-    });
-}
-
-// Call this function after messages are rendered
-function setupMessageInteractions() {
-    setupMessageTouchEvents();
 }
 
 function deleteMessage(messageId) {
