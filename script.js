@@ -303,6 +303,20 @@ function initializeSidebar() {
     function toggleSidebar() {
         sidebar.classList.toggle('sidebar-open');
         overlay.classList.toggle('active');
+        
+        // Ensure the sidebar is interactive when open
+        if (sidebar.classList.contains('sidebar-open')) {
+            // Set sidebar to be above the overlay
+            sidebar.style.zIndex = "50";
+            
+            // Make sure z-index is higher than overlay
+            const sidebarContent = document.getElementById('sidebar-characters');
+            if (sidebarContent) {
+                sidebarContent.style.zIndex = "51";
+                sidebarContent.style.position = "relative";
+                sidebarContent.style.background = "white";
+            }
+        }
     }
     
     // Function to adjust sidebar position based on header height
@@ -340,7 +354,14 @@ function initializeSidebar() {
     if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
     if (showCharactersBtn) showCharactersBtn.addEventListener('click', toggleSidebar);
     if (showChatSidebarBtn) showChatSidebarBtn.addEventListener('click', toggleSidebar);
-    overlay.addEventListener('click', toggleSidebar);
+
+    // Modified overlay click handler to prevent issues with sidebar interaction
+    overlay.addEventListener('click', function(e) {
+        // Prevent the click from closing the sidebar if the click is within the sidebar
+        if (e.target === overlay) {
+            toggleSidebar();
+        }
+    });
     
     // Close sidebar on chat start in mobile view
     const originalStartChat = startChat;
