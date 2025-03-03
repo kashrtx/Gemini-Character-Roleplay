@@ -4,7 +4,7 @@ An interactive web application that allows users to create AI-powered characters
 
 ## Features
 
-- **Gemini API Integration**: Utilizes Google's Gemini Flash 2.0 API for generating high-quality, contextually relevant character responses.
+- **Gemini API Integration**: Utilizes Google's Gemini Pro API for generating high-quality, contextually relevant character responses.
 - **Character Creation & Management**: Create, enhance, and manage AI characters with detailed profiles.
 - **iMessage-like Chat Interface**: Clean, modern chat UI inspired by Apple's iMessage design.
 - **Multi-Character Conversations**: Add multiple characters to a single chat for group interactions.
@@ -16,25 +16,12 @@ An interactive web application that allows users to create AI-powered characters
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (for running the server)
+- A modern web browser (Chrome, Firefox, Safari, or Edge)
 - A Google Gemini API key from [Google AI Studio](https://aistudio.google.com/)
-
-### Installation
-
-1. Clone this repository or download the code
-2. Install the dependencies:
-   ```
-   npm install
-   ```
-3. Start the server:
-   ```
-   npm start
-   ```
-4. Open your browser and go to `http://localhost:3000`
 
 ### Running the Application
 
-1. Open `http://localhost:3000` in your web browser.
+1. Open `index.html` in your web browser.
 2. Go to the Settings tab and enter your Google Gemini API key.
 3. Navigate to the Characters tab to create your first character.
 4. Go to the Chat tab, select one or more characters, and start chatting!
@@ -72,21 +59,12 @@ An interactive web application that allows users to create AI-powered characters
 
 This application runs entirely in your browser. Your API key and conversation data are stored locally and are never sent to any server other than Google's API endpoints. The application uses localStorage to save your data between sessions.
 
-## Troubleshooting
-
-If you experience issues with the application:
-
-1. Check the browser console for any error messages
-2. Ensure your API key is correctly entered in the Settings tab
-3. Make sure localStorage is enabled in your browser
-4. Try clearing your browser cache and reloading the page
-
 ## License
 
 This project is open-source and available under the MIT License.
 
 ## Acknowledgements
 
+- Built with React.js and Tailwind CSS
 - Uses the Google Gemini API for AI text generation
 - Icons provided by Font Awesome
-- UI elements styled with Tailwind CSS
