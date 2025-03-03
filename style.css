@@ -1091,3 +1091,37 @@ button[id^="delete-msg-"] {
         font-size: 0.8rem;
     }
 }
+
+/* iOS-specific adjustments for the chat input container */
+@supports (-webkit-touch-callout: none) {
+    /* iOS only - move input container higher to avoid browser tab overlay */
+    #chat-window > div:last-of-type,
+    .chat-input-container {
+        bottom: calc(30px + env(safe-area-inset-bottom, 0px)) !important; /* Use safe area inset if available */
+        padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important; /* Add padding at bottom */
+        max-height: none !important; /* Ensure full height is available */
+        z-index: 1000 !important; /* Ensure it stays above other elements */
+    }
+    
+    /* Add extra padding to the chat messages to ensure content isn't hidden behind the input */
+    #chat-messages {
+        padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important; /* Account for safe area */
+    }
+    
+    /* Handle different device sizes */
+    @media (max-height: 700px) {
+        /* Smaller iOS devices or landscape mode */
+        #chat-window > div:last-of-type,
+        .chat-input-container {
+            bottom: calc(25px + env(safe-area-inset-bottom, 0px)) !important;
+        }
+    }
+    
+    @media (min-height: 800px) {
+        /* Taller iOS devices (newer models) */
+        #chat-window > div:last-of-type,
+        .chat-input-container {
+            bottom: calc(40px + env(safe-area-inset-bottom, 0px)) !important;
+        }
+    }
+}
