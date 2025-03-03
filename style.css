@@ -879,19 +879,3 @@ header nav button {
         flex-direction: column;
     }
 }
-
-@media (max-width: 640px) {
-    .p-4.bg-white.border-t {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        z-index: 50;
-        background-color: white; /* Ensure background is not transparent */
-    }
-
-    #chat-messages {
-        max-height: calc(100vh - 120px); /* Adjust message area height */
-        overflow-y: auto;
-    }
-}
