@@ -179,11 +179,52 @@ main {
     }
 
     #character-sidebar {
-        top: 46px; /* Adjust for smaller header in mobile view */
-        max-height: calc(100vh - 46px); /* Update max height for smaller header */
-        height: calc(100vh - 46px); /* Fixed height for smaller header */
+        position: fixed;
+        left: 0;
+        top: 56px; /* Reduced height for header */
+        bottom: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+        width: 280px;
+        background: white;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        overflow-y: auto; /* Ensure content is scrollable */
+        max-height: calc(100vh - 56px); /* Reduced height from header */
+        height: calc(100vh - 56px); /* Fixed height to prevent resizing */
+        position: fixed !important; /* Ensure it stays fixed regardless of other styles */
+        transition: transform 0.3s ease-in-out;
     }
     
+    #character-sidebar.sidebar-open {
+        transform: translateX(0) !important;
+    }
+
+    /* Additional styles for scrollable sidebar content */
+    #sidebar-characters {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch; /* For smoother scrolling on iOS */
+        padding-bottom: 50px; /* Add padding at the bottom for better mobile scrolling */
+    }
+
+    /* Ensure that the characters inside the sidebar are clickable */
+    #sidebar-characters > div,
+    #sidebar-characters > div > * {
+        pointer-events: auto !important;
+        position: relative !important;
+        z-index: 1001 !important; /* Higher than sidebar */
+    }
+    
+    /* Fix the overlay to prevent it from blocking interaction */
+    .sidebar-overlay.active {
+        z-index: 999 !important; /* Lower than the sidebar but higher than the rest */
+    }
+    
+    /* Ensure toggle buttons are visible and clickable */
+    #toggle-sidebar-btn {
+        position: relative;
+        z-index: 1002 !important; /* Higher than everything */
+    }
+
     /* Adjust padding for fixed header in mobile */
     main {
         padding-top: 46px; /* Mobile header height */
@@ -1066,4 +1107,54 @@ header nav button {
             padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
         }
     }
+}
+
+/* iOS-specific fixes */
+body.ios-device #character-sidebar {
+    -webkit-overflow-scrolling: touch !important;
+}
+
+body.ios-device #sidebar-characters {
+    padding-bottom: 100px !important;
+}
+
+body.ios-device #sidebar-characters > div {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    cursor: pointer !important;
+    position: relative !important;
+    z-index: 1100 !important;
+    padding: 12px !important; /* Larger touch target */
+}
+
+/* Make the entire character item clickable */
+#sidebar-characters > div {
+    position: relative;
+}
+
+#sidebar-characters > div::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+}
+
+/* Ensure the overlay doesn't block touch events for character items */
+.sidebar-overlay.active {
+    z-index: 999 !important;
+}
+
+#character-sidebar {
+    z-index: 1000 !important;
+}
+
+/* Fix iOS scrolling on other sections */
+body.ios-device #settings-view,
+body.ios-device #characters-view {
+    -webkit-overflow-scrolling: touch !important;
+    overflow-y: auto !important;
+    padding-bottom: 120px !important;
 }
