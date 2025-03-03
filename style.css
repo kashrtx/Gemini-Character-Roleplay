@@ -225,6 +225,8 @@ main {
 
     #message-input {
         font-size: 16px; /* Prevent zoom on mobile */
+        padding: 8px;
+        min-height: 40px;
     }
 
     /* Adjust header for mobile */
