@@ -446,13 +446,6 @@ html, body {
     flex-shrink: 0; /* Prevent flexbox from shrinking this element */
 }
 
-/* Message deletion mark */
-.deleted-message {
-    opacity: 0.6;
-    text-decoration: line-through;
-    font-style: italic;
-}
-
 /* Smooth loading animations */
 .fade-in {
     animation: fadeIn 0.3s ease-in;

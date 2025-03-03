@@ -938,7 +938,18 @@ function updateChatMessages() {
             </div>
         `;
     } else {
-        messagesContainer.innerHTML = messages.map(message => createMessageHTML(message)).join('');
+        // Filter out deleted messages
+        const visibleMessages = messages.filter(message => !message.isDeleted);
+        
+        if (visibleMessages.length === 0) {
+            messagesContainer.innerHTML = `
+                <div class="text-center text-gray-500 mt-8">
+                    <p>No messages in this conversation. Start chatting!</p>
+                </div>
+            `;
+        } else {
+            messagesContainer.innerHTML = visibleMessages.map(message => createMessageHTML(message)).join('');
+        }
         
         // Scroll to bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -994,23 +1005,21 @@ function createMessageHTML(message) {
         // User message - right aligned
         return `
             <div 
-                class="flex justify-end w-full ${message.isDeleted ? 'opacity-60' : ''}"
+                class="flex justify-end w-full"
                 onmouseenter="showMessageActions('${message.id}')"
                 onmouseleave="hideMessageActions('${message.id}')"
             >
                 <div class="message-container-user">
-                    <div class="message-bubble user-message ${message.isDeleted ? 'deleted-message' : ''}">
-                        ${message.isDeleted ? message.content : processContent(message.content)}
+                    <div class="message-bubble user-message">
+                        ${processContent(message.content)}
                         
-                        ${!message.isDeleted ? `
-                            <button
-                                id="delete-msg-${message.id}"
-                                onclick="deleteMessage('${message.id}')"
-                                class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
-                            >
-                                <i class="fas fa-times text-xs"></i>
-                            </button>
-                        ` : ''}
+                        <button
+                            id="delete-msg-${message.id}"
+                            onclick="deleteMessage('${message.id}')"
+                            class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
+                        >
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
                     </div>
                     
                     <div class="text-xs text-gray-500 mt-1 text-right mr-2">
@@ -1023,7 +1032,7 @@ function createMessageHTML(message) {
         // Character message - left aligned
         return `
             <div 
-                class="flex justify-start w-full ${message.isDeleted ? 'opacity-60' : ''}"
+                class="flex justify-start w-full"
                 onmouseenter="showMessageActions('${message.id}')"
                 onmouseleave="hideMessageActions('${message.id}')"
             >
@@ -1034,18 +1043,16 @@ function createMessageHTML(message) {
                 <div class="message-container-character">
                     <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
                 
-                    <div class="message-bubble character-message ${message.isDeleted ? 'deleted-message' : ''}">
-                        ${message.isDeleted ? message.content : processContent(message.content)}
+                    <div class="message-bubble character-message">
+                        ${processContent(message.content)}
                         
-                        ${!message.isDeleted ? `
-                            <button
-                                id="delete-msg-${message.id}"
-                                onclick="deleteMessage('${message.id}')"
-                                class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
-                            >
-                                <i class="fas fa-times text-xs"></i>
-                            </button>
-                        ` : ''}
+                        <button
+                            id="delete-msg-${message.id}"
+                            onclick="deleteMessage('${message.id}')"
+                            class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
+                        >
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
                     </div>
                     
                     <div class="text-xs text-gray-500 mt-1 ml-2">
@@ -1281,10 +1288,17 @@ function removeTypingIndicator(typingMsgId) {
 // Context preparation for chat
 function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
     // Base context with character information and roleplay instructions
-    let context = `You are now roleplaying as ${character.name}. Immerse yourself completely in this character.
+    let context = `You are now roleplaying as ${character.name}. This is NOT a simulation. You ARE ${character.name}. 
+Your responses should maintain the character's personality, speech patterns, and knowledge at all times.
 
 CHARACTER PROFILE:
-${character.enhancedContext || character.userContext}
+Name of character: ${character.name}
+${character.enhancedContext 
+    ? `Enhanced Character Profile: ${character.enhancedContext}\n`
+    : `Character Description: ${character.userContext}\n`}
+${character.enhancedContext && character.userContext 
+    ? `Additional User-Provided Details: ${character.userContext}\n` 
+    : ''}
 
 ROLEPLAY GUIDELINES:
 1. BE the character - think, feel, and respond as they would naturally.
@@ -1294,13 +1308,15 @@ ROLEPLAY GUIDELINES:
 5. Avoid being defensive or overly cautious - respond naturally as the character would.
 6. Use emotes and actions sparingly and only when they add value to the interaction.
 7. Keep responses concise but meaningful, focusing on quality interaction.
+8. You may refer to knowledge from the wiki and general lore of the original work to make you more accurate.
 
 CONVERSATION STYLE:
-- Be natural and conversational
+- Be natural and conversational, act like you are actually that character
 - Show appropriate emotions and reactions
 - Maintain consistent personality
 - Adapt to the user's conversation style
 - Stay in character without being rigid
+- Do not keep asking questions or repeating quotes from the user.
 `;
     
     // Add group chat context if needed
@@ -1308,12 +1324,20 @@ CONVERSATION STYLE:
         context += "\nCONVERSATION PARTICIPANTS:\nYou are in a conversation with:\n";
         activeCharacters.forEach(char => {
             if (char.id !== character.id) {
-                context += `- ${char.name}: ${char.userContext}\n`;
+                context += `- ${char.name}: ${char.enhancedContext 
+                    ? `${char.name} is ${summarizeContext(char.enhancedContext, 100)}`
+                    : `${char.userContext}`}\n`;
             }
         });
     }
     
     return context;
+}
+
+// Helper function to summarize long context for group chats
+function summarizeContext(context, maxLength = 100) {
+    if (context.length <= maxLength) return context;
+    return context.substring(0, maxLength) + "...";
 }
 
 // Convert history to the format expected by Gemini API
@@ -1784,24 +1808,28 @@ function showSuccess(message, duration = 3000) {
 async function callEnhanceAPI(characterName, userContext) {
     const prompt = `
 You are an expert character developer for roleplaying. Transform this brief character description into a detailed character profile that can guide an AI in consistently roleplaying as this character.
-
+Fill in the details about but dont sound like the character, because this is for generating a character context which will be used to roleplay with the user.
 CHARACTER NAME: "${characterName}"
 
-BRIEF DESCRIPTION:
+BRIEF DESCRIPTION (that user provided that needs to be enhanced with more critical details):
 "${userContext}"
 
 CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
-1. Personality traits, values and beliefs
-2. Speech patterns and typical phrases
-3. Background information and key life events
-4. Motivations and goals
-5. Relationships and social dynamics
-6. How they respond to different situations
-7. Physical appearance if relevant
+1. Personality traits with specific behavioral examples
+2. Distinctive speech patterns, vocabulary choices, and verbal tics
+3. Background information and formative experiences that shaped them
+4. Core motivations, values, and life goals
+5. Key relationships and how they interact with different types of people
+6. Emotional responses to various situations (angry, happy, stressed, etc.)
+7. Physical appearance and mannerisms if relevant
+8. Skills, knowledge areas, and expertise
+9. Fears, insecurities, and internal conflicts
 
 FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE.
-Make the character talk naturally to the user like they are really them! 
-Write in third person, approximately 300-400 words.
+Make the character feel authentic and three-dimensional with consistent traits.
+Include specific examples of how they would speak and react.
+Write in third person, approximately 400-500 words.
+Focus on depth and specificity rather than generic descriptions.
 `;
 
     try {
