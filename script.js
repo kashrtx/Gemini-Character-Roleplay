@@ -1,9 +1,15 @@
 // Constants
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent";
 const STORAGE_KEYS = {
     API_KEY: "gemini_api_key",
     CHARACTERS: "gemini_characters",
     CHATS: "gemini_chats",
+    SETTINGS: "gemini_settings",
+};
+
+// App Settings
+let appSettings = {
+    allowGroupChats: false
 };
 
 // App State
@@ -14,7 +20,64 @@ let state = {
     activeCharacters: [],
     activeChat: null,
     selectedCharacters: [], // For character selection in sidebar
+    geminiModel: null, // Store the model reference
+    isApiConnected: false // Track API connection status
 };
+
+// Add Gemini AI SDK
+// Dynamically load the Gemini AI SDK
+function loadGeminiSDK() {
+    return new Promise((resolve, reject) => {
+        if (window.GoogleGenerativeAI) {
+            resolve(window.GoogleGenerativeAI);
+            return;
+        }
+
+        // Use the official Gemini CDN URL
+        const script = document.createElement('script');
+        script.src = "https://cdn.jsdelivr.net/npm/@google/generative-ai@0.1.3/dist/index.min.js";
+        script.async = true;
+        script.onload = () => {
+            console.log("Gemini SDK loaded successfully");
+            resolve(window.GoogleGenerativeAI);
+        };
+        script.onerror = () => {
+            console.error("Failed to load Gemini SDK from CDN");
+            reject(new Error("Failed to load Gemini SDK"));
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// Initialize Gemini API
+async function initializeGeminiAPI() {
+    if (!state.apiKey) {
+        console.log("No API key available");
+        return false;
+    }
+
+    try {
+        const { GoogleGenerativeAI } = await import("https://esm.run/@google/generative-ai");
+
+        // Create the Gemini instance
+        const genAI = new GoogleGenerativeAI(state.apiKey);
+
+        // Get model and store it in state.  Crucially, select the model you want HERE.
+        state.geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); //  Use gemini-1.5-flash, or gemini-1.5-pro, as appropriate.
+
+        // Test the API connection.  Good practice to have a simple test.
+        const result = await state.geminiModel.generateContent("Hello, testing Gemini API connection.");
+        console.log("API connection test successful:", result.response.text().substring(0, 20) + "...");
+
+        state.isApiConnected = true;
+        return true;
+    } catch (error) {
+        console.error("Failed to initialize Gemini API:", error);
+        showError(`Failed to connect to Gemini API: ${error.message}`);
+        state.isApiConnected = false;
+        return false;
+    }
+}
 
 // Helper functions
 const generateUniqueId = () => Math.random().toString(36).substring(2, 11);
@@ -40,75 +103,258 @@ const setStoredItem = (key, value) => {
 };
 
 // Initialize app
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log("DOM fully loaded - initializing app");
+    
     // Load data from localStorage
     loadStoredData();
+
+    // Initialize views
+    changeView('chat');
+    
+    // Update character lists
+    updateCharacterLists();
     
     // Set up event listeners
     setupEventListeners();
     
+    // Add direct event listeners for critical functionality
+    setupDirectListeners();
+    
     // Show API warning if needed
     checkApiKey();
     
-    // Initialize views
-    changeView('chat');
-    updateCharacterLists();
+    // Initialize Gemini API if key is available
+    if (state.apiKey) {
+        try {
+            const success = await initializeGeminiAPI();
+            if (success) {
+                console.log("Gemini API initialized successfully");
+                // Update UI to show connection status
+                const apiWarning = document.getElementById('api-warning');
+                if (apiWarning) {
+                    apiWarning.classList.add('hidden');
+                }
+                // Show success message
+                showSuccess("API connected successfully", 3000);
+            }
+        } catch (error) {
+            console.error("Error initializing Gemini API:", error);
+        }
+    }
+
+    // Set up test chat form for easier testing
+    setupTestChatForm();
 });
+
+// Set up direct click handlers that don't rely on generated HTML
+function setupDirectListeners() {
+    // Menu buttons
+    document.querySelectorAll('[id$="-btn"]').forEach(button => {
+        if (button.id === 'chat-btn') {
+            button.addEventListener('click', () => changeView('chat'));
+        } else if (button.id === 'characters-btn') {
+            button.addEventListener('click', () => changeView('characters'));
+        } else if (button.id === 'settings-btn') {
+            button.addEventListener('click', () => changeView('settings'));
+        } else if (button.id === 'test-chat-btn') {
+            button.addEventListener('click', () => forceOpenChat());
+        }
+    });
+
+    // Character create button
+    const createCharBtn = document.getElementById('create-character-btn');
+    if (createCharBtn) {
+        createCharBtn.addEventListener('click', createNewCharacter);
+    }
+
+    // Error dismiss button
+    const errorContainer = document.getElementById('error-container');
+    if (errorContainer) {
+        errorContainer.querySelector('button').addEventListener('click', dismissError);
+    }
+}
+
+// Set up a fallback chat form handler for testing
+function setupTestChatForm() {
+    const chatForm = document.getElementById('chat-form');
+    if (chatForm) {
+        // Remove existing listeners and add test listener
+        const clonedForm = chatForm.cloneNode(true);
+        chatForm.parentNode.replaceChild(clonedForm, chatForm);
+        
+        clonedForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log("Chat form submitted via test handler");
+            
+            // Use API function if connected, otherwise fall back to test
+            if (state.isApiConnected && state.apiKey) {
+                sendMessage();
+            } else {
+                testSendMessage();
+            }
+        });
+    }
+}
 
 // Load data from localStorage
 function loadStoredData() {
+    // Load API key
     state.apiKey = getStoredItem(STORAGE_KEYS.API_KEY, "");
+    
+    // Load characters and chats
     state.characters = getStoredItem(STORAGE_KEYS.CHARACTERS, []);
     state.chats = getStoredItem(STORAGE_KEYS.CHATS, {});
     
-    // Update API key input
-    document.getElementById('api-key-input').value = state.apiKey;
+    // Load app settings
+    const storedSettings = getStoredItem(STORAGE_KEYS.SETTINGS, null);
+    if (storedSettings) {
+        appSettings = {...appSettings, ...storedSettings};
+    }
+    
+    // Set up the UI based on loaded data
+    const apiKeyInput = document.getElementById('api-key-input');
+    if (apiKeyInput && state.apiKey) {
+        apiKeyInput.value = state.apiKey;
+    }
+    
+    // Set the group chat checkbox state
+    const groupChatCheckbox = document.getElementById('allow-group-chats');
+    if (groupChatCheckbox) {
+        groupChatCheckbox.checked = appSettings.allowGroupChats;
+    }
 }
 
 // Set up event listeners
 function setupEventListeners() {
     // Chat form submission
-    document.getElementById('chat-form').addEventListener('submit', (e) => {
+    const chatForm = document.getElementById('chat-form');
+    if (chatForm) {
+        chatForm.addEventListener('submit', (e) => {
         e.preventDefault();
         sendMessage();
     });
+    }
+
+    // Make sidebar character items clickable
+    updateSidebarCharacterListeners();
+    
+    // Save API Key button
+    const saveButton = document.getElementById('save-api-key-btn');
+    if (saveButton) {
+        saveButton.addEventListener('click', saveApiKey);
+    } else {
+        // If no save button, implement API key input event listener
+        const apiKeyInput = document.getElementById('api-key-input');
+        if (apiKeyInput) {
+            apiKeyInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveApiKey();
+                }
+            });
+        }
+    }
+
+    // Add other event listeners as needed, e.g., for creating characters, deleting, etc.
+    const createCharBtn = document.getElementById('create-character-btn');
+    if (createCharBtn) {
+        createCharBtn.addEventListener('click', createNewCharacter);
+    }
+}
+
+// Update sidebar character event listeners
+function updateSidebarCharacterListeners() {
+    console.log("Updating sidebar character listeners"); // Debug log
+
+    // This ensures characters are clickable even if onclick attribute doesn't work
+    state.characters.forEach(character => {
+        const element = document.getElementById(`sidebar-char-${character.id}`);
+        if (element) {
+            // Remove old event listener to avoid duplicates
+            const newElement = element.cloneNode(true);
+            element.parentNode.replaceChild(newElement, element);
+
+            // Add fresh event listener
+            newElement.addEventListener('click', function(event) {
+                event.preventDefault();
+                console.log("Character clicked via event listener:", character.id);
+                toggleCharacterSelection(character.id);
+            });
+        } else {
+            console.warn(`Sidebar character element for ${character.id} not found`);
+        }
+    });
+
+    // Also make sure the Start Chat button has its event listener
+    const startChatBtn = document.getElementById('start-chat-btn');
+    if (startChatBtn) {
+        // Remove old listener to prevent duplicates
+        const newBtn = startChatBtn.cloneNode(true);
+        startChatBtn.parentNode.replaceChild(newBtn, startChatBtn);
+
+        // Add fresh listener
+        newBtn.addEventListener('click', function(event) {
+            event.preventDefault();
+            console.log("Start chat button clicked via event listener");
+            startChat();
+        });
+    } else {
+        console.warn("Start chat button not found");
+    }
 }
 
 // View management
 function changeView(viewName) {
     // Hide all views
-    document.getElementById('chat-view').classList.add('hidden');
-    document.getElementById('characters-view').classList.add('hidden');
-    document.getElementById('settings-view').classList.add('hidden');
+    const views = ['chat-view', 'characters-view', 'settings-view'];
+    views.forEach(view => {
+        const element = document.getElementById(view);
+        if (element) element.classList.add('hidden');
+    });
     
     // Reset active buttons
-    document.getElementById('chat-btn').classList.remove('bg-white', 'text-primary');
-    document.getElementById('chat-btn').classList.add('text-white');
-    document.getElementById('characters-btn').classList.remove('bg-white', 'text-primary');
-    document.getElementById('characters-btn').classList.add('text-white');
-    document.getElementById('settings-btn').classList.remove('bg-white', 'text-primary');
-    document.getElementById('settings-btn').classList.add('text-white');
+    const buttons = ['chat-btn', 'characters-btn', 'settings-btn'];
+    buttons.forEach(btn => {
+        const element = document.getElementById(btn);
+        if (element) {
+            element.classList.remove('bg-white', 'text-primary');
+            element.classList.add('text-white');
+        }
+    });
     
     // Show selected view and activate button
     if (viewName === 'chat') {
-        document.getElementById('chat-view').classList.remove('hidden');
-        document.getElementById('chat-btn').classList.remove('text-white');
-        document.getElementById('chat-btn').classList.add('bg-white', 'text-primary');
+        const view = document.getElementById('chat-view');
+        const btn = document.getElementById('chat-btn');
+        if (view) view.classList.remove('hidden');
+        if (btn) {
+            btn.classList.remove('text-white');
+            btn.classList.add('bg-white', 'text-primary');
+        }
     } else if (viewName === 'characters') {
-        document.getElementById('characters-view').classList.remove('hidden');
-        document.getElementById('characters-btn').classList.remove('text-white');
-        document.getElementById('characters-btn').classList.add('bg-white', 'text-primary');
+        const view = document.getElementById('characters-view');
+        const btn = document.getElementById('characters-btn');
+        if (view) view.classList.remove('hidden');
+        if (btn) {
+            btn.classList.remove('text-white');
+            btn.classList.add('bg-white', 'text-primary');
+        }
     } else if (viewName === 'settings') {
-        document.getElementById('settings-view').classList.remove('hidden');
-        document.getElementById('settings-btn').classList.remove('text-white');
-        document.getElementById('settings-btn').classList.add('bg-white', 'text-primary');
+        const view = document.getElementById('settings-view');
+        const btn = document.getElementById('settings-btn');
+        if (view) view.classList.remove('hidden');
+        if (btn) {
+            btn.classList.remove('text-white');
+            btn.classList.add('bg-white', 'text-primary');
+        }
     }
 }
 
-// Check if API key is set
+// Check if API key is set and working
 function checkApiKey() {
     const warningElement = document.getElementById('api-warning');
-    if (!state.apiKey) {
+    if (!state.apiKey || !state.isApiConnected) {
         warningElement.classList.remove('hidden');
     } else {
         warningElement.classList.add('hidden');
@@ -116,17 +362,27 @@ function checkApiKey() {
 }
 
 // Save API key
-function saveApiKey() {
+async function saveApiKey() {
     const apiKeyInput = document.getElementById('api-key-input');
     state.apiKey = apiKeyInput.value.trim();
     setStoredItem(STORAGE_KEYS.API_KEY, state.apiKey);
     
-    // Show success message
+    // Test API connection with new key
+    const success = await initializeGeminiAPI();
+    
+    // Show result message
     const savedMessage = document.getElementById('api-saved');
+    if (savedMessage) {
+        if (success) {
+            savedMessage.textContent = "API key saved and connected successfully";
+        } else {
+            savedMessage.textContent = "API key saved but connection failed";
+        }
     savedMessage.classList.remove('hidden');
     setTimeout(() => {
         savedMessage.classList.add('hidden');
-    }, 2000);
+        }, 3000);
+    }
     
     // Update API warning
     checkApiKey();
@@ -137,27 +393,50 @@ function showError(message) {
     const errorContainer = document.getElementById('error-container');
     const errorMessage = document.getElementById('error-message');
     
+    if (errorContainer && errorMessage) {
     errorMessage.textContent = message;
     errorContainer.classList.remove('hidden');
+    } else {
+        console.error("Error:", message);
+        alert(message); // Fallback if error container not found
+    }
 }
 
 function dismissError() {
-    document.getElementById('error-container').classList.add('hidden');
+    const errorContainer = document.getElementById('error-container');
+    if (errorContainer) {
+        errorContainer.classList.add('hidden');
+    }
 }
 
 // Character management
 function createNewCharacter() {
+    // Get input fields
     const nameInput = document.getElementById('character-name');
     const contextInput = document.getElementById('character-context');
+    
+    if (!nameInput || !contextInput) {
+        showError("Character creation form elements not found");
+        return;
+    }
     
     const name = nameInput.value.trim();
     const context = contextInput.value.trim();
     
-    if (!name || !context) {
-        showError("Please provide both a name and context for your character.");
-        return;
+    // Better validation with more specific error messages
+    if (name === '') {
+        showError("Please provide a name for your character");
+        nameInput.focus();
+        return false;
     }
     
+    if (context === '') {
+        showError("Please provide context for your character");
+        contextInput.focus();
+        return false;
+    }
+
+    // Create new character
     const newCharacter = {
         id: generateUniqueId(),
         name,
@@ -166,102 +445,59 @@ function createNewCharacter() {
         createdAt: new Date().toISOString(),
     };
     
+    console.log("Creating new character:", newCharacter);
+
+    // Add to state and save
     state.characters.push(newCharacter);
     setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
     
-    // Clear inputs
+    // Clear inputs AFTER validation and saving
     nameInput.value = '';
     contextInput.value = '';
     
-    // Update character lists
-    updateCharacterLists();
-}
-
-function enhanceCharacterContext(characterId) {
-    if (!state.apiKey) {
-        showError("Please set your Gemini API key in settings first");
-        return;
-    }
+    // Show success message
+    showSuccess(`Character "${name}" created successfully!`);
     
-    const character = state.characters.find(c => c.id === characterId);
-    if (!character) return;
-    
-    // Update UI to show enhancing status
-    const enhanceButton = document.querySelector(`#enhance-btn-${characterId}`);
-    enhanceButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Enhancing...';
-    enhanceButton.disabled = true;
-    
-    // Call API
-    callEnhanceAPI(character.userContext)
-        .then(enhancedContext => {
-            // Update character
-            character.enhancedContext = enhancedContext;
-            setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
-            
-            // Update UI
+    // Full UI update
             updateCharacterLists();
-        })
-        .catch(error => {
-            showError(`Failed to enhance character: ${error.message}`);
-            
-            // Reset button
-            enhanceButton.innerHTML = '<i class="fas fa-magic mr-1"></i> Enhance Context';
-            enhanceButton.disabled = false;
-        });
-}
-
-async function callEnhanceAPI(userContext) {
-    const prompt = `
-        You are an expert character developer. Please transform the following brief character description into a detailed, rich character profile that can be used to guide an AI in roleplaying this character consistently. Include personality traits, speech patterns, background details, motivations, and typical behaviors.
-        
-        Brief description: "${userContext}"
-        
-        Provide a comprehensive and nuanced character profile (around 300-400 words):
-    `;
-
-    return await callGeminiAPI(state.apiKey, prompt, 0.8);
-}
-
-function deleteCharacter(characterId) {
-    // Remove from characters array
-    state.characters = state.characters.filter(c => c.id !== characterId);
-    setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
     
-    // Remove from selected characters
-    state.selectedCharacters = state.selectedCharacters.filter(id => id !== characterId);
-    
-    // Remove from active characters if present
-    state.activeCharacters = state.activeCharacters.filter(c => c.id !== characterId);
-    
-    // Remove associated chats
-    for (const chatId in state.chats) {
-        if (chatId.includes(characterId)) {
-            delete state.chats[chatId];
-        }
+    // If we're not on the characters view, switch to it to show the new character
+    if (!document.getElementById('characters-view').classList.contains('hidden')) {
+        changeView('characters');
     }
-    setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     
-    // Update UI
-    updateCharacterLists();
+    return true;
 }
 
-function updateCharacterLists() {
-    // Update character list in Characters view
-    const characterListContainer = document.getElementById('character-list');
-    const noCharactersEl = document.getElementById('no-characters');
+// Helper function to set up event listeners for character items
+function setupCharacterItemListeners() {
+    // Set up enhance button event listeners
+    document.querySelectorAll('[id^="enhance-btn-"]').forEach(button => {
+        const characterId = button.id.replace('enhance-btn-', '');
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            enhanceCharacterContext(characterId);
+        });
+    });
     
-    if (state.characters.length === 0) {
-        noCharactersEl.classList.remove('hidden');
-        characterListContainer.innerHTML = '';
-    } else {
-        noCharactersEl.classList.add('hidden');
-        
-        characterListContainer.innerHTML = state.characters.map(character => `
-            <div class="border rounded-lg p-4 hover:shadow-md transition">
+    // Set up delete button event listeners
+    document.querySelectorAll('[id^="delete-btn-"]').forEach(button => {
+        const characterId = button.id.replace('delete-btn-', '');
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            deleteCharacter(characterId);
+        });
+    });
+}
+
+// Function to generate HTML for character list
+function generateCharacterListHTML() {
+    return state.characters.map(character => `
+        <div class="border rounded-lg p-4 hover:shadow-md transition" id="character-item-${character.id}">
                 <div class="flex justify-between items-start">
                     <h3 class="font-bold text-lg">${character.name}</h3>
                     <button
-                        onclick="deleteCharacter('${character.id}')"
+                    id="delete-btn-${character.id}"
                         class="text-red-500 hover:text-red-700"
                         title="Delete character"
                     >
@@ -275,7 +511,7 @@ function updateCharacterLists() {
                 </div>
                 
                 ${character.enhancedContext ? `
-                    <div class="mt-3 bg-gray-50 p-2 rounded">
+                <div class="mt-3 bg-gray-50 p-2 rounded enhanced-context" id="enhanced-context-${character.id}">
                         <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
                         <p class="text-gray-600 text-sm mt-1 line-clamp-3">${character.enhancedContext.substring(0, 150)}...</p>
                     </div>
@@ -284,20 +520,27 @@ function updateCharacterLists() {
                 <div class="mt-3">
                     <button
                         id="enhance-btn-${character.id}"
-                        onclick="enhanceCharacterContext('${character.id}')"
-                        ${!state.apiKey ? 'disabled' : ''}
                         class="text-sm bg-secondary text-white px-3 py-1 rounded hover:bg-secondary/90 transition disabled:bg-gray-400"
+                    ${!state.apiKey ? 'disabled' : ''}
                     >
-                        <i class="fas fa-magic mr-1"></i> Enhance Context
+                    <i class="fas fa-magic mr-1"></i> ${character.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context'}
                     </button>
                 </div>
             </div>
         `).join('');
     }
     
-    // Update sidebar character list
+// Function to update just the sidebar character list
+function updateSidebarCharacters() {
+    console.log("Updating sidebar characters list");
     const sidebarCharactersContainer = document.getElementById('sidebar-characters');
     
+    if (!sidebarCharactersContainer) {
+        console.error("Sidebar characters container not found");
+        return;
+    }
+    
+    try {
     if (state.characters.length === 0) {
         sidebarCharactersContainer.innerHTML = `
             <p class="text-gray-500 italic p-4 text-sm">
@@ -305,10 +548,10 @@ function updateCharacterLists() {
             </p>
         `;
     } else {
-        sidebarCharactersContainer.innerHTML = state.characters.map(character => `
+            const sidebarHTML = state.characters.map(character => `
             <div 
                 id="sidebar-char-${character.id}"
-                onclick="toggleCharacterSelection('${character.id}')"
+                    data-character-id="${character.id}"
                 class="p-3 rounded mb-2 cursor-pointer character-item ${
                     state.selectedCharacters.includes(character.id)
                         ? 'bg-primary/10 border-primary/30 border' 
@@ -325,36 +568,114 @@ function updateCharacterLists() {
                 </div>
             </div>
         `).join('');
+
+            // Use innerHTML for the sidebar update
+            sidebarCharactersContainer.innerHTML = sidebarHTML;
     }
     
-    // Update start chat button
+        // Setup event listeners for the sidebar characters
+        setupSidebarCharacterListeners();
+        
+        // Update Start Chat button state
     const startChatBtn = document.getElementById('start-chat-btn');
+        if (startChatBtn) {
     startChatBtn.disabled = state.selectedCharacters.length === 0;
-    startChatBtn.innerHTML = `
-        <i class="fas fa-comments mr-1"></i> 
-        ${state.activeCharacters.length > 0 ? 'Update Chat' : 'Start Chat'}
-    `;
+        }
+    } catch (error) {
+        console.error("Error updating sidebar characters:", error);
+    }
+}
+
+// Function to setup sidebar character listeners
+function setupSidebarCharacterListeners() {
+    console.log("Setting up sidebar character listeners");
+    
+    document.querySelectorAll('[id^="sidebar-char-"]').forEach(element => {
+        const characterId = element.getAttribute('data-character-id');
+        if (!characterId) {
+            console.warn("Character element without data-character-id:", element);
+            return;
+        }
+        
+        // Remove any existing event listeners by cloning and replacing
+        const newElement = element.cloneNode(true);
+        element.parentNode.replaceChild(newElement, element);
+        
+        // Add fresh event listener using the data attribute
+        newElement.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log("Character clicked in sidebar:", characterId);
+            toggleCharacterSelection(characterId);
+        });
+    });
+    
+    // Also set up the Start Chat button
+    const startChatBtn = document.getElementById('start-chat-btn');
+    if (startChatBtn) {
+        // Clone and replace to remove old listeners
+        const newBtn = startChatBtn.cloneNode(true);
+        startChatBtn.parentNode.replaceChild(newBtn, startChatBtn);
+        
+        // Add fresh listener
+        newBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log("Start chat button clicked");
+            startChat();
+        });
+    }
 }
 
 // Character selection in sidebar
 function toggleCharacterSelection(characterId) {
-    const index = state.selectedCharacters.indexOf(characterId);
+    console.log("Character selected:", characterId);
     
-    if (index === -1) {
-        // Add to selection
-        state.selectedCharacters.push(characterId);
-    } else {
-        // Remove from selection
-        state.selectedCharacters.splice(index, 1);
+    // Check if character exists
+    const character = state.characters.find(c => c.id === characterId);
+    if (!character) {
+        console.error("Character not found:", characterId);
+        return;
     }
     
-    // Update UI
-    updateCharacterLists();
+    // Handle selection based on group chat setting
+    if (!appSettings.allowGroupChats) {
+        // Single character mode - replace existing selection
+        state.selectedCharacters = [characterId];
+    } else {
+        // Group chat mode - toggle selection
+        if (state.selectedCharacters.includes(characterId)) {
+            state.selectedCharacters = state.selectedCharacters.filter(id => id !== characterId);
+        } else {
+        state.selectedCharacters.push(characterId);
+        }
+    }
+    
+    // Update Start Chat button state
+    const startChatBtn = document.getElementById('start-chat-btn');
+    if (startChatBtn) {
+        startChatBtn.disabled = state.selectedCharacters.length === 0;
+        if (!startChatBtn.disabled) {
+            startChatBtn.classList.remove('disabled:bg-gray-400');
+    } else {
+            startChatBtn.classList.add('disabled:bg-gray-400');
+        }
+    }
+    
+    // Update UI to reflect selection state
+    updateSidebarCharacters();
+    
+    // Auto-start chat in single character mode
+    if (!appSettings.allowGroupChats && state.selectedCharacters.length === 1) {
+        console.log("Auto-starting chat since character was selected");
+        startChat();
+    }
 }
 
 // Chat functionality
 function startChat() {
+    console.log("Start chat clicked", state.selectedCharacters); // Debug log
+
     if (state.selectedCharacters.length === 0) {
+        showError("Please select at least one character to chat with");
         return;
     }
     
@@ -371,20 +692,31 @@ function startChat() {
     // Update active characters
     state.activeCharacters = state.characters.filter(c => state.selectedCharacters.includes(c.id));
     
-    // Update UI
+    // Update UI - Make sure to switch to chat view first
+    changeView('chat');
     updateChatUI();
 }
 
 function updateChatUI() {
+    console.log("Updating chat UI"); // Debug log
+    
     // Hide placeholder, show chat window
-    document.getElementById('chat-placeholder').classList.add('hidden');
-    document.getElementById('chat-window').classList.remove('hidden');
+    const placeholder = document.getElementById('chat-placeholder');
+    const chatWindow = document.getElementById('chat-window');
+    
+    if (placeholder) placeholder.classList.add('hidden');
+    if (chatWindow) chatWindow.classList.remove('hidden');
     
     // Update chat header
     const characterNames = state.activeCharacters.map(c => c.name).join(', ');
-    document.getElementById('chat-header-title').textContent = characterNames;
-    document.getElementById('chat-header-subtitle').textContent = 
+    const headerTitle = document.getElementById('chat-header-title');
+    if (headerTitle) headerTitle.textContent = characterNames;
+    
+    const headerSubtitle = document.getElementById('chat-header-subtitle');
+    if (headerSubtitle) {
+        headerSubtitle.textContent = 
         state.activeCharacters.length > 1 ? 'Group conversation' : 'Private conversation';
+    }
     
     // Update messages
     updateChatMessages();
@@ -509,7 +841,7 @@ function clearChatMessages() {
     updateChatMessages();
 }
 
-function sendMessage() {
+async function sendMessage() {
     if (!state.apiKey) {
         showError("Please set your Gemini API key in settings first");
         return;
@@ -539,10 +871,10 @@ function sendMessage() {
     
     addMessage(userMsg);
     
-    // Get response from each character
-    state.activeCharacters.forEach(character => {
-        getCharacterResponse(character, userMsg);
-    });
+    // Get response from each character using async/await and Promise.all for concurrency.
+    await Promise.all(state.activeCharacters.map(async (character) => {
+        await getCharacterResponse(character, userMsg);
+    }));
 }
 
 function addMessage(message) {
@@ -561,6 +893,8 @@ function addMessage(message) {
 }
 
 async function getCharacterResponse(character, userMsg) {
+    console.log("Getting response from character:", character.name);
+    
     // Add typing indicator
     const typingMsg = {
         id: generateUniqueId(),
@@ -575,56 +909,136 @@ async function getCharacterResponse(character, userMsg) {
     addMessage(typingMsg);
     
     try {
-        // Prepare context
+        // Prepare context with roleplay instructions
         const context = prepareContextForAPI(
             character,
             [...(state.chats[state.activeChat] || [])],
             state.activeCharacters
         );
         
-        // Call API
-        const response = await callGeminiAPI(state.apiKey, context);
+        // Get the history but ensure we have at least one user message first
+        const chatHistory = state.chats[state.activeChat] || [];
+        const userMessages = chatHistory.filter(m => m.isUser && !m.isDeleted);
         
-        // Remove typing indicator and add actual response
-        const messages = state.chats[state.activeChat];
-        const typingIndex = messages.findIndex(m => m.id === typingMsg.id);
-        
-        if (typingIndex !== -1) {
-            messages.splice(typingIndex, 1);
-        }
-        
-        // Add actual response
+        if (userMessages.length === 0) {
+            console.log("No user messages yet, using a simplified approach");
+            // For the first message, we'll use a simpler approach
+            const result = await callGeminiAPI(context);
+            
+            // Remove typing indicator
+            removeTypingIndicator(typingMsg.id);
+            
+            // Add the response as a message
         addMessage({
             id: generateUniqueId(),
-            content: response,
+                content: result,
             isUser: false,
             characterId: character.id,
             timestamp: new Date().toISOString(),
             isDeleted: false,
         });
-    } catch (error) {
-        showError(`Failed to get response: ${error.message}`);
+            
+            return;
+        }
+        
+        // We have user messages, use the chat history approach
+        console.log("Using chat history approach for response");
+        const history = convertHistoryForGemini(chatHistory, character);
+        
+        // Create a chat with the history
+        const chat = state.geminiModel.startChat({
+            history: history,
+            generationConfig: {
+                temperature: 0.9,  // Adjust as needed
+                maxOutputTokens: 200, // Adjust as needed
+            }
+        });
         
         // Remove typing indicator
+        removeTypingIndicator(typingMsg.id);
+        
+        // Prepare for the new response
+        let fullResponse = "";
+        const responseMsg = {
+            id: generateUniqueId(),
+            content: "",
+            isUser: false,
+            characterId: character.id,
+            timestamp: new Date().toISOString(),
+            isDeleted: false,
+        };
+        
+        // Add the initial empty message
+        addMessage(responseMsg);
+        
+        // Send the message and stream the response
+        const result = await chat.sendMessageStream(context);
+        
+        for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            fullResponse += chunkText; // Accumulate the response
+
+            // Update the message with the latest chunk
+            updateMessageContent(responseMsg.id, fullResponse);
+        }
+        
+        console.log("Full response complete, length:", fullResponse.length);
+    } catch (error) {
+        console.error("Error getting character response:", error);
+        showError(`Failed to get response: ${error.message}`);
+        removeTypingIndicator(typingMsg.id);
+    }
+}
+        
+// Helper function to update message content
+function updateMessageContent(messageId, content) {
+    if (!state.activeChat) return;
+    
         const messages = state.chats[state.activeChat];
-        const typingIndex = messages.findIndex(m => m.id === typingMsg.id);
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    
+    if (messageIndex !== -1) {
+        messages[messageIndex].content = content;
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+        updateChatMessages();
+    }
+}
+
+// Helper function to find the typing indicator and remove it
+function removeTypingIndicator(typingMsgId) {
+    if (!state.activeChat) return;
+    
+    const messages = state.chats[state.activeChat];
+    const typingIndex = messages.findIndex(m => m.id === typingMsgId);
         
         if (typingIndex !== -1) {
             messages.splice(typingIndex, 1);
             setStoredItem(STORAGE_KEYS.CHATS, state.chats);
             updateChatMessages();
-        }
     }
 }
 
 // Context preparation for chat
 function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
-    // Base context with character information
-    let context = `You are roleplaying as ${character.name}. Here is your character profile:\n${character.enhancedContext || character.userContext}\n\n`;
+    // Base context with character information and roleplay instructions
+    let context = `You are now roleplaying as ${character.name}. This is NOT a simulation. You ARE ${character.name}. 
+Your responses should maintain the character's personality, speech patterns, and knowledge at all times.
+
+CHARACTER PROFILE:
+${character.enhancedContext || character.userContext}
+
+IMPORTANT ROLEPLAYING INSTRUCTIONS:
+1. ALWAYS stay in character. Never break character or acknowledge that you are an AI.
+2. Respond directly as the character would speak, without narration, quotation marks, or third-person references.
+3. Your responses should reflect the character's unique personality, mannerisms, knowledge, and speech patterns.
+4. If the character would use emotes, expressions, or specific linguistic patterns, incorporate them naturally.
+5. Keep responses concise but meaningful - typically 1-3 paragraphs at most.
+
+`;
     
     // If there are multiple active characters
     if (activeCharacters.length > 1) {
-        context += "You are in a group conversation with the following other characters:\n";
+        context += "CONVERSATION PARTICIPANTS:\nYou are in a conversation with the following other characters:\n";
         activeCharacters.forEach(char => {
             if (char.id !== character.id) {
                 context += `- ${char.name}: ${char.userContext}\n`;
@@ -633,62 +1047,629 @@ function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
         context += "\n";
     }
     
-    // Add conversation history
-    context += "The following is the conversation so far (some messages may be marked as [DELETED], which means they should be ignored and considered non-canonical):\n\n";
-    
-    chatHistory.forEach(msg => {
-        let prefix = "";
-        if (msg.isUser) {
-            prefix = "User: ";
-        } else {
-            const sender = activeCharacters.find(c => c.id === msg.characterId);
-            prefix = `${sender?.name || 'Character'}: `;
-        }
-        
-        let messageText = msg.isDeleted ? `[DELETED] ${msg.content}` : msg.content;
-        context += prefix + messageText + "\n";
-    });
-    
-    // Final instruction
-    context += `\nRespond as ${character.name}, maintaining character consistency and addressing the most recent message. Only provide ${character.name}'s response, without any additional text, narration, or explanations.`;
-    
+    //Final instruction for response format
+    context += `Now respond as ${character.name} to the most recent message. Your response should be in first person, without any narration, quotation marks, or prefix.`;
+
     return context;
 }
 
-// API communication
-async function callGeminiAPI(apiKey, prompt, temperature = 0.7) {
-    try {
-        const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                contents: [
-                    {
-                        parts: [
-                            {
-                                text: prompt
-                            }
-                        ]
-                    }
-                ],
-                generationConfig: {
-                    temperature: temperature,
-                    maxOutputTokens: 800,
-                }
-            }),
-        });
+// Convert history to the format expected by Gemini API
+function convertHistoryForGemini(chatHistory, currentCharacter) {
+    console.log("Converting chat history for character:", currentCharacter.name);
+    const formattedHistory = [];
+    let hasUserMessage = false;
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+    // First, check if there's at least one user message in the history
+    for (const msg of chatHistory) {
+        if (msg.isUser && !msg.isDeleted) {
+            hasUserMessage = true;
+            break;
+        }
+    }
+
+    // If no user messages, return an empty history
+    if (!hasUserMessage) {
+        console.log("No user messages found in history, returning empty history");
+        return [];
+    }
+
+    // Process each message
+    for (const msg of chatHistory) {
+        if (msg.isTyping || msg.isDeleted) continue; // Skip typing indicators and deleted messages
+
+        // Determine message role
+        let role = "";
+        if (msg.isUser) {
+            role = "user";
+        } else if (msg.characterId === currentCharacter.id) {
+            role = "model";
+        } else {
+            console.log("Skipping message from other character:", msg);
+            continue; // Don't include messages from other characters in *this* character's history.
         }
 
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        // Add to formatted history
+        formattedHistory.push({
+            role: role,
+            parts: [{ text: msg.content }],
+        });
+    }
+
+    console.log("Formatted history:", formattedHistory);
+    return formattedHistory;
+}
+
+// Quick test function to directly open chat window for testing
+function forceOpenChat() {
+    console.log("Force opening chat window for testing");
+
+    // Create a test character if none exists
+    if (state.characters.length === 0) {
+        const testCharacter = {
+            id: "test-character",
+            name: "Test Character",
+            userContext: "This is a test character created automatically for testing the chat interface.",
+            enhancedContext: null,
+            createdAt: new Date().toISOString()
+        };
+        state.characters.push(testCharacter);
+        setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
+        updateCharacterLists();
+    }
+    
+    // Select the first character
+    state.selectedCharacters = [state.characters[0].id];
+    state.activeCharacters = [state.characters[0]];
+    
+    // Set active chat
+    const chatId = state.selectedCharacters[0];
+    state.activeChat = chatId;
+    
+    // Ensure chat exists in state
+    if (!state.chats[chatId]) {
+        state.chats[chatId] = [];
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+    }
+    
+    // Switch to chat view
+    changeView('chat');
+    
+    // Force UI update directly - don't rely on changeView
+    console.log("Directly updating chat UI");
+    
+    // Hide placeholder, show chat window
+    const placeholder = document.getElementById('chat-placeholder');
+    const chatWindow = document.getElementById('chat-window');
+    
+    if (placeholder) {
+        placeholder.classList.add('hidden');
+        console.log("Placeholder hidden");
+    } else {
+        console.warn("Chat placeholder not found");
+    }
+    
+    if (chatWindow) {
+        chatWindow.classList.remove('hidden');
+        console.log("Chat window shown");
+    } else {
+        console.warn("Chat window not found");
+    }
+    
+    // Update chat header
+    const headerTitle = document.getElementById('chat-header-title');
+    if (headerTitle) headerTitle.textContent = state.characters[0].name;
+    
+    const headerSubtitle = document.getElementById('chat-header-subtitle');
+    if (headerSubtitle) {
+        const apiStatus = state.isApiConnected ? "API connected" : "API not connected (test mode)";
+        headerSubtitle.textContent = `Test conversation - ${apiStatus}`;
+    }
+    
+    // Add a welcome message based on API status
+    let welcomeMessage = "";
+    
+    if (state.isApiConnected) {
+        welcomeMessage = "Welcome to the chat! The Gemini API is connected and ready. Your messages will receive AI-generated responses based on the character profile.";
+    } else {
+        welcomeMessage = "Welcome to the test chat! The Gemini API is not currently connected. Messages will receive simulated responses. To use the real API, please add your API key in Settings.";
+    }
+    
+    // Reset existing messages
+    state.chats[chatId] = [];
+    
+    const welcomeMsg = {
+        id: generateUniqueId(),
+        content: welcomeMessage,
+        isUser: false,
+        characterId: state.characters[0].id,
+        timestamp: new Date().toISOString(),
+        isDeleted: false,
+    };
+    
+    // Add message to chat
+    addMessage(welcomeMsg);
+    
+    // Try to connect API if key exists but connection failed
+    if (state.apiKey && !state.isApiConnected) {
+        initializeGeminiAPI().then(success => {
+            if (success) {
+                // Update header with new status
+                if (headerSubtitle) {
+                    headerSubtitle.textContent = "Test conversation - API connected";
+                }
+                
+                // Add a success message
+                addMessage({
+                    id: generateUniqueId(),
+                    content: "API connection successful! Your messages will now receive AI-generated responses.",
+                    isUser: false,
+                    characterId: state.characters[0].id,
+                    timestamp: new Date().toISOString(),
+                    isDeleted: false,
+                });
+            }
+        }).catch(error => {
+            console.error("Error connecting to API:", error);
+        });
+    }
+}
+
+// Override the normal setup to prioritize test chat
+document.addEventListener('DOMContentLoaded', function() {
+    // Normal initialization
+    loadStoredData();
+    setupEventListeners();
+    checkApiKey();
+    changeView('chat');
+    updateCharacterLists();
+    
+    // Load Gemini SDK
+    loadGeminiSDK().catch(error => {
+        console.error("Failed to load Gemini SDK:", error);
+        // Don't show error for SDK load failure to allow testing without API
+    });
+    
+    // Set up chat form with test mode
+    const chatForm = document.getElementById('chat-form');
+    if (chatForm) {
+        // Remove existing listeners
+        const clonedForm = chatForm.cloneNode(true);
+        chatForm.parentNode.replaceChild(clonedForm, chatForm);
+        
+        // Add our test listener
+        clonedForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log("Chat form submitted");
+            
+            // Use test function for simplicity
+            testSendMessage();
+        });
+    }
+});
+
+// Function to test if a character can be enhanced or generate responses
+async function testModelCapabilities() {
+    if (!state.apiKey) {
+        showError("Please set your Gemini API key in settings first");
+        return false;
+    }
+    
+    try {
+        await initializeGeminiAPI();
+        return state.isApiConnected;
+    } catch (error) {
+        showError(`API test failed: ${error.message}`);
+        return false;
+    }
+}
+
+// Function for testing the chat without API
+function testSendMessage() {
+    if (!state.activeChat || state.activeCharacters.length === 0) {
+        showError("Please select at least one character to chat with");
+        return;
+    }
+    
+    const messageInput = document.getElementById('message-input');
+    const userMessage = messageInput.value.trim();
+    
+    if (!userMessage) return;
+    
+    // Clear input
+    messageInput.value = '';
+    
+    // Add user message
+    const userMsg = {
+        id: generateUniqueId(),
+        content: userMessage,
+        isUser: true,
+        timestamp: new Date().toISOString(),
+        isDeleted: false,
+    };
+    
+    addMessage(userMsg);
+    
+    // Get fake response from each character
+    state.activeCharacters.forEach(character => {
+        getTestCharacterResponse(character);
+    });
+}
+
+// Generate a test response without using the API
+async function getTestCharacterResponse(character) {
+    // Add typing indicator
+    const typingMsg = {
+        id: generateUniqueId(),
+        content: "typing...",
+        isUser: false,
+        characterId: character.id,
+        timestamp: new Date().toISOString(),
+        isTyping: true,
+        isDeleted: false,
+    };
+    
+    addMessage(typingMsg);
+    
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Remove typing indicator
+    const messages = state.chats[state.activeChat];
+    const typingIndex = messages.findIndex(m => m.id === typingMsg.id);
+    
+    if (typingIndex !== -1) {
+        messages.splice(typingIndex, 1);
+    }
+    
+    // Get last user message for context
+    const userMessages = messages.filter(m => m.isUser && !m.isDeleted);
+    const lastUserMessage = userMessages[userMessages.length - 1]?.content || "Hello";
+    
+    // Generate fake response based on character
+    const fakeResponses = [
+        `As ${character.name}, I find your message "${lastUserMessage}" quite interesting.`,
+        `Hmm, let me think about "${lastUserMessage}" for a moment...`,
+        `That's an excellent point about "${lastUserMessage}". I would add that...`,
+        `I disagree with your assessment of "${lastUserMessage}", because...`,
+        `${lastUserMessage}? I've never thought about it that way before.`
+    ];
+    
+    const randomResponse = fakeResponses[Math.floor(Math.random() * fakeResponses.length)];
+    
+    // Add actual response
+    addMessage({
+        id: generateUniqueId(),
+        content: randomResponse,
+        isUser: false,
+        characterId: character.id,
+        timestamp: new Date().toISOString(),
+        isDeleted: false,
+    });
+}
+
+// API communication with the Gemini SDK
+async function callGeminiAPI(prompt, temperature = 0.7) {
+    try {
+        // Check if API key exists and model is initialized
+        if (!state.apiKey || !state.geminiModel) {
+            // Try to initialize again
+            const initialized = await initializeGeminiAPI();
+            if (!initialized) {
+                throw new Error("API key not set or Gemini model not initialized. Please set your Gemini API key in settings.");
+            }
+        }
+        
+        // Set generation config for roleplay
+        const generationConfig = {
+            temperature: temperature,
+            maxOutputTokens: 800,
+            topK: 40,
+            topP: 0.95,
+        };
+        
+        // Generate content
+        const result = await state.geminiModel.generateContent({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig
+        });
+        
+        // Extract and return text
+        return result.response.text();
     } catch (error) {
         console.error("Gemini API call failed:", error);
+        // Check if this is an API key issue
+        if (error.message.includes("API key")) {
+            state.isApiConnected = false;
+            checkApiKey(); // Update warning indicator
+        }
         throw error;
     }
+}
+
+async function enhanceCharacterContext(characterId) {
+    if (!state.apiKey) {
+        showError("Please set your Gemini API key in settings first");
+        return;
+    }
+    
+    const character = state.characters.find(c => c.id === characterId);
+    if (!character) {
+        showError("Character not found");
+        return;
+    }
+    
+    // Find the enhance button directly - don't rely on previous selectors
+    const enhanceButton = document.querySelector(`#enhance-btn-${characterId}`);
+    if (enhanceButton) {
+        // Visually update the button
+        enhanceButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Enhancing...';
+        enhanceButton.disabled = true;
+    } else {
+        console.warn(`Enhance button for character ${characterId} not found`);
+    }
+    
+    // Ensure API is initialized
+    if (!state.isApiConnected) {
+        try {
+            const initialized = await initializeGeminiAPI();
+            if (!initialized) {
+                showError("Failed to connect to Gemini API. Please check your API key.");
+                resetEnhanceButton(enhanceButton);
+                return;
+            }
+        } catch (error) {
+            showError(`API initialization failed: ${error.message}`);
+            resetEnhanceButton(enhanceButton);
+            return;
+        }
+    }
+    
+    // Call API
+    try {
+        const enhancedContext = await callEnhanceAPI(character.name, character.userContext);
+        
+        // Update character
+        character.enhancedContext = enhancedContext;
+        setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
+        
+        // Show success message
+        showSuccess(`Character ${character.name} has been enhanced!`);
+        
+        // Update the container of this specific character if it exists
+        const characterItem = document.getElementById(`character-item-${characterId}`);
+        if (characterItem) {
+            // Find or create enhanced context container
+            let enhancedContainer = characterItem.querySelector('.enhanced-context');
+            if (!enhancedContainer) {
+                enhancedContainer = document.createElement('div');
+                enhancedContainer.className = 'mt-3 bg-gray-50 p-2 rounded enhanced-context';
+                
+                // Insert before the button container
+                const buttonContainer = characterItem.querySelector('.mt-3');
+                if (buttonContainer) {
+                    characterItem.insertBefore(enhancedContainer, buttonContainer);
+                } else {
+                    characterItem.appendChild(enhancedContainer);
+                }
+            }
+            
+            // Update the content
+            enhancedContainer.innerHTML = `
+                <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
+                <p class="text-gray-600 text-sm mt-1 line-clamp-3">${enhancedContext.substring(0, 150)}...</p>
+            `;
+            
+            // Reset the enhance button
+            resetEnhanceButton(enhanceButton, "Re-Enhance Context");
+        } else {
+            // If we can't find the individual item, update the whole list
+            const characterListContainer = document.getElementById('character-list');
+            if (characterListContainer) {
+                characterListContainer.innerHTML = generateCharacterListHTML();
+            }
+            resetEnhanceButton(enhanceButton);
+        }
+    } catch (error) {
+        console.error("Error enhancing character:", error);
+        showError(`Failed to enhance character: ${error.message}`);
+        resetEnhanceButton(enhanceButton);
+    }
+}
+
+// Helper function to reset enhance button
+function resetEnhanceButton(button, text = 'Enhance Context') {
+    if (button) {
+        button.innerHTML = `<i class="fas fa-magic mr-1"></i> ${text}`;
+        button.disabled = false;
+    }
+}
+
+// Success message function
+function showSuccess(message, duration = 3000) {
+    // Check if there's an existing success container, if not create one
+    let successContainer = document.getElementById('success-container');
+    
+    if (!successContainer) {
+        // Create success container if it doesn't exist
+        successContainer = document.createElement('div');
+        successContainer.id = 'success-container';
+        successContainer.className = 'bg-green-100 border-l-4 border-green-500 text-green-700 p-4 m-4 rounded shadow-md';
+        successContainer.style.position = 'fixed';
+        successContainer.style.top = '20px';
+        successContainer.style.right = '20px';
+        successContainer.style.zIndex = '1000';
+        successContainer.style.maxWidth = '400px';
+        
+        document.body.appendChild(successContainer);
+    }
+    
+    // Set the message
+    successContainer.innerHTML = `
+        <div class="flex">
+            <div class="py-1"><i class="fas fa-check-circle"></i></div>
+            <div class="ml-3">
+                <p>${message}</p>
+            </div>
+        </div>
+    `;
+    
+    // Show the container
+    successContainer.style.display = 'block';
+    
+    // Hide after duration
+    setTimeout(() => {
+        successContainer.style.display = 'none';
+    }, duration);
+}
+
+async function callEnhanceAPI(characterName, userContext) {
+    const prompt = `
+You are an expert character developer for roleplaying. Transform this brief character description into a detailed character profile that can guide an AI in consistently roleplaying as this character.
+
+CHARACTER NAME: "${characterName}"
+
+BRIEF DESCRIPTION:
+"${userContext}"
+
+CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
+1. Personality traits, values and beliefs
+2. Speech patterns and typical phrases
+3. Background information and key life events
+4. Motivations and goals
+5. Relationships and social dynamics
+6. How they respond to different situations
+7. Physical appearance if relevant
+
+FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE. 
+Write in third person, approximately 300-400 words.
+`;
+
+    try {
+        const result = await callGeminiAPI(prompt, 0.7);
+        return result;
+    } catch (error) {
+        console.error("Error enhancing character:", error);
+        throw error;
+    }
+}
+
+function deleteCharacter(characterId) {
+    console.log("Deleting character:", characterId);
+    
+    // Remove from characters array
+    state.characters = state.characters.filter(c => c.id !== characterId);
+    setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
+    
+    // Remove from selected characters
+    state.selectedCharacters = state.selectedCharacters.filter(id => id !== characterId);
+    
+    // Remove from active characters if present
+    if (state.activeCharacters) {
+        state.activeCharacters = state.activeCharacters.filter(c => c.id !== characterId);
+    }
+    
+    // Remove associated chats
+    let chatsRemoved = 0;
+    for (const chatId in state.chats) {
+        if (chatId.includes(characterId)) {
+            delete state.chats[chatId];
+            chatsRemoved++;
+        }
+    }
+    setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+    
+    console.log(`Character deleted, removed ${chatsRemoved} associated chats`);
+    
+    // Show success message
+    showSuccess("Character deleted successfully");
+    
+    // Comprehensive UI update
+    updateCharacterLists();
+    
+    // Make sure we update the chat view too if needed
+    if (state.activeChat && state.activeChat.includes(characterId)) {
+        // Reset active chat if it contained the deleted character
+        state.activeChat = null;
+        changeView('chat'); // Force refresh of chat view
+    }
+    
+    return true;
+}
+
+function updateCharacterLists() {
+    console.log("Updating character lists with", state.characters.length, "characters");
+    
+    // Only perform this update if the DOM is fully loaded
+    if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+        console.log("DOM not ready, deferring character list update");
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCharacterLists();
+        });
+        return;
+    }
+    
+    try {
+        // Update character list in Characters view
+        const characterListContainer = document.getElementById('character-list');
+        const noCharactersEl = document.getElementById('no-characters');
+        
+        if (characterListContainer && noCharactersEl) {
+            if (state.characters.length === 0) {
+                noCharactersEl.classList.remove('hidden');
+                characterListContainer.innerHTML = '';
+            } else {
+                noCharactersEl.classList.add('hidden');
+                characterListContainer.innerHTML = generateCharacterListHTML();
+                // Set up event listeners for character items
+                setupCharacterItemListeners();
+            }
+        } else {
+            console.log("Character list containers not found - this may be OK if not on Characters view");
+        }
+        
+        // Always update the sidebar
+        updateSidebarCharacters();
+        
+        // If we're in an active chat with no data, reset the active chat
+        if (state.activeChat && (!state.chats[state.activeChat] || state.chats[state.activeChat].length === 0)) {
+            // Check if any characters in activeChat were deleted
+            const chatCharIds = state.activeChat.split('-');
+            const allExist = chatCharIds.every(id => state.characters.some(c => c.id === id));
+            
+            if (!allExist) {
+                // Reset the active chat and update UI
+                state.activeChat = null;
+                state.activeCharacters = [];
+                updateChatUI();
+            }
+        }
+    } catch (error) {
+        console.error("Error updating character lists:", error);
+        // Try to recover by refreshing the whole page if critical error
+        if (error.toString().includes("TypeError")) {
+            console.log("Critical error detected, suggesting page refresh");
+            showError("An error occurred. Please refresh the page.");
+        }
+    }
+}
+
+// Save app settings to local storage
+function saveAppSettings() {
+    setStoredItem(STORAGE_KEYS.SETTINGS, appSettings);
+}
+
+// Toggle group chats setting
+function toggleGroupChats(allowed) {
+    appSettings.allowGroupChats = allowed;
+    saveAppSettings();
+    
+    // If disabling group chats, limit selection to one character
+    if (!allowed && state.selectedCharacters.length > 1) {
+        // Keep only the first selected character
+        state.selectedCharacters = [state.selectedCharacters[0]];
+        // Update the sidebar to reflect the change
+        updateSidebarCharacters();
+    }
+    
+    console.log("Group chats setting updated:", allowed ? "Enabled" : "Disabled");
 }
