@@ -9,7 +9,12 @@ const STORAGE_KEYS = {
 
 // App Settings
 let appSettings = {
-    allowGroupChats: false
+    allowGroupChats: false,
+    modelVersion: "gemini-2.0-flash",
+    temperature: 1.2,
+    maxTokens: 800,
+    topK: 40,
+    topP: 0.95,
 };
 
 // App State
@@ -149,6 +154,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize sidebar functionality
     initializeSidebar();
+
+    // Initialize model settings
+    initializeModelSettings();
 });
 
 // Initialize sidebar functionality
@@ -1196,35 +1204,38 @@ function removeTypingIndicator(typingMsgId) {
 // Context preparation for chat
 function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
     // Base context with character information and roleplay instructions
-    let context = `You are now roleplaying as ${character.name}. This is NOT a simulation. You ARE ${character.name}. 
-Your responses should maintain the character's personality, speech patterns, and knowledge at all times.
+    let context = `You are now roleplaying as ${character.name}. Immerse yourself completely in this character.
 
 CHARACTER PROFILE:
 ${character.enhancedContext || character.userContext}
 
-IMPORTANT ROLEPLAYING INSTRUCTIONS:
-1. ALWAYS stay in character. Never break character or acknowledge that you are an AI.
-2. Respond directly as the character would speak, without narration, quotation marks, or third-person references.
-3. Your responses should reflect the character's unique personality, mannerisms, knowledge, and speech patterns.
-4. If the character would use emotes, expressions, or specific linguistic patterns, incorporate them naturally.
-5. Keep responses concise but meaningful - typically 1-3 paragraphs at most.
+ROLEPLAY GUIDELINES:
+1. BE the character - think, feel, and respond as they would naturally.
+2. Show personality through speech patterns, expressions, and mannerisms unique to the character.
+3. Stay true to the character's knowledge, background, and emotional state.
+4. Be dynamic - react to the conversation flow and emotional context.
+5. Avoid being defensive or overly cautious - respond naturally as the character would.
+6. Use emotes and actions sparingly and only when they add value to the interaction.
+7. Keep responses concise but meaningful, focusing on quality interaction.
 
+CONVERSATION STYLE:
+- Be natural and conversational
+- Show appropriate emotions and reactions
+- Maintain consistent personality
+- Adapt to the user's conversation style
+- Stay in character without being rigid
 `;
     
-    // If there are multiple active characters
+    // Add group chat context if needed
     if (activeCharacters.length > 1) {
-        context += "CONVERSATION PARTICIPANTS:\nYou are in a conversation with the following other characters:\n";
+        context += "\nCONVERSATION PARTICIPANTS:\nYou are in a conversation with:\n";
         activeCharacters.forEach(char => {
             if (char.id !== character.id) {
                 context += `- ${char.name}: ${char.userContext}\n`;
             }
         });
-        context += "\n";
     }
     
-    //Final instruction for response format
-    context += `Now respond as ${character.name} to the most recent message. Your response should be in first person, without any narration, quotation marks, or prefix.`;
-
     return context;
 }
 
@@ -1523,39 +1534,33 @@ async function getTestCharacterResponse(character) {
 }
 
 // API communication with the Gemini SDK
-async function callGeminiAPI(prompt, temperature = 0.7) {
+async function callGeminiAPI(prompt) {
     try {
-        // Check if API key exists and model is initialized
         if (!state.apiKey || !state.geminiModel) {
-            // Try to initialize again
             const initialized = await initializeGeminiAPI();
             if (!initialized) {
-                throw new Error("API key not set or Gemini model not initialized. Please set your Gemini API key in settings.");
+                throw new Error("API key not set or Gemini model not initialized.");
             }
         }
         
-        // Set generation config for roleplay
         const generationConfig = {
-            temperature: temperature,
-            maxOutputTokens: 800,
-            topK: 40,
-            topP: 0.95,
+            temperature: appSettings.temperature,
+            maxOutputTokens: appSettings.maxTokens,
+            topK: appSettings.topK,
+            topP: appSettings.topP,
         };
         
-        // Generate content
         const result = await state.geminiModel.generateContent({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig
         });
         
-        // Extract and return text
         return result.response.text();
     } catch (error) {
         console.error("Gemini API call failed:", error);
-        // Check if this is an API key issue
         if (error.message.includes("API key")) {
             state.isApiConnected = false;
-            checkApiKey(); // Update warning indicator
+            checkApiKey();
         }
         throw error;
     }
@@ -1717,7 +1722,8 @@ CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
 6. How they respond to different situations
 7. Physical appearance if relevant
 
-FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE. 
+FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE.
+Make the character talk naturally to the user like they are really them! 
 Write in third person, approximately 300-400 words.
 `;
 
@@ -1858,4 +1864,120 @@ function toggleGroupChats(allowed) {
     }
     
     console.log("Group chats setting updated:", allowed ? "Enabled" : "Disabled");
+}
+
+// Initialize event listeners for model settings
+function initializeModelSettings() {
+    const modelSelect = document.getElementById('model-select');
+    const temperatureRange = document.getElementById('temperature-range');
+    const temperatureValue = document.getElementById('temperature-value');
+    const maxTokens = document.getElementById('max-tokens');
+    const testModelBtn = document.getElementById('test-model-btn');
+
+    // Load saved settings
+    if (appSettings.modelVersion) {
+        modelSelect.value = appSettings.modelVersion;
+    }
+    if (appSettings.temperature) {
+        temperatureRange.value = appSettings.temperature;
+        temperatureValue.textContent = appSettings.temperature;
+    }
+    if (appSettings.maxTokens) {
+        maxTokens.value = appSettings.maxTokens;
+    }
+
+    // Add event listeners
+    modelSelect.addEventListener('change', (e) => {
+        appSettings.modelVersion = e.target.value;
+        saveAppSettings();
+    });
+
+    temperatureRange.addEventListener('input', (e) => {
+        appSettings.temperature = parseFloat(e.target.value);
+        temperatureValue.textContent = e.target.value;
+        saveAppSettings();
+    });
+
+    maxTokens.addEventListener('change', (e) => {
+        appSettings.maxTokens = parseInt(e.target.value);
+        saveAppSettings();
+    });
+
+    // Add test configuration button listener
+    if (testModelBtn) {
+        testModelBtn.addEventListener('click', testModelConfiguration);
+    }
+}
+
+// Test model configuration
+async function testModelConfiguration() {
+    const testResult = document.getElementById('test-result');
+    const testStatus = document.getElementById('test-status');
+    const testDetails = document.getElementById('test-details');
+    const testBtn = document.getElementById('test-model-btn');
+
+    // Show testing state
+    testResult.classList.remove('hidden', 'bg-green-100', 'bg-red-100');
+    testResult.classList.add('bg-blue-100');
+    testStatus.textContent = 'Testing configuration...';
+    testDetails.textContent = 'Connecting to Gemini API...';
+    testBtn.disabled = true;
+
+    try {
+        // First, check if we have an API key
+        if (!state.apiKey) {
+            throw new Error('No API key set. Please add your API key first.');
+        }
+
+        // Try to initialize with the selected model
+        const { GoogleGenerativeAI } = await import("https://esm.run/@google/generative-ai");
+        const genAI = new GoogleGenerativeAI(state.apiKey);
+        
+        // Get model with current settings
+        const model = genAI.getGenerativeModel({ 
+            model: appSettings.modelVersion
+        });
+
+        // Test the configuration with current settings
+        testDetails.textContent = 'Testing model response...';
+        
+        const result = await model.generateContent({
+            contents: [{ parts: [{ text: "Respond with 'Configuration test successful' if you receive this message." }] }],
+            generationConfig: {
+                temperature: appSettings.temperature,
+                maxOutputTokens: appSettings.maxTokens,
+                topK: appSettings.topK,
+                topP: appSettings.topP,
+            }
+        });
+
+        const response = result.response.text();
+        
+        // Update state with the working model
+        state.geminiModel = model;
+        state.isApiConnected = true;
+
+        // Show success
+        testResult.classList.remove('bg-blue-100');
+        testResult.classList.add('bg-green-100');
+        testStatus.textContent = 'Configuration test successful!';
+        testDetails.innerHTML = `
+            <div class="space-y-1">
+                <p>✓ Model: ${appSettings.modelVersion}</p>
+                <p>✓ Temperature: ${appSettings.temperature}</p>
+                <p>✓ Max Tokens: ${appSettings.maxTokens}</p>
+                <p>✓ Response received: ${response.substring(0, 50)}...</p>
+            </div>
+        `;
+
+    } catch (error) {
+        // Show error
+        testResult.classList.remove('bg-blue-100');
+        testResult.classList.add('bg-red-100');
+        testStatus.textContent = 'Configuration test failed';
+        testDetails.textContent = `Error: ${error.message}`;
+        console.error('Model test failed:', error);
+    } finally {
+        testBtn.disabled = false;
+    }
 }

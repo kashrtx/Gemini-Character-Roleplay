@@ -118,6 +118,81 @@
                         </div>
                         
                         <div class="mb-8 border-t pt-6">
+                            <h3 class="text-lg font-semibold mb-3 text-gray-700">Model Settings</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="model-select" class="block text-gray-600 mb-2">
+                                        Model Version
+                                    </label>
+                                    <select 
+                                        id="model-select" 
+                                        class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="gemini-2.0-flash">Gemini 2.0 Flash - Fast & Responsive</option>
+                                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite - Lightweight</option>
+                                        <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro Experimental - Advanced</option>
+                                        <option value="gemini-2.0-flash-thinking-exp-01-21">Gemini 2.0 Flash Thinking - Creative</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label for="temperature-range" class="block text-gray-600 mb-2">
+                                        Temperature (Creativity): <span id="temperature-value">0.7</span>
+                                    </label>
+                                    <input 
+                                        type="range" 
+                                        id="temperature-range" 
+                                        min="0" 
+                                        max="2" 
+                                        step="0.1" 
+                                        value="0.7"
+                                        class="w-full accent-primary"
+                                    >
+                                    <div class="flex justify-between text-sm text-gray-500">
+                                        <span>Focused (0)</span>
+                                        <span>Balanced (1)</span>
+                                        <span>Creative (2)</span>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label for="max-tokens" class="block text-gray-600 mb-2">
+                                        Max Response Length (tokens)
+                                    </label>
+                                    <select 
+                                        id="max-tokens" 
+                                        class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="400">Short (400)</option>
+                                        <option value="800" selected>Medium (800)</option>
+                                        <option value="1200">Long (1200)</option>
+                                        <option value="2000">Very Long (2000)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Add Test Configuration Button -->
+                            <div class="mt-6 border-t pt-4">
+                                <button
+                                    id="test-model-btn"
+                                    class="w-full bg-accent text-white px-4 py-2 rounded hover:bg-accent/90 transition flex items-center justify-center gap-2"
+                                >
+                                    <i class="fas fa-vial"></i>
+                                    Test Configuration
+                                </button>
+                                <div id="test-result" class="mt-3 p-3 rounded text-sm hidden">
+                                    <div class="flex items-start gap-2">
+                                        <i class="fas fa-spinner fa-spin mt-1"></i>
+                                        <div>
+                                            <p id="test-status" class="font-medium"></p>
+                                            <p id="test-details" class="text-xs mt-1"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-8 border-t pt-6">
                             <h3 class="text-lg font-semibold mb-3 text-gray-700">Chat Settings</h3>
                             <div class="flex items-center mb-4">
                                 <input 
