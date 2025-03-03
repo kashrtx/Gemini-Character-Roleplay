@@ -7,12 +7,76 @@ const STORAGE_KEYS = {
     SETTINGS: "gemini_settings",
 };
 
+// Mobile browser viewport fix for keyboard
+function setupMobileViewportFix() {
+    // Only apply on mobile devices
+    if (window.innerWidth > 768) return;
+    
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const originalContent = viewport.getAttribute('content');
+    
+    // Fix for iOS keyboard issues
+    const chatInput = document.getElementById('message-input');
+    if (chatInput) {
+        // When chat input gets focus (keyboard shows)
+        chatInput.addEventListener('focus', () => {
+            // Prevent viewport from auto-zooming
+            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0');
+            
+            // Scroll to the input after a brief delay to ensure keyboard is fully shown
+            setTimeout(() => {
+                const chatMessages = document.getElementById('chat-messages');
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }, 300);
+        });
+        
+        // When keyboard hides
+        chatInput.addEventListener('blur', () => {
+            // Restore original viewport settings
+            viewport.setAttribute('content', originalContent);
+        });
+    }
+    
+    // Handle window resize (for when keyboard appears/disappears)
+    let windowHeight = window.innerHeight;
+    window.addEventListener('resize', () => {
+        // If the window height changes dramatically (keyboard appearing)
+        if (window.innerHeight < windowHeight) {
+            // Don't allow the body to scroll/move
+            document.body.style.height = '100vh';
+            document.body.style.overflow = 'hidden';
+        } else {
+            // When keyboard disappears, make sure we're at the right position
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+            }, 100);
+        }
+        windowHeight = window.innerHeight;
+    });
+    
+    // Prevent document scrolling while allowing chat messages to scroll
+    document.addEventListener('touchmove', function(event) {
+        // Get the target element
+        const target = event.target;
+        
+        // Check if the touch is within the chat messages area
+        const isInChatMessages = target.closest('#chat-messages');
+        
+        // If not in chat messages and not in any other scrollable area, prevent default
+        if (!isInChatMessages && !target.closest('.overflow-y-auto') && !target.closest('.overflow-auto')) {
+            event.preventDefault();
+        }
+    }, { passive: false });
+}
+
 // App Settings
 let appSettings = {
     allowGroupChats: false,
     modelVersion: "gemini-2.0-flash",
-    temperature: 1.2,
-    maxTokens: 800,
+    temperature: 1.1,
+    maxTokens: 1200,
     topK: 40,
     topP: 0.95,
 };
@@ -124,6 +188,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Set up event listeners
     setupEventListeners();
+    
+    // Initialize mobile viewport fixes
+    setupMobileViewportFix();
     
     // Add direct event listeners for critical functionality
     setupDirectListeners();
@@ -436,6 +503,13 @@ function changeView(viewName) {
             element.classList.add('text-white');
         }
     });
+    
+    // Toggle body class for fixed positioning only in chat view
+    if (viewName === 'chat') {
+        document.body.classList.add('chat-view-active');
+    } else {
+        document.body.classList.remove('chat-view-active');
+    }
     
     // Show selected view and activate button
     if (viewName === 'chat') {
@@ -1808,13 +1882,13 @@ function showSuccess(message, duration = 3000) {
 async function callEnhanceAPI(characterName, userContext) {
     const prompt = `
 You are an expert character developer for roleplaying. Transform this brief character description into a detailed character profile that can guide an AI in consistently roleplaying as this character.
-Fill in the details about but dont sound like the character, because this is for generating a character context which will be used to roleplay with the user.
-CHARACTER NAME: "${characterName}"
+Do not mention AI. Immediately fill in the details about the character for generating a character bio and context which will be used to roleplay with the user.
+Write details for CHARACTER NAME: "${characterName}"
 
-BRIEF DESCRIPTION (that user provided that needs to be enhanced with more critical details):
+BRIEF DESCRIPTION:
 "${userContext}"
 
-CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
+BUILD ON THE BRIEF DESCRIPTION TO CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
 1. Personality traits with specific behavioral examples
 2. Distinctive speech patterns, vocabulary choices, and verbal tics
 3. Background information and formative experiences that shaped them
@@ -1825,10 +1899,10 @@ CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
 8. Skills, knowledge areas, and expertise
 9. Fears, insecurities, and internal conflicts
 
-FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE.
+FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE THAT REFLECTS THEIR ORIGINAL SOURCE.
 Make the character feel authentic and three-dimensional with consistent traits.
 Include specific examples of how they would speak and react.
-Write in third person, approximately 400-500 words.
+Write in third person (like you are analyzing them), approximately 400-500 words.
 Focus on depth and specificity rather than generic descriptions.
 `;
 
