@@ -5,6 +5,142 @@
     display: none !important;
 }
 
+/* Mobile responsiveness */
+@media (max-width: 1024px) {
+    #character-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+        width: 280px;
+        background: white;
+    }
+
+    /* Show sidebar by default when no chat is selected */
+    #chat-view:not(.chat-active) #character-sidebar {
+        transform: translateX(0);
+    }
+
+    #character-sidebar.sidebar-open {
+        transform: translateX(0);
+    }
+
+    /* Hide toggle buttons on desktop */
+    #toggle-sidebar-btn,
+    #show-characters-btn,
+    #show-chat-sidebar-btn {
+        display: none;
+    }
+
+    /* Show appropriate toggle button based on view state */
+    .chat-active #show-chat-sidebar-btn {
+        display: block !important;
+    }
+
+    #chat-placeholder:not(.hidden) #show-characters-btn {
+        display: block !important;
+    }
+
+    #character-sidebar.sidebar-open #toggle-sidebar-btn {
+        display: block !important;
+    }
+
+    .sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 40;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease-in-out;
+    }
+
+    .sidebar-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Adjust header spacing */
+    header .container {
+        padding-left: 1rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .container {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+
+    /* Adjust header for mobile */
+    header {
+        padding: 0.5rem !important;
+        min-height: 48px;
+    }
+
+    header .container {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+
+    header h1 {
+        font-size: 0.875rem;
+        line-height: 1.25;
+        max-width: 40%;
+        margin-right: 0.5rem;
+    }
+
+    header nav {
+        gap: 0.25rem;
+    }
+
+    header nav button {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    header nav button i {
+        margin-right: 0;
+    }
+
+    header nav button span {
+        display: none;
+    }
+
+    /* Ensure chat messages area adjusts for smaller header */
+    #chat-messages {
+        max-height: calc(100vh - 140px);
+        padding: 0.5rem;
+    }
+
+    .message-bubble {
+        max-width: 85%;
+    }
+
+    #message-input {
+        font-size: 16px; /* Prevent zoom on mobile */
+    }
+
+    /* Adjust header for mobile */
+    header h1 {
+        font-size: 1rem;
+    }
+
+    header nav button {
+        padding: 0.25rem 0.5rem;
+    }
+
+    header nav button i {
+        margin-right: 0;
+    }
+
+    header nav button span {
+        display: none;
+    }
+}
+
 /* Test chat button styling */
 #test-chat-btn {
     background-color: #F97316;

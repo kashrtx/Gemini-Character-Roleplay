@@ -146,7 +146,55 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Set up test chat form for easier testing
     setupTestChatForm();
+
+    // Initialize sidebar functionality
+    initializeSidebar();
 });
+
+// Initialize sidebar functionality
+function initializeSidebar() {
+    const sidebar = document.getElementById('character-sidebar');
+    const toggleBtn = document.getElementById('toggle-sidebar-btn');
+    const showCharactersBtn = document.getElementById('show-characters-btn');
+    const showChatSidebarBtn = document.getElementById('show-chat-sidebar-btn');
+    const chatView = document.getElementById('chat-view');
+    
+    // Create overlay element
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+    
+    // Toggle sidebar function
+    function toggleSidebar() {
+        sidebar.classList.toggle('sidebar-open');
+        overlay.classList.toggle('active');
+    }
+    
+    // Add click events for all toggle buttons
+    if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
+    if (showCharactersBtn) showCharactersBtn.addEventListener('click', toggleSidebar);
+    if (showChatSidebarBtn) showChatSidebarBtn.addEventListener('click', toggleSidebar);
+    overlay.addEventListener('click', toggleSidebar);
+    
+    // Close sidebar on chat start in mobile view
+    const originalStartChat = startChat;
+    startChat = function() {
+        originalStartChat();
+        if (window.innerWidth < 1024) { // lg breakpoint
+            sidebar.classList.remove('sidebar-open');
+            overlay.classList.remove('active');
+            chatView.classList.add('chat-active');
+        }
+    };
+    
+    // Handle resize events
+    window.addEventListener('resize', () => {
+        if (window.innerWidth >= 1024) {
+            sidebar.classList.remove('sidebar-open');
+            overlay.classList.remove('active');
+        }
+    });
+}
 
 // Set up direct click handlers that don't rely on generated HTML
 function setupDirectListeners() {
@@ -292,7 +340,12 @@ function changeView(viewName) {
     const views = ['chat-view', 'characters-view', 'settings-view'];
     views.forEach(view => {
         const element = document.getElementById(view);
-        if (element) element.classList.add('hidden');
+        if (element) {
+            element.classList.add('hidden');
+            if (view === 'chat-view') {
+                element.classList.remove('chat-active');
+            }
+        }
     });
     
     // Reset active buttons
@@ -312,6 +365,11 @@ function changeView(viewName) {
         if (view) {
             view.classList.remove('hidden');
             updateCharacterLists(); // Refresh the list when switching views
+            
+            // Add chat-active class if there's an active chat
+            if (state.activeChat) {
+                view.classList.add('chat-active');
+            }
         }
         if (btn) {
             btn.classList.remove('text-white');

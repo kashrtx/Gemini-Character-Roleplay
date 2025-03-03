@@ -197,9 +197,17 @@
 
             <!-- Chat View -->
             <div id="chat-view" class="w-full flex h-full">
-                <div id="character-sidebar" class="w-64 bg-white border-r flex flex-col h-full">
-                    <div class="p-4 border-b">
+                <!-- Character Sidebar -->
+                <div id="character-sidebar" class="w-64 bg-white border-r flex flex-col h-full transition-all duration-300 ease-in-out lg:translate-x-0">
+                    <div class="p-4 border-b flex justify-between items-center">
                         <h2 class="font-bold text-gray-800">Select Characters</h2>
+                        <button
+                            id="toggle-sidebar-btn"
+                            class="text-gray-600 hover:text-primary lg:hidden"
+                            aria-label="Toggle Character Menu"
+                        >
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
                     
                     <div id="sidebar-characters" class="flex-grow overflow-y-auto">
@@ -210,6 +218,13 @@
                 </div>
 
                 <div id="chat-placeholder" class="flex-grow flex items-center justify-center bg-gray-50 p-4">
+                    <button
+                        id="show-characters-btn"
+                        class="text-gray-600 hover:text-primary absolute top-4 left-4 lg:hidden"
+                        aria-label="Show Characters"
+                    >
+                        <i class="fas fa-bars"></i>
+                    </button>
                     <div class="text-center">
                         <i class="fas fa-comments text-5xl text-gray-300 mb-4"></i>
                         <p class="text-gray-500">Select one or more characters to start chatting</p>
@@ -219,9 +234,18 @@
                 <div id="chat-window" class="flex-grow flex flex-col bg-gray-50 hidden">
                     <!-- Chat header -->
                     <div class="p-4 bg-white border-b flex justify-between items-center shadow-sm">
-                        <div>
-                            <h2 id="chat-header-title" class="font-bold text-gray-800">Character Name</h2>
-                            <p id="chat-header-subtitle" class="text-sm text-gray-500">Private conversation</p>
+                        <div class="flex items-center space-x-4">
+                            <button
+                                id="show-chat-sidebar-btn"
+                                class="text-gray-600 hover:text-primary lg:hidden"
+                                aria-label="Show Characters"
+                            >
+                                <i class="fas fa-bars"></i>
+                            </button>
+                            <div>
+                                <h2 id="chat-header-title" class="font-bold text-gray-800">Character Name</h2>
+                                <p id="chat-header-subtitle" class="text-sm text-gray-500">Private conversation</p>
+                            </div>
                         </div>
                         <button
                             onclick="clearChatMessages()"
@@ -251,7 +275,7 @@
                             <button
                                 type="submit"
                                 id="send-message-btn"
-                                class="bg-primary text-white p-2 rounded-full hover:bg-primary/90 transition disabled:bg-gray-400"
+                                class="bg-primary text-white p-3 w-12 rounded-full hover:bg-primary/90 transition disabled:bg-gray-400"
                             >
                                 <i class="fas fa-paper-plane"></i>
                             </button>
