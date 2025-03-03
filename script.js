@@ -256,11 +256,6 @@ function setupEventListeners() {
         }
     }
 
-    // Add other event listeners as needed, e.g., for creating characters, deleting, etc.
-    const createCharBtn = document.getElementById('create-character-btn');
-    if (createCharBtn) {
-        createCharBtn.addEventListener('click', createNewCharacter);
-    }
 }
 
 // Update sidebar character event listeners
@@ -327,7 +322,10 @@ function changeView(viewName) {
     if (viewName === 'chat') {
         const view = document.getElementById('chat-view');
         const btn = document.getElementById('chat-btn');
-        if (view) view.classList.remove('hidden');
+        if (view) {
+            view.classList.remove('hidden');
+            updateCharacterLists(); // Refresh the list when switching views
+        }
         if (btn) {
             btn.classList.remove('text-white');
             btn.classList.add('bg-white', 'text-primary');
@@ -457,15 +455,82 @@ function createNewCharacter() {
     
     // Show success message
     showSuccess(`Character "${name}" created successfully!`);
+
+    // Instead of re-rendering the entire list, append the new element:
+    const characterListContainer = document.getElementById('character-list');
+    if (characterListContainer) {
+        // Remove "no characters" message if present
+        const noChars = document.getElementById('no-characters');
+        if (noChars) { noChars.remove(); }
+        
+        // Create a new div element for the character
+        const newCharDiv = document.createElement('div');
+        newCharDiv.id = `character-item-${newCharacter.id}`;
+        newCharDiv.className = "border rounded-lg p-4 hover:shadow-md transition";
+        
+        newCharDiv.innerHTML = `
+            <div class="flex justify-between items-start">
+                <h3 class="font-bold text-lg">${newCharacter.name}</h3>
+                <button id="delete-btn-${newCharacter.id}" class="text-red-500 hover:text-red-700" title="Delete character">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            
+            <div class="mt-2">
+                <p class="text-sm text-gray-700 font-semibold">User-Provided Context:</p>
+                <div class="text-gray-600 text-sm mt-1 max-h-32 overflow-auto p-1 border rounded bg-gray-50">
+                    ${newCharacter.userContext}
+                </div>
+            </div>
+            
+            ${ newCharacter.enhancedContext ? `
+            <div class="mt-3 bg-gray-50 p-2 rounded enhanced-context" id="enhanced-context-${newCharacter.id}">
+                <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
+                <div class="text-gray-600 text-sm mt-1 max-h-60 overflow-auto p-1 border rounded bg-white">
+                    ${newCharacter.enhancedContext}
+                </div>
+            </div>
+            ` : '' }
+            
+            <div class="mt-3">
+                <button id="enhance-btn-${newCharacter.id}" class="text-sm bg-secondary text-white px-3 py-1 rounded hover:bg-secondary/90 transition ${!state.apiKey ? 'disabled:bg-gray-400' : ''}" ${!state.apiKey ? 'disabled' : ''}>
+                    <i class="fas fa-magic mr-1"></i> ${ newCharacter.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context' }
+                </button>
+            </div>
+        `;
+        
+        // Append the new character element to the container
+        characterListContainer.appendChild(newCharDiv);
+        
+        // Set up event listeners for the new element:
+        const deleteBtn = newCharDiv.querySelector(`#delete-btn-${newCharacter.id}`);
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                deleteCharacter(newCharacter.id);
+            });
+        }
+        
+        const enhanceBtn = newCharDiv.querySelector(`#enhance-btn-${newCharacter.id}`);
+        if (enhanceBtn) {
+            enhanceBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                enhanceCharacterContext(newCharacter.id);
+            });
+        }
+    }
+
+    // Also update the sidebar if needed
+    updateSidebarCharacters();
     
     // Full UI update
-            updateCharacterLists();
+    updateCharacterLists();
+    window.scrollTo(0, document.body.scrollHeight); // scroll to bottom to see new character
     
-    // If we're not on the characters view, switch to it to show the new character
-    if (!document.getElementById('characters-view').classList.contains('hidden')) {
+    // If the characters view is currently hidden, switch to it
+    if (document.getElementById('characters-view').classList.contains('hidden')) {
         changeView('characters');
     }
-    
     return true;
 }
 
@@ -507,13 +572,17 @@ function generateCharacterListHTML() {
                 
                 <div class="mt-2">
                     <p class="text-sm text-gray-700 font-semibold">User-Provided Context:</p>
-                    <p class="text-gray-600 text-sm mt-1">${character.userContext}</p>
+                    <div class="text-gray-600 text-sm mt-1 max-h-32 overflow-auto p-1 border rounded bg-gray-50">
+                        ${character.userContext}
+                    </div>
                 </div>
                 
                 ${character.enhancedContext ? `
                 <div class="mt-3 bg-gray-50 p-2 rounded enhanced-context" id="enhanced-context-${character.id}">
                         <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
-                        <p class="text-gray-600 text-sm mt-1 line-clamp-3">${character.enhancedContext.substring(0, 150)}...</p>
+                        <div class="text-gray-600 text-sm mt-1 max-h-60 overflow-auto p-1 border rounded bg-white">
+                            ${character.enhancedContext}
+                        </div>
                     </div>
                 ` : ''}
                 
@@ -745,7 +814,7 @@ function updateChatMessages() {
 function createMessageHTML(message) {
     if (message.isTyping) {
         return `
-            <div class="flex">
+            <div class="flex w-full">
                 <div class="typing-indicator">
                     <div class="typing-dot"></div>
                     <div class="typing-dot"></div>
@@ -760,24 +829,51 @@ function createMessageHTML(message) {
     
     const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
+    if (message.isUser) {
+        // User message - right aligned
     return `
         <div 
-            class="flex ${message.isUser ? 'justify-end' : 'justify-start'} ${message.isDeleted ? 'opacity-60' : ''}"
+                class="flex justify-end w-full ${message.isDeleted ? 'opacity-60' : ''}"
             onmouseenter="showMessageActions('${message.id}')"
             onmouseleave="hideMessageActions('${message.id}')"
         >
-            ${!message.isUser && character ? `
+                <div class="message-container-user">
+                    <div class="message-bubble user-message ${message.isDeleted ? 'deleted-message' : ''}">
+                        ${message.content}
+                        
+                        ${!message.isDeleted ? `
+                            <button
+                                id="delete-msg-${message.id}"
+                                onclick="deleteMessage('${message.id}')"
+                                class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
+                            >
+                                <i class="fas fa-times text-xs"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="text-xs text-gray-500 mt-1 text-right mr-2">
+                        ${time}
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        // Character message - left aligned
+        return `
+            <div 
+                class="flex justify-start w-full ${message.isDeleted ? 'opacity-60' : ''}"
+                onmouseenter="showMessageActions('${message.id}')"
+                onmouseleave="hideMessageActions('${message.id}')"
+            >
                 <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1">
                     ${character.name.charAt(0).toUpperCase()}
                 </div>
-            ` : ''}
             
-            <div class="relative">
-                ${!message.isUser && character ? `
+                <div class="message-container-character">
                     <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
-                ` : ''}
                 
-                <div class="message-bubble ${message.isUser ? 'user-message' : 'character-message'} ${message.isDeleted ? 'deleted-message' : ''}">
+                    <div class="message-bubble character-message ${message.isDeleted ? 'deleted-message' : ''}">
                     ${message.content}
                     
                     ${!message.isDeleted ? `
@@ -791,12 +887,13 @@ function createMessageHTML(message) {
                     ` : ''}
                 </div>
                 
-                <div class="text-xs text-gray-500 mt-1 ${message.isUser ? 'text-right mr-2' : 'ml-2'}">
+                    <div class="text-xs text-gray-500 mt-1 ml-2">
                     ${time}
                 </div>
             </div>
         </div>
     `;
+    }
 }
 
 // Message action buttons
@@ -1456,7 +1553,9 @@ async function enhanceCharacterContext(characterId) {
             // Update the content
             enhancedContainer.innerHTML = `
                 <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
-                <p class="text-gray-600 text-sm mt-1 line-clamp-3">${enhancedContext.substring(0, 150)}...</p>
+                <div class="text-gray-600 text-sm mt-1 max-h-60 overflow-auto p-1 border rounded bg-white">
+                    ${enhancedContext}
+                </div>
             `;
             
             // Reset the enhance button
@@ -1579,6 +1678,15 @@ function deleteCharacter(characterId) {
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     
     console.log(`Character deleted, removed ${chatsRemoved} associated chats`);
+
+    // Remove the HTML element directly
+    const charElement = document.getElementById(`character-item-${characterId}`);
+    if (charElement) {
+        charElement.remove();
+    }
+
+    // Optionally, update the sidebar if needed
+    updateSidebarCharacters();
     
     // Show success message
     showSuccess("Character deleted successfully");

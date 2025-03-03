@@ -23,19 +23,33 @@
     outline: 2px solid red;
 }
 
-/* Chat message bubbles */
+/* Message containers to ensure consistent alignment */
+.message-container-user {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    max-width: 85%;
+}
+
+.message-container-character {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 85%;
+}
+
+/* Chat message bubbles - ensure consistent sizes */
 .message-bubble {
     position: relative;
-    max-width: 75%;
     min-width: 60px; /* Minimum width for short messages */
+    max-width: 100%; /* Fill container width */
     padding: 12px 16px;
-    margin: 8px 0;
+    margin: 4px 0;
     border-radius: 18px;
     word-wrap: break-word;
     word-break: break-word; /* Prevents text from going vertical */
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     display: inline-block; /* Ensures message stays inline */
-    line-height: 1.4;
 }
 
 .user-message {
@@ -98,8 +112,10 @@
 
 /* Character avatar */
 .character-avatar {
-    width: 36px;
-    height: 36px;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important; /* Prevent shrinking */
+    min-height: 36px !important; /* Prevent shrinking */
     border-radius: 50%;
     overflow: hidden;
     margin-right: 8px;
@@ -108,6 +124,7 @@
     align-items: center;
     justify-content: center;
     font-size: 16px;
+    flex-shrink: 0; /* Prevent flexbox from shrinking this element */
 }
 
 /* Message deletion mark */
@@ -204,10 +221,35 @@
     max-height: calc(100vh - 180px); /* Prevent excessive height */
 }
 
-/* Fix for message display issues */
+/* Force full width for message containers */
 .flex.justify-end, .flex.justify-start {
     width: 100%;
-    margin: 4px 0;
+    margin: 8px 0;
+    max-width: 100%;
+}
+
+/* Improved scrollbars for all scrollable elements */
+.overflow-auto::-webkit-scrollbar,
+#chat-messages::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.overflow-auto::-webkit-scrollbar-track,
+#chat-messages::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.05);
+    border-radius: 3px;
+}
+
+.overflow-auto::-webkit-scrollbar-thumb,
+#chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 3px;
+}
+
+.overflow-auto::-webkit-scrollbar-thumb:hover,
+#chat-messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.3);
 }
 
 /* Add active styling for buttons */
