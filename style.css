@@ -188,6 +188,152 @@
     display: inline-block; /* Ensures message stays inline */
 }
 
+/* Markdown styles in messages */
+.message-bubble em,
+.message-bubble i {
+    font-style: italic;
+    color: #666;
+}
+
+.message-bubble strong {
+    font-weight: 600;
+}
+
+.message-bubble code {
+    background: rgba(0, 0, 0, 0.1);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.message-bubble pre {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 8px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 8px 0;
+}
+
+.message-bubble pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+}
+
+.message-bubble blockquote {
+    border-left: 3px solid rgba(0, 0, 0, 0.2);
+    margin: 8px 0;
+    padding-left: 12px;
+    font-style: italic;
+}
+
+.message-bubble ul,
+.message-bubble ol {
+    margin: 8px 0;
+    padding-left: 24px;
+}
+
+.message-bubble li {
+    margin: 4px 0;
+}
+
+.message-bubble p {
+    margin: 8px 0;
+    white-space: pre-wrap;
+}
+
+.message-bubble p:first-child {
+    margin-top: 0;
+}
+
+.message-bubble p:last-child {
+    margin-bottom: 0;
+}
+
+/* Headers in messages */
+.message-bubble h1,
+.message-bubble h2,
+.message-bubble h3,
+.message-bubble h4,
+.message-bubble h5,
+.message-bubble h6 {
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 16px 0 8px;
+}
+
+.message-bubble h1 { font-size: 1.5em; }
+.message-bubble h2 { font-size: 1.3em; }
+.message-bubble h3 { font-size: 1.1em; }
+.message-bubble h4 { font-size: 1em; }
+.message-bubble h5 { font-size: 0.9em; }
+.message-bubble h6 { font-size: 0.8em; }
+
+/* Tables in messages */
+.message-bubble table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+}
+
+.message-bubble th,
+.message-bubble td {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 6px 8px;
+    text-align: left;
+}
+
+.message-bubble th {
+    background: rgba(0, 0, 0, 0.05);
+    font-weight: 600;
+}
+
+/* Horizontal rule */
+.message-bubble hr {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin: 12px 0;
+}
+
+/* Strikethrough */
+.message-bubble del {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+/* Adjust markdown styles for user messages (light text) */
+.user-message em,
+.user-message i {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.user-message code {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.user-message pre {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.user-message blockquote {
+    border-left-color: rgba(255, 255, 255, 0.3);
+}
+
+.user-message th {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.user-message td,
+.user-message th {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.user-message hr {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
 .user-message {
     background-color: #1982FC;
     color: white;

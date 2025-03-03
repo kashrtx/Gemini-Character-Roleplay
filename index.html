@@ -266,12 +266,12 @@
                     <!-- Message input -->
                     <div class="p-4 bg-white border-t">
                         <form id="chat-form" class="flex space-x-2">
-                            <input
-                                type="text"
+                            <textarea
                                 id="message-input"
-                                placeholder="Type your message..."
-                                class="flex-grow p-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
+                                placeholder="Type your message... (Shift+Enter for new line)"
+                                class="flex-grow p-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-primary resize-none overflow-hidden min-h-[40px] max-h-[120px]"
+                                rows="1"
+                            ></textarea>
                             <button
                                 type="submit"
                                 id="send-message-btn"
@@ -298,6 +298,11 @@
             return "Debug mode " + (window.debugApp ? "enabled" : "disabled");
         }
     </script>
+    
+    <!-- Marked.js for Markdown support -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- DOMPurify for sanitizing HTML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
     
     <script src="script.js"></script>
 </body>

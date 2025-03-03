@@ -278,11 +278,41 @@ function loadStoredData() {
 function setupEventListeners() {
     // Chat form submission
     const chatForm = document.getElementById('chat-form');
-    if (chatForm) {
+    const messageInput = document.getElementById('message-input');
+
+    if (chatForm && messageInput) {
+        // Handle form submission
         chatForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        sendMessage();
-    });
+            e.preventDefault();
+            sendMessage();
+        });
+
+        // Handle message input keydown
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                if (e.shiftKey) {
+                    // Shift+Enter: insert newline
+                    e.preventDefault();
+                    const start = messageInput.selectionStart;
+                    const end = messageInput.selectionEnd;
+                    const value = messageInput.value;
+                    messageInput.value = value.substring(0, start) + '\n' + value.substring(end);
+                    messageInput.selectionStart = messageInput.selectionEnd = start + 1;
+                } else {
+                    // Just Enter: submit if not empty
+                    if (messageInput.value.trim()) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                }
+            }
+        });
+
+        // Auto-resize input height based on content
+        messageInput.addEventListener('input', () => {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = (messageInput.scrollHeight) + 'px';
+        });
     }
 
     // Make sidebar character items clickable
@@ -304,7 +334,6 @@ function setupEventListeners() {
             });
         }
     }
-
 }
 
 // Update sidebar character event listeners
@@ -851,17 +880,44 @@ function createMessageHTML(message) {
     
     const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
+    // Process markdown and sanitize HTML
+    const processContent = (content) => {
+        // Configure marked options for enhanced markdown support
+        marked.setOptions({
+            breaks: true, // Enable line breaks
+            gfm: true, // Enable GitHub Flavored Markdown
+            headerIds: false, // Disable header IDs for security
+            mangle: false // Disable mangle for security
+        });
+
+        // Convert *text* to italics for actions, but preserve other markdown
+        content = content.replace(/\*((?!\*)[^*]+)\*/g, '_$1_');
+        
+        // Parse markdown
+        const rawHtml = marked.parse(content);
+        
+        // Sanitize HTML with expanded tag support
+        return DOMPurify.sanitize(rawHtml, {
+            ALLOWED_TAGS: [
+                'em', 'strong', 'code', 'br', 'p', 'ul', 'ol', 'li', 
+                'blockquote', 'i', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'pre', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td'
+            ],
+            ALLOWED_ATTR: ['class']
+        });
+    };
+    
     if (message.isUser) {
         // User message - right aligned
-    return `
-        <div 
+        return `
+            <div 
                 class="flex justify-end w-full ${message.isDeleted ? 'opacity-60' : ''}"
-            onmouseenter="showMessageActions('${message.id}')"
-            onmouseleave="hideMessageActions('${message.id}')"
-        >
+                onmouseenter="showMessageActions('${message.id}')"
+                onmouseleave="hideMessageActions('${message.id}')"
+            >
                 <div class="message-container-user">
                     <div class="message-bubble user-message ${message.isDeleted ? 'deleted-message' : ''}">
-                        ${message.content}
+                        ${message.isDeleted ? message.content : processContent(message.content)}
                         
                         ${!message.isDeleted ? `
                             <button
@@ -891,30 +947,30 @@ function createMessageHTML(message) {
                 <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1">
                     ${character.name.charAt(0).toUpperCase()}
                 </div>
-            
+                
                 <div class="message-container-character">
                     <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
                 
                     <div class="message-bubble character-message ${message.isDeleted ? 'deleted-message' : ''}">
-                    ${message.content}
+                        ${message.isDeleted ? message.content : processContent(message.content)}
+                        
+                        ${!message.isDeleted ? `
+                            <button
+                                id="delete-msg-${message.id}"
+                                onclick="deleteMessage('${message.id}')"
+                                class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
+                            >
+                                <i class="fas fa-times text-xs"></i>
+                            </button>
+                        ` : ''}
+                    </div>
                     
-                    ${!message.isDeleted ? `
-                        <button
-                            id="delete-msg-${message.id}"
-                            onclick="deleteMessage('${message.id}')"
-                            class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
-                        >
-                            <i class="fas fa-times text-xs"></i>
-                        </button>
-                    ` : ''}
-                </div>
-                
                     <div class="text-xs text-gray-500 mt-1 ml-2">
-                    ${time}
+                        ${time}
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
     }
 }
 
