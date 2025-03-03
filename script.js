@@ -167,6 +167,7 @@ function initializeSidebar() {
     const showCharactersBtn = document.getElementById('show-characters-btn');
     const showChatSidebarBtn = document.getElementById('show-chat-sidebar-btn');
     const chatView = document.getElementById('chat-view');
+    const header = document.querySelector('header');
     
     // Create overlay element
     const overlay = document.createElement('div');
@@ -178,6 +179,37 @@ function initializeSidebar() {
         sidebar.classList.toggle('sidebar-open');
         overlay.classList.toggle('active');
     }
+    
+    // Function to adjust sidebar position based on header height
+    function adjustSidebarPosition() {
+        if (window.innerWidth < 1024) {
+            const headerHeight = header.offsetHeight;
+            sidebar.style.top = `${headerHeight}px`;
+            
+            // Update main content padding to account for fixed header
+            const main = document.querySelector('main');
+            if (main) {
+                main.style.paddingTop = `${headerHeight}px`;
+            }
+            
+            // Update height and max-height to ensure proper scrolling
+            sidebar.style.height = `calc(100vh - ${headerHeight}px)`;
+            sidebar.style.maxHeight = `calc(100vh - ${headerHeight}px)`;
+        } else {
+            sidebar.style.top = '';
+            sidebar.style.height = '';
+            sidebar.style.maxHeight = '';
+            
+            // Reset main padding for desktop
+            const main = document.querySelector('main');
+            if (main) {
+                main.style.paddingTop = '';
+            }
+        }
+    }
+    
+    // Call initially to set the correct position
+    adjustSidebarPosition();
     
     // Add click events for all toggle buttons
     if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
@@ -196,12 +228,21 @@ function initializeSidebar() {
         }
     };
     
+    // Handle scroll events to ensure sidebar stays fixed
+    window.addEventListener('scroll', () => {
+        if (window.innerWidth < 1024) {
+            // No need to reposition on scroll since it's fixed in CSS
+            // But we can add this as a hook for any future scroll-based adjustments
+        }
+    });
+    
     // Handle resize events
     window.addEventListener('resize', () => {
         if (window.innerWidth >= 1024) {
             sidebar.classList.remove('sidebar-open');
             overlay.classList.remove('active');
         }
+        adjustSidebarPosition();
     });
 }
 
@@ -773,24 +814,41 @@ function toggleCharacterSelection(characterId) {
         return;
     }
     
+    const wasSelected = state.selectedCharacters.includes(characterId);
+    
     // Handle selection based on group chat setting
     if (!appSettings.allowGroupChats) {
         // Single character mode - replace existing selection
         state.selectedCharacters = [characterId];
     } else {
         // Group chat mode - toggle selection
-        if (state.selectedCharacters.includes(characterId)) {
+        if (wasSelected) {
             state.selectedCharacters = state.selectedCharacters.filter(id => id !== characterId);
         } else {
-        state.selectedCharacters.push(characterId);
+            state.selectedCharacters.push(characterId);
         }
     }
     
     // Update Start Chat button state
-   // removed it
+    //removed it
     
     // Update UI to reflect selection state
     updateSidebarCharacters();
+    
+    // If we're removing a character from an active chat
+    if (wasSelected && state.selectedCharacters.length === 0) {
+        // Reset the chat view if no characters are selected
+        const chatWindow = document.getElementById('chat-window');
+        const placeholder = document.getElementById('chat-placeholder');
+        
+        if (chatWindow) chatWindow.classList.add('hidden');
+        if (placeholder) placeholder.classList.remove('hidden');
+        
+        // Force a layout refresh
+        setTimeout(() => {
+            window.dispatchEvent(new Event('resize'));
+        }, 10);
+    }
     
     // Auto-start chat in single character mode
     if (!appSettings.allowGroupChats && state.selectedCharacters.length === 1) {
@@ -849,6 +907,22 @@ function updateChatUI() {
     
     // Update messages
     updateChatMessages();
+    
+    // Force a layout refresh to prevent spacing issues
+    setTimeout(() => {
+        const chatMessages = document.getElementById('chat-messages');
+        if (chatMessages) {
+            // Reset any potential accumulated margins or paddings
+            chatMessages.style.height = null;
+            chatMessages.style.height = 'auto';
+            
+            // Force browser to recalculate layout
+            window.dispatchEvent(new Event('resize'));
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    }, 50);
 }
 
 function updateChatMessages() {

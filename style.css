@@ -5,17 +5,37 @@
     display: none !important;
 }
 
+/* Fix for scroll-related issues */
+html, body {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+/* Improved container for the app */
+#app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
 /* Mobile responsiveness */
 @media (max-width: 1024px) {
     #character-sidebar {
         position: fixed;
         left: 0;
-        top: 0;
+        top: 64px; /* Position below header */
         bottom: 0;
         z-index: 50;
         transform: translateX(-100%);
         width: 280px;
         background: white;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        overflow-y: auto; /* Ensure content is scrollable */
+        max-height: calc(100vh - 64px); /* Limit height to viewport minus header */
+        height: calc(100vh - 64px); /* Fixed height to prevent resizing */
+        position: fixed !important; /* Ensure it stays fixed regardless of other styles */
     }
 
     /* Show sidebar by default when no chat is selected */
@@ -25,6 +45,11 @@
 
     #character-sidebar.sidebar-open {
         transform: translateX(0);
+    }
+
+    /* Additional styles for scrollable sidebar content */
+    #sidebar-characters {
+        overflow-y: auto;
     }
 
     /* Hide toggle buttons on desktop */
@@ -55,6 +80,8 @@
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.3s ease-in-out;
+        width: 100vw;
+        height: 100vh;
     }
 
     .sidebar-overlay.active {
@@ -65,6 +92,22 @@
     /* Adjust header spacing */
     header .container {
         padding-left: 1rem;
+    }
+    
+    /* Fix header position to ensure sidebar stays relative to it */
+    header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 51; /* Higher than sidebar */
+        width: 100%;
+    }
+    
+    /* Add padding to main content to account for fixed header */
+    main {
+        padding-top: 64px;
+        position: relative;
     }
 }
 
@@ -83,6 +126,17 @@
     header .container {
         padding-left: 0.5rem;
         padding-right: 0.5rem;
+    }
+
+    #character-sidebar {
+        top: 48px; /* Adjust for smaller header in mobile view */
+        max-height: calc(100vh - 48px); /* Update max height for smaller header */
+        height: calc(100vh - 48px); /* Fixed height for smaller header */
+    }
+    
+    /* Adjust padding for fixed header in mobile */
+    main {
+        padding-top: 48px;
     }
 
     header h1 {
@@ -455,6 +509,8 @@
 #chat-view {
     height: calc(100vh - 64px);
     overflow: hidden;
+    display: flex;
+    flex-direction: row;
 }
 
 /* Character sidebar and chat window take full height */
@@ -463,6 +519,7 @@
 #chat-window {
     height: 100%;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 /* Ensure chat window is visible and positioned correctly */
@@ -470,9 +527,16 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    min-width: 400px; /* Prevent squeezing to too narrow */
+    min-width: 0; /* Allow it to shrink if needed */
     flex: 1 1 auto;
     background-color: #f9f9f9;
+}
+
+#chat-placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Chat messages area */
@@ -482,8 +546,10 @@
     padding: 1rem;
     display: flex;
     flex-direction: column;
-    min-height: 300px; /* Ensure minimum height */
-    max-height: calc(100vh - 180px); /* Prevent excessive height */
+    /* Remove fixed min-height that could cause spacing issues */
+    height: auto;
+    /* Use flexible height calculation */
+    max-height: calc(100% - 120px); /* Account for header and input area */
 }
 
 /* Force full width for message containers */

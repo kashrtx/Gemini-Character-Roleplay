@@ -374,6 +374,50 @@
             console.log("Debug mode:", window.debugApp ? "ON" : "OFF");
             return "Debug mode " + (window.debugApp ? "enabled" : "disabled");
         }
+        
+        // Ensure the sidebar position is adjusted when the DOM content is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            // This will be called after the main script is loaded and run
+            setTimeout(() => {
+                const sidebar = document.getElementById('character-sidebar');
+                const header = document.querySelector('header');
+                const main = document.querySelector('main');
+                
+                if (sidebar && header && window.innerWidth < 1024) {
+                    const headerHeight = header.offsetHeight;
+                    
+                    // Ensure fixed positioning
+                    header.style.position = 'fixed';
+                    header.style.top = '0';
+                    header.style.left = '0';
+                    header.style.right = '0';
+                    header.style.width = '100%';
+                    header.style.zIndex = '51';
+                    
+                    // Position sidebar below header
+                    sidebar.style.top = `${headerHeight}px`;
+                    sidebar.style.height = `calc(100vh - ${headerHeight}px)`;
+                    sidebar.style.maxHeight = `calc(100vh - ${headerHeight}px)`;
+                    
+                    // Add padding to main content to offset the fixed header
+                    if (main) {
+                        main.style.paddingTop = `${headerHeight}px`;
+                    }
+                    
+                    // Force a small delay and reapply to ensure calculations are correct
+                    setTimeout(() => {
+                        const updatedHeaderHeight = header.offsetHeight;
+                        sidebar.style.top = `${updatedHeaderHeight}px`;
+                        sidebar.style.height = `calc(100vh - ${updatedHeaderHeight}px)`;
+                        sidebar.style.maxHeight = `calc(100vh - ${updatedHeaderHeight}px)`;
+                        
+                        if (main) {
+                            main.style.paddingTop = `${updatedHeaderHeight}px`;
+                        }
+                    }, 200);
+                }
+            }, 100);
+        });
     </script>
     
     <!-- Marked.js for Markdown support -->
