@@ -12,7 +12,6 @@ html, body {
     overflow-x: hidden;
     /* Don't prevent all scrolling, allow it on non-chat views */
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
 }
 
 /* Chat view specific styles to prevent unwanted scrolling only in chat */
@@ -47,11 +46,10 @@ main {
 
 /* Make character and settings views scrollable */
 #characters-view, #settings-view {
-    overflow-y: auto !important;
-    height: auto !important;
+    overflow-y: auto;
+    height: auto;
     min-height: calc(100vh - 56px);
-    padding-bottom: 80px !important; /* Add extra padding at the bottom */
-    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2rem; /* Add some padding at the bottom */
 }
 
 /* Only fix the chat view height */
@@ -179,52 +177,11 @@ main {
     }
 
     #character-sidebar {
-        position: fixed;
-        left: 0;
-        top: 56px; /* Reduced height for header */
-        bottom: 0;
-        z-index: 50;
-        transform: translateX(-100%);
-        width: 280px;
-        background: white;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        overflow-y: auto; /* Ensure content is scrollable */
-        max-height: calc(100vh - 56px); /* Reduced height from header */
-        height: calc(100vh - 56px); /* Fixed height to prevent resizing */
-        position: fixed !important; /* Ensure it stays fixed regardless of other styles */
-        transition: transform 0.3s ease-in-out;
+        top: 46px; /* Adjust for smaller header in mobile view */
+        max-height: calc(100vh - 46px); /* Update max height for smaller header */
+        height: calc(100vh - 46px); /* Fixed height for smaller header */
     }
     
-    #character-sidebar.sidebar-open {
-        transform: translateX(0) !important;
-    }
-
-    /* Additional styles for scrollable sidebar content */
-    #sidebar-characters {
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch; /* For smoother scrolling on iOS */
-        padding-bottom: 50px; /* Add padding at the bottom for better mobile scrolling */
-    }
-
-    /* Ensure that the characters inside the sidebar are clickable */
-    #sidebar-characters > div,
-    #sidebar-characters > div > * {
-        pointer-events: auto !important;
-        position: relative !important;
-        z-index: 1001 !important; /* Higher than sidebar */
-    }
-    
-    /* Fix the overlay to prevent it from blocking interaction */
-    .sidebar-overlay.active {
-        z-index: 999 !important; /* Lower than the sidebar but higher than the rest */
-    }
-    
-    /* Ensure toggle buttons are visible and clickable */
-    #toggle-sidebar-btn {
-        position: relative;
-        z-index: 1002 !important; /* Higher than everything */
-    }
-
     /* Adjust padding for fixed header in mobile */
     main {
         padding-top: 46px; /* Mobile header height */
@@ -299,68 +256,29 @@ main {
         height: calc(100vh - 46px);
     }
 
-    /* Ensure the chat form is always visible and properly positioned */
-    #chat-window > div:last-of-type {
-        position: fixed !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        background: white !important;
-        z-index: 100 !important;
-        padding: 8px !important;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1) !important;
-        border-top: 1px solid #e5e7eb;
-    }
-    
-    /* Adjust chat messages area to account for fixed input */
-    #chat-messages {
-        padding-bottom: 80px !important; /* Add space for the fixed chat form */
-        max-height: calc(100vh - 170px) !important; /* Account for fixed headers and input */
-    }
-    
-    /* Ensure the settings and characters sections scroll properly */
-    #characters-view, #settings-view {
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        padding-bottom: 100px !important;
-        min-height: calc(100vh - 46px) !important;
-    }
-    
-    /* Force scrolling for the container elements */
-    .container {
-        overflow-y: visible !important;
-        height: auto !important;
-    }
-    
-    /* Fix for specific containers */
+    /* Make character and settings content scrollable on mobile */
     #characters-view .container, #settings-view .container {
-        padding-bottom: 100px !important;
-        max-height: none !important;
+        max-height: calc(100vh - 46px);
+        overflow-y: auto;
+        padding-bottom: 50px; /* Extra padding to ensure scroll works */
     }
     
-    /* Allow scrolling within main */
-    main {
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        height: auto !important;
+    /* Ensure container allows scrolling */
+    .container {
+        width: 100%;
+        max-width: 100%;
     }
     
-    /* Remove height restriction for app container */
-    #app {
-        min-height: 100vh;
-        height: auto !important;
+    /* Fix for form inputs */
+    #chat-form {
+        position: relative;
+        z-index: 2;
     }
     
-    /* Fix iOS specific issues */
-    @supports (-webkit-touch-callout: none) {
-        /* iOS specific adjustments */
-        #characters-view, #settings-view {
-            padding-bottom: 150px !important;
-        }
-        
-        #chat-messages {
-            padding-bottom: 100px !important;
-        }
+    /* Ensure the message input doesn't get hidden */
+    #message-input {
+        padding: 8px;
+        min-height: 40px;
     }
 }
 
@@ -693,14 +611,15 @@ main {
     justify-content: center;
 }
 
-/* Chat messages area with fixed height to prevent layout shifts */
+/* Chat messages area */
 #chat-messages {
     flex: 1 1 auto;
     overflow-y: scroll; /* Changed from auto to scroll for better mobile behavior */
     padding: 1rem;
-    padding-bottom: 120px; /* Extra space at bottom for fixed input */
     display: flex;
     flex-direction: column;
+    /* Remove fixed min-height that could cause spacing issues */
+    height: auto;
     /* Use flexible height calculation */
     max-height: calc(100% - 104px); /* Updated for smaller headers: chat header (48px) + input area (~56px) */
     -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
@@ -959,202 +878,4 @@ header nav button {
         display: flex;
         flex-direction: column;
     }
-}
-
-/* Send message button styling to ensure it stays circular */
-#send-message-btn {
-    width: 48px !important;
-    height: 48px !important;
-    min-width: 48px !important;
-    min-height: 48px !important;
-    max-width: 52px !important;
-    max-height: 52px !important;
-    border-radius: 50% !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    flex-shrink: 0 !important;
-    margin-left: 8px !important;
-    aspect-ratio: 1/1 !important;
-}
-
-/* Fix the icon centering within the button */
-#send-message-btn i {
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    width: 100%;
-}
-
-/* Message input area styling */
-.p-4.bg-white.border-t {
-    padding: 12px !important;
-}
-
-/* Chat form layout with improved spacing */
-#chat-form {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    position: relative;
-    width: 100%;
-}
-
-/* Ensure textarea takes proper space */
-#message-input {
-    flex: 1;
-    min-height: 40px;
-    padding: 10px 12px;
-    border-radius: 18px;
-    resize: none;
-    max-height: 120px;
-    overflow-y: auto;
-    line-height: 1.4;
-}
-
-/* Send message button styling to ensure it stays circular */
-#send-message-btn {
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
-    max-width: 44px !important;
-    max-height: 44px !important;
-    border-radius: 50% !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    flex-shrink: 0 !important;
-    margin-left: 4px !important;
-    aspect-ratio: 1/1 !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-}
-
-/* Mobile adjustments for send button */
-@media (max-width: 640px) {
-    #send-message-btn {
-        width: 40px !important;
-        height: 40px !important;
-        min-width: 40px !important;
-        min-height: 40px !important;
-        max-width: 40px !important;
-        max-height: 40px !important;
-    }
-    
-    #send-message-btn i {
-        font-size: 14px;
-    }
-}
-
-/* Message input container with fixed positioning on mobile */
-@media (max-width: 640px) {
-    /* Fixed chat input area */
-    #chat-window > div:last-of-type {
-        position: fixed !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        background: white !important;
-        z-index: 999 !important;
-        padding: 8px !important;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1) !important;
-        border-top: 1px solid #e5e7eb;
-    }
-    
-    /* Adjust chat messages container for fixed input */
-    #chat-messages {
-        max-height: calc(100vh - 180px) !important;
-        padding-bottom: 120px !important;
-    }
-    
-    /* Ensure message input is properly sized and visible */
-    #message-input {
-        max-height: 80px !important;
-        padding: 8px 12px !important;
-    }
-    
-    /* Make the send button slightly smaller on mobile */
-    #send-message-btn {
-        width: 38px !important;
-        height: 38px !important;
-        min-width: 38px !important;
-        min-height: 38px !important;
-        max-width: 38px !important;
-        max-height: 38px !important;
-    }
-    
-    /* Make settings and characters sections properly scrollable */
-    #settings-view, #characters-view {
-        height: auto !important;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        padding-bottom: 120px !important;
-        position: relative !important;
-    }
-    
-    /* iOS specific adjustments for better scrolling */
-    @supports (-webkit-touch-callout: none) {
-        /* Handle the iOS notch and home indicator */
-        #chat-window > div:last-of-type {
-            padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
-        }
-        
-        #chat-messages {
-            padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
-        }
-    }
-}
-
-/* iOS-specific fixes */
-body.ios-device #character-sidebar {
-    -webkit-overflow-scrolling: touch !important;
-}
-
-body.ios-device #sidebar-characters {
-    padding-bottom: 100px !important;
-}
-
-body.ios-device #sidebar-characters > div {
-    pointer-events: auto !important;
-    touch-action: manipulation !important;
-    cursor: pointer !important;
-    position: relative !important;
-    z-index: 1100 !important;
-    padding: 12px !important; /* Larger touch target */
-}
-
-/* Make the entire character item clickable */
-#sidebar-characters > div {
-    position: relative;
-}
-
-#sidebar-characters > div::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1000;
-}
-
-/* Ensure the overlay doesn't block touch events for character items */
-.sidebar-overlay.active {
-    z-index: 999 !important;
-}
-
-#character-sidebar {
-    z-index: 1000 !important;
-}
-
-/* Fix iOS scrolling on other sections */
-body.ios-device #settings-view,
-body.ios-device #characters-view {
-    -webkit-overflow-scrolling: touch !important;
-    overflow-y: auto !important;
-    padding-bottom: 120px !important;
 }

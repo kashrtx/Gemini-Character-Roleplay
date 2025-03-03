@@ -25,7 +25,6 @@ function setupMobileViewportFix() {
             
             // Scroll to the input after a brief delay to ensure keyboard is fully shown
             setTimeout(() => {
-                chatInput.scrollIntoView(false);
                 const chatMessages = document.getElementById('chat-messages');
                 if (chatMessages) {
                     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -45,12 +44,9 @@ function setupMobileViewportFix() {
     window.addEventListener('resize', () => {
         // If the window height changes dramatically (keyboard appearing)
         if (window.innerHeight < windowHeight) {
-            // When keyboard appears, make sure chat input is visible
-            if (document.activeElement === chatInput) {
-                setTimeout(() => {
-                    chatInput.scrollIntoView(false);
-                }, 100);
-            }
+            // Don't allow the body to scroll/move
+            document.body.style.height = '100vh';
+            document.body.style.overflow = 'hidden';
         } else {
             // When keyboard disappears, make sure we're at the right position
             setTimeout(() => {
@@ -60,81 +56,27 @@ function setupMobileViewportFix() {
         windowHeight = window.innerHeight;
     });
     
-    // Fix scrolling for different views
-    const setupViewScrolling = () => {
-        const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    // Prevent document scrolling while allowing chat messages to scroll
+    document.addEventListener('touchmove', function(event) {
+        // Get the target element
+        const target = event.target;
         
-        // Fix scrolling for settings view
-        const settingsView = document.getElementById('settings-view');
-        if (settingsView) {
-            if (isIOSDevice) {
-                settingsView.style.webkitOverflowScrolling = 'touch';
-            }
+        // Check if the touch is within the chat messages area
+        const isInChatMessages = target.closest('#chat-messages');
+        
+        // If not in chat messages and not in any other scrollable area, prevent default
+        if (!isInChatMessages && !target.closest('.overflow-y-auto') && !target.closest('.overflow-auto')) {
+            event.preventDefault();
         }
-        
-        // Fix scrolling for characters view
-        const charactersView = document.getElementById('characters-view');
-        if (charactersView) {
-            if (isIOSDevice) {
-                charactersView.style.webkitOverflowScrolling = 'touch';
-            }
-        }
-        
-        // Update the height calculation when the view changes
-        const updateViewLayout = () => {
-            // Get active view
-            const activeView = document.querySelector('#chat-view:not(.hidden), #settings-view:not(.hidden), #characters-view:not(.hidden)');
-            
-            if (activeView) {
-                if (activeView.id === 'chat-view') {
-                    document.body.classList.add('chat-view-active');
-                    
-                    // Make sure chat input is visible on iOS
-                    if (isIOSDevice) {
-                        const chatForm = document.querySelector('#chat-window > div:last-of-type');
-                        if (chatForm) {
-                            chatForm.style.position = 'fixed';
-                            chatForm.style.bottom = '0';
-                            chatForm.style.left = '0';
-                            chatForm.style.right = '0';
-                            chatForm.style.zIndex = '100';
-                        }
-                    }
-                } else {
-                    document.body.classList.remove('chat-view-active');
-                    
-                    // Force a small delay and then scroll to top
-                    setTimeout(() => {
-                        window.scrollTo(0, 0);
-                        activeView.scrollTop = 0;
-                    }, 100);
-                }
-            }
-        };
-        
-        // Initial update
-        updateViewLayout();
-        
-        // Update when view changes
-        const viewButtons = document.querySelectorAll('[onclick^="changeView"]');
-        viewButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                // Small delay to ensure DOM is updated
-                setTimeout(updateViewLayout, 50);
-            });
-        });
-    };
-    
-    // Initialize view scrolling fixes
-    setupViewScrolling();
+    }, { passive: false });
 }
 
 // App Settings
 let appSettings = {
     allowGroupChats: false,
     modelVersion: "gemini-2.0-flash",
-    temperature: 1.1,
-    maxTokens: 1200,
+    temperature: 1.2,
+    maxTokens: 800,
     topK: 40,
     topP: 0.95,
 };
@@ -300,34 +242,9 @@ function initializeSidebar() {
     document.body.appendChild(overlay);
     
     // Toggle sidebar function
-    function toggleSidebar(event) {
-        if (event) {
-            event.stopPropagation(); // Prevent event from bubbling up
-        }
-        
+    function toggleSidebar() {
         sidebar.classList.toggle('sidebar-open');
         overlay.classList.toggle('active');
-        
-        // If opening the sidebar
-        if (sidebar.classList.contains('sidebar-open')) {
-            // Enable scrolling in the sidebar
-            sidebar.style.overflowY = 'auto';
-            sidebar.style.webkitOverflowScrolling = 'touch';
-            
-            // Prevent body scrolling
-            document.body.style.overflow = 'hidden';
-            
-            // Focus trap for better accessibility
-            setTimeout(() => {
-                const firstButton = sidebar.querySelector('button') || sidebar.querySelector('a');
-                if (firstButton) {
-                    firstButton.focus();
-                }
-            }, 100);
-        } else {
-            // Re-enable body scrolling when closing sidebar
-            document.body.style.overflow = '';
-        }
     }
     
     // Function to adjust sidebar position based on header height
@@ -361,11 +278,11 @@ function initializeSidebar() {
     // Call initially to set the correct position
     adjustSidebarPosition();
     
-    // Add click events for all toggle buttons - with proper parameters to prevent bubbling
-    if (toggleBtn) toggleBtn.addEventListener('click', (e) => toggleSidebar(e));
-    if (showCharactersBtn) showCharactersBtn.addEventListener('click', (e) => toggleSidebar(e));
-    if (showChatSidebarBtn) showChatSidebarBtn.addEventListener('click', (e) => toggleSidebar(e));
-    overlay.addEventListener('click', (e) => toggleSidebar(e));
+    // Add click events for all toggle buttons
+    if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
+    if (showCharactersBtn) showCharactersBtn.addEventListener('click', toggleSidebar);
+    if (showChatSidebarBtn) showChatSidebarBtn.addEventListener('click', toggleSidebar);
+    overlay.addEventListener('click', toggleSidebar);
     
     // Close sidebar on chat start in mobile view
     const originalStartChat = startChat;
@@ -1965,13 +1882,13 @@ function showSuccess(message, duration = 3000) {
 async function callEnhanceAPI(characterName, userContext) {
     const prompt = `
 You are an expert character developer for roleplaying. Transform this brief character description into a detailed character profile that can guide an AI in consistently roleplaying as this character.
-Do not mention AI. Immediately fill in the details about the character for generating a character bio and context which will be used to roleplay with the user.
-Write details for CHARACTER NAME: "${characterName}"
+Fill in the details about but dont sound like the character, because this is for generating a character context which will be used to roleplay with the user.
+CHARACTER NAME: "${characterName}"
 
-BRIEF DESCRIPTION:
+BRIEF DESCRIPTION (that user provided that needs to be enhanced with more critical details):
 "${userContext}"
 
-BUILD ON THE BRIEF DESCRIPTION TO CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
+CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
 1. Personality traits with specific behavioral examples
 2. Distinctive speech patterns, vocabulary choices, and verbal tics
 3. Background information and formative experiences that shaped them
@@ -1982,10 +1899,10 @@ BUILD ON THE BRIEF DESCRIPTION TO CREATE A COMPREHENSIVE CHARACTER PROFILE INCLU
 8. Skills, knowledge areas, and expertise
 9. Fears, insecurities, and internal conflicts
 
-FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE THAT REFLECTS THEIR ORIGINAL SOURCE.
+FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE.
 Make the character feel authentic and three-dimensional with consistent traits.
 Include specific examples of how they would speak and react.
-Write in third person (like you are analyzing them), approximately 400-500 words.
+Write in third person, approximately 400-500 words.
 Focus on depth and specificity rather than generic descriptions.
 `;
 
@@ -2098,13 +2015,13 @@ function updateCharacterLists() {
                 updateChatUI();
             }
         }
-        
-        // Dispatch an event to notify that characters have been updated
-        // This will trigger the setupCharacterClickHandlers for mobile
-        document.dispatchEvent(new CustomEvent('charactersUpdated'));
-        
     } catch (error) {
         console.error("Error updating character lists:", error);
+        // Try to recover by refreshing the whole page if critical error
+        if (error.toString().includes("TypeError")) {
+            console.log("Critical error detected, suggesting page refresh");
+            showError("An error occurred. Please refresh the page.");
+        }
     }
 }
 
@@ -2272,210 +2189,3 @@ async function testModelConfiguration() {
         testBtn.disabled = false;
     }
 }
-
-// Make characters in sidebar clickable
-function setupCharacterClickHandlers() {
-    const characterElements = document.querySelectorAll('#sidebar-characters > div');
-    
-    characterElements.forEach(charElement => {
-        if (charElement) {
-            // Ensure data-character-id is set
-            const characterId = charElement.getAttribute('data-character-id');
-            if (!characterId) return; // Skip if no id found
-            
-            // Make the entire character element and its children clickable
-            charElement.style.cursor = 'pointer';
-            charElement.style.position = 'relative';
-            charElement.style.zIndex = '1001';
-            
-            // Remove any existing handlers by cloning and replacing the element
-            const newElement = charElement.cloneNode(true);
-            charElement.parentNode.replaceChild(newElement, charElement);
-            
-            // Ensure iOS touch events work properly
-            newElement.addEventListener('touchend', function(e) {
-                e.stopPropagation(); // Stop propagation to prevent overlay issues
-                
-                // Get character info from the clicked element
-                const charId = this.getAttribute('data-character-id');
-                if (charId) {
-                    console.log("Character selected via touch:", charId);
-                    selectCharacterFromSidebar(charId);
-                    // Close sidebar after selection on mobile
-                    if (window.innerWidth < 1024) {
-                        setTimeout(() => toggleSidebar(), 100);
-                    }
-                }
-            });
-            
-            // Handle click events too
-            newElement.addEventListener('click', function(e) {
-                e.stopPropagation(); // Stop propagation to prevent overlay issues
-                
-                // Get character info from the clicked element
-                const charId = this.getAttribute('data-character-id');
-                if (charId) {
-                    console.log("Character selected via click:", charId);
-                    selectCharacterFromSidebar(charId);
-                    // Close sidebar after selection on mobile
-                    if (window.innerWidth < 1024) {
-                        setTimeout(() => toggleSidebar(), 100);
-                    }
-                }
-            });
-        }
-    });
-}
-
-// Separate function to replace the existing setupSidebarCharacterListeners
-function setupSidebarCharacterListeners() {
-    // On mobile, we're using the enhanced click handlers instead
-    if (window.innerWidth < 1024) {
-        // Just trigger the character click handlers instead
-        setupCharacterClickHandlers();
-        return;
-    }
-    
-    // Desktop behavior remains the same
-    const characterItems = document.querySelectorAll('#sidebar-characters .character-item');
-    
-    characterItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const characterId = item.getAttribute('data-character-id');
-            if (characterId) {
-                selectCharacterFromSidebar(characterId);
-            }
-        });
-    });
-}
-
-// Function to handle selecting a character from the sidebar
-function selectCharacterFromSidebar(characterId) {
-    console.log("Selecting character from sidebar:", characterId);
-    
-    // If not in chat view, switch to it
-    if (document.getElementById('chat-view').classList.contains('hidden')) {
-        changeView('chat');
-    }
-    
-    // Add or remove from selected characters
-    const index = state.selectedCharacters.indexOf(characterId);
-    
-    if (index === -1) {
-        // Add character to selection
-        state.selectedCharacters.push(characterId);
-    } else if (appSettings.allowGroupChats) {
-        // Remove character from selection if group chats allowed
-        state.selectedCharacters.splice(index, 1);
-    } else {
-        // If group chats not allowed, deselect current and select new
-        state.selectedCharacters = [characterId];
-    }
-    
-    // Update UI to reflect selection
-    updateSidebarCharacters();
-    
-    // If at least one character is selected, start chat
-    if (state.selectedCharacters.length > 0) {
-        startChat();
-    } else {
-        // Hide chat if no characters selected
-        const chatWindow = document.getElementById('chat-window');
-        const chatPlaceholder = document.getElementById('chat-placeholder');
-        
-        if (chatWindow && chatPlaceholder) {
-            chatWindow.classList.add('hidden');
-            chatPlaceholder.classList.remove('hidden');
-        }
-    }
-}
-
-// Call initially to set the correct position
-adjustSidebarPosition();
-
-// Add click events for all toggle buttons - with proper parameters to prevent bubbling
-if (toggleBtn) toggleBtn.addEventListener('click', (e) => toggleSidebar(e));
-if (showCharactersBtn) showCharactersBtn.addEventListener('click', (e) => toggleSidebar(e));
-if (showChatSidebarBtn) showChatSidebarBtn.addEventListener('click', (e) => toggleSidebar(e));
-overlay.addEventListener('click', (e) => toggleSidebar(e));
-
-// Add character click handlers after characters are loaded
-document.addEventListener('charactersUpdated', setupCharacterClickHandlers);
-
-// Detect iOS for device-specific fixes
-function isIOS() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-}
-
-// Apply iOS-specific fixes
-function applyIOSFixes() {
-    if (!isIOS()) return;
-    
-    console.log("Applying iOS-specific fixes");
-    
-    // Apply CSS class to body for iOS-specific styling
-    document.body.classList.add('ios-device');
-    
-    // Fix sidebar scrolling specifically for iOS
-    const sidebarChars = document.getElementById('sidebar-characters');
-    if (sidebarChars) {
-        // Ensure smooth scrolling
-        sidebarChars.style.webkitOverflowScrolling = 'touch';
-        sidebarChars.style.overflowY = 'auto';
-        
-        // Add extra bottom padding for iOS
-        sidebarChars.style.paddingBottom = '100px';
-    }
-    
-    // Ensure proper touch events on iOS
-    document.addEventListener('touchmove', function(e) {
-        // Only prevent default if we're in an area that shouldn't scroll
-        const target = e.target;
-        const isInSidebar = target.closest('#character-sidebar');
-        const isInChatMessages = target.closest('#chat-messages');
-        const isInScrollableContainer = target.closest('.overflow-y-auto, .overflow-auto');
-        
-        // Allow scrolling only in designated areas
-        if (!isInSidebar && !isInChatMessages && !isInScrollableContainer) {
-            if (document.body.classList.contains('chat-view-active')) {
-                e.preventDefault(); // Prevent scrolling on non-scrollable areas
-            }
-        }
-    }, { passive: false });
-    
-    // Special handling for character selection on iOS
-    let touchStartY = 0;
-    document.addEventListener('touchstart', function(e) {
-        touchStartY = e.touches[0].clientY;
-    }, { passive: true });
-    
-    document.addEventListener('touchend', function(e) {
-        const touchEndY = e.changedTouches[0].clientY;
-        const diff = Math.abs(touchEndY - touchStartY);
-        
-        // If the user scrolled more than 10px, it's likely a scroll not a tap
-        if (diff > 10) return;
-        
-        // Check if tap was on a character
-        const character = e.target.closest('#sidebar-characters > div');
-        if (character) {
-            const characterId = character.getAttribute('data-character-id');
-            if (characterId) {
-                e.preventDefault();
-                e.stopPropagation();
-                selectCharacterFromSidebar(characterId);
-                
-                // Close sidebar after selection
-                if (window.innerWidth < 1024) {
-                    setTimeout(() => toggleSidebar(), 50);
-                }
-            }
-        }
-    }, { passive: false });
-}
-
-// Initialize mobile viewport fixes
-document.addEventListener('DOMContentLoaded', () => {
-    setupMobileViewportFix();
-    applyIOSFixes();
-});
