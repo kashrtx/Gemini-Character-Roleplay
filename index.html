@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Gemini Flash Character RolePlay</title>
+    <title>Google Gemini Custom Character RolePlay</title>
     <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Custom Tailwind Config -->
@@ -38,7 +38,7 @@
         <!-- Header -->
         <header class="bg-primary text-white p-4 shadow-md">
             <div class="container mx-auto flex justify-between items-center">
-                <h1 class="text-xl font-bold">Google Gemini Flash Character RolePlay</h1>
+                <h1 class="text-xl font-bold">Google Gemini Custom Character RolePlay</h1>
                 <nav class="flex space-x-4">
                     <button 
                         onclick="changeView('chat')"
@@ -140,7 +140,7 @@
                             <p class="text-gray-600">
                                 This application uses the Google Gemini API to power character interactions. 
                                 All data is stored locally in your browser. No information is sent to any server 
-                                other than directly to Google's API.
+                                other than directly to Google's API. Uses Gemini 2.0 Flash for quick and witted responses!
                             </p>
                         </div>
                     </div>
@@ -206,16 +206,6 @@
                         <p class="text-gray-500 italic p-4 text-sm">
                             No characters created yet. Go to Characters tab to create some.
                         </p>
-                    </div>
-                    
-                    <div class="p-4 border-t">
-                        <button
-                            id="start-chat-btn"
-                            class="w-full bg-primary text-white py-2 rounded hover:bg-primary/90 transition disabled:bg-gray-400"
-                            disabled
-                        >
-                            <i class="fas fa-comments mr-1"></i> Start Chat
-                        </button>
                     </div>
                 </div>
 

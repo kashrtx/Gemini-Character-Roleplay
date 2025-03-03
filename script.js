@@ -63,7 +63,8 @@ async function initializeGeminiAPI() {
         const genAI = new GoogleGenerativeAI(state.apiKey);
 
         // Get model and store it in state.  Crucially, select the model you want HERE.
-        state.geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); //  Use gemini-1.5-flash, or gemini-1.5-pro, as appropriate.
+        // will make it changable in the future!
+        state.geminiModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); //  Use gemini-1.5-flash, or gemini-1.5-pro, or gemini-2.0-flash as appropriate.
 
         // Test the API connection.  Good practice to have a simple test.
         const result = await state.geminiModel.generateContent("Hello, testing Gemini API connection.");
@@ -282,21 +283,7 @@ function updateSidebarCharacterListeners() {
     });
 
     // Also make sure the Start Chat button has its event listener
-    const startChatBtn = document.getElementById('start-chat-btn');
-    if (startChatBtn) {
-        // Remove old listener to prevent duplicates
-        const newBtn = startChatBtn.cloneNode(true);
-        startChatBtn.parentNode.replaceChild(newBtn, startChatBtn);
-
-        // Add fresh listener
-        newBtn.addEventListener('click', function(event) {
-            event.preventDefault();
-            console.log("Start chat button clicked via event listener");
-            startChat();
-        });
-    } else {
-        console.warn("Start chat button not found");
-    }
+    // removed it
 }
 
 // View management
@@ -646,10 +633,7 @@ function updateSidebarCharacters() {
         setupSidebarCharacterListeners();
         
         // Update Start Chat button state
-    const startChatBtn = document.getElementById('start-chat-btn');
-        if (startChatBtn) {
-    startChatBtn.disabled = state.selectedCharacters.length === 0;
-        }
+        // removed it
     } catch (error) {
         console.error("Error updating sidebar characters:", error);
     }
@@ -679,19 +663,7 @@ function setupSidebarCharacterListeners() {
     });
     
     // Also set up the Start Chat button
-    const startChatBtn = document.getElementById('start-chat-btn');
-    if (startChatBtn) {
-        // Clone and replace to remove old listeners
-        const newBtn = startChatBtn.cloneNode(true);
-        startChatBtn.parentNode.replaceChild(newBtn, startChatBtn);
-        
-        // Add fresh listener
-        newBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            console.log("Start chat button clicked");
-            startChat();
-        });
-    }
+    // removed it
 }
 
 // Character selection in sidebar
@@ -719,15 +691,7 @@ function toggleCharacterSelection(characterId) {
     }
     
     // Update Start Chat button state
-    const startChatBtn = document.getElementById('start-chat-btn');
-    if (startChatBtn) {
-        startChatBtn.disabled = state.selectedCharacters.length === 0;
-        if (!startChatBtn.disabled) {
-            startChatBtn.classList.remove('disabled:bg-gray-400');
-    } else {
-            startChatBtn.classList.add('disabled:bg-gray-400');
-        }
-    }
+   // removed it
     
     // Update UI to reflect selection state
     updateSidebarCharacters();
