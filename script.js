@@ -67,11 +67,12 @@ async function initializeGeminiAPI() {
         // Create the Gemini instance
         const genAI = new GoogleGenerativeAI(state.apiKey);
 
-        // Get model and store it in state.  Crucially, select the model you want HERE.
-        // will make it changable in the future!
-        state.geminiModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); //  Use gemini-1.5-flash, or gemini-1.5-pro, or gemini-2.0-flash as appropriate.
+        // Get model from settings and store it in state
+        state.geminiModel = genAI.getGenerativeModel({ 
+            model: appSettings.modelVersion || "gemini-2.0-flash" 
+        });
 
-        // Test the API connection.  Good practice to have a simple test.
+        // Test the API connection
         const result = await state.geminiModel.generateContent("Hello, testing Gemini API connection.");
         console.log("API connection test successful:", result.response.text().substring(0, 20) + "...");
 
@@ -1132,8 +1133,10 @@ async function getCharacterResponse(character, userMsg) {
         const chat = state.geminiModel.startChat({
             history: history,
             generationConfig: {
-                temperature: 0.9,  // Adjust as needed
-                maxOutputTokens: 200, // Adjust as needed
+                temperature: appSettings.temperature,
+                maxOutputTokens: parseInt(appSettings.maxTokens),
+                topK: appSettings.topK,
+                topP: appSettings.topP,
             }
         });
         
@@ -1511,15 +1514,15 @@ async function getTestCharacterResponse(character) {
     const userMessages = messages.filter(m => m.isUser && !m.isDeleted);
     const lastUserMessage = userMessages[userMessages.length - 1]?.content || "Hello";
     
-    // Generate fake response based on character
+    // Generate fake response based on character when API is not connected
     const fakeResponses = [
-        `As ${character.name}, I find your message "${lastUserMessage}" quite interesting.`,
-        `Hmm, let me think about "${lastUserMessage}" for a moment...`,
-        `That's an excellent point about "${lastUserMessage}". I would add that...`,
-        `I disagree with your assessment of "${lastUserMessage}", because...`,
-        `${lastUserMessage}? I've never thought about it that way before.`
+        `As ${character.name}, I find your message "${lastUserMessage}" quite interesting. But the API is not connected. Add your Gemini API key in settings for real responses!`,
+        `Hmm, let me think about "${lastUserMessage}" for a moment...lol the API is not connected. Add your Gemini API key in settings for real responses!`,
+        `That's an excellent point about "${lastUserMessage}". I would add that...but the API is not connected.Add your Gemini API key in settings for real responses!`,
+        `I disagree with your assessment of "${lastUserMessage}", because... but the API is not connected.Add your Gemini API key in settings for real responses!`,
+        ` You said "${lastUserMessage}?"I've never thought about it that way before. And btw the API is not connected!Add your Gemini API key in settings for real responses!`
     ];
-    
+    // Generate a random response from the fake responses
     const randomResponse = fakeResponses[Math.floor(Math.random() * fakeResponses.length)];
     
     // Add actual response
@@ -1728,7 +1731,8 @@ Write in third person, approximately 300-400 words.
 `;
 
     try {
-        const result = await callGeminiAPI(prompt, 0.7);
+        // Use the regular callGeminiAPI function which already uses appSettings
+        const result = await callGeminiAPI(prompt);
         return result;
     } catch (error) {
         console.error("Error enhancing character:", error);
@@ -1848,6 +1852,25 @@ function updateCharacterLists() {
 // Save app settings to local storage
 function saveAppSettings() {
     setStoredItem(STORAGE_KEYS.SETTINGS, appSettings);
+    
+    // If we have an API key and the model is initialized, reinitialize with new settings
+    if (state.apiKey && state.isApiConnected) {
+        console.log("Settings changed, reinitializing model with new configuration");
+        // Reinitialize the model with new settings
+        initializeGeminiAPI().then(success => {
+            if (success) {
+                console.log("Model successfully reinitialized with new settings");
+                // Show a small notification if success
+                showSuccess("Model settings updated", 2000);
+            } else {
+                console.error("Failed to reinitialize model with new settings");
+                showError("Failed to update model with new settings. Please check your configuration.");
+            }
+        }).catch(error => {
+            console.error("Error reinitializing model:", error);
+            showError(`Error updating model: ${error.message}`);
+        });
+    }
 }
 
 // Toggle group chats setting
@@ -1929,6 +1952,15 @@ async function testModelConfiguration() {
             throw new Error('No API key set. Please add your API key first.');
         }
 
+        // Log current settings for debugging
+        console.log("Testing with settings:", {
+            model: appSettings.modelVersion,
+            temperature: appSettings.temperature,
+            maxTokens: appSettings.maxTokens,
+            topK: appSettings.topK,
+            topP: appSettings.topP
+        });
+
         // Try to initialize with the selected model
         const { GoogleGenerativeAI } = await import("https://esm.run/@google/generative-ai");
         const genAI = new GoogleGenerativeAI(state.apiKey);
@@ -1945,7 +1977,7 @@ async function testModelConfiguration() {
             contents: [{ parts: [{ text: "Respond with 'Configuration test successful' if you receive this message." }] }],
             generationConfig: {
                 temperature: appSettings.temperature,
-                maxOutputTokens: appSettings.maxTokens,
+                maxOutputTokens: parseInt(appSettings.maxTokens),
                 topK: appSettings.topK,
                 topP: appSettings.topP,
             }
