@@ -863,43 +863,61 @@ function updateSidebarCharacters() {
     }
     
     try {
-    if (state.characters.length === 0) {
-        sidebarCharactersContainer.innerHTML = `
-            <p class="text-gray-500 italic p-4 text-sm">
-                No characters created yet. Go to Characters tab to create some.
-            </p>
-        `;
-    } else {
-            const sidebarHTML = state.characters.map(character => `
-            <div 
-                id="sidebar-char-${character.id}"
+        if (state.characters.length === 0) {
+            sidebarCharactersContainer.innerHTML = `
+                <p class="text-gray-500 italic p-4 text-sm">
+                    No characters created yet. Go to Characters tab to create some.
+                </p>
+            `;
+        } else {
+            // Sort characters by most recent chat
+            const sortedCharacters = [...state.characters].sort((a, b) => {
+                const aTimestamp = getLastMessageTimestamp(a.id);
+                const bTimestamp = getLastMessageTimestamp(b.id);
+                return bTimestamp - aTimestamp; // Sort in descending order (most recent first)
+            });
+
+            const sidebarHTML = sortedCharacters.map(character => {
+                const lastMessageTime = getLastMessageTimestamp(character.id);
+                const hasRecentChat = lastMessageTime > 0;
+                
+                return `
+                <div 
+                    id="sidebar-char-${character.id}"
                     data-character-id="${character.id}"
-                class="p-3 rounded mb-2 cursor-pointer character-item ${
-                    state.selectedCharacters.includes(character.id)
-                        ? 'bg-primary/10 border-primary/30 border' 
-                        : 'hover:bg-gray-100 border border-transparent'
-                }"
-            >
-                <div class="flex items-center">
-                    <div class="character-avatar bg-primary/20 text-primary">
-                        ${character.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="ml-2 overflow-hidden">
-                        <p class="font-medium truncate">${character.name}</p>
+                    class="p-3 rounded mb-2 cursor-pointer character-item ${
+                        state.selectedCharacters.includes(character.id)
+                            ? 'bg-primary/10 border-primary/30 border' 
+                            : 'hover:bg-gray-100 border border-transparent'
+                    }"
+                >
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="character-avatar bg-primary/20 text-primary">
+                                ${character.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div class="ml-2 overflow-hidden">
+                                <p class="font-medium truncate">${character.name}</p>
+                                ${hasRecentChat ? `
+                                <p class="text-xs text-gray-500">
+                                    Last chat: ${new Date(lastMessageTime).toLocaleDateString()}
+                                </p>` : ''}
+                            </div>
+                        </div>
+                        ${hasRecentChat ? `
+                        <div class="w-2 h-2 rounded-full bg-primary/50"></div>
+                        ` : ''}
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `}).join('');
 
             // Use innerHTML for the sidebar update
             sidebarCharactersContainer.innerHTML = sidebarHTML;
-    }
+        }
     
         // Setup event listeners for the sidebar characters
         setupSidebarCharacterListeners();
         
-        // Update Start Chat button state
-        // removed it
     } catch (error) {
         console.error("Error updating sidebar characters:", error);
     }
@@ -1293,6 +1311,11 @@ function addMessage(message) {
     
     // Update UI
     updateChatMessages();
+    
+    // Update sidebar to reflect new message timestamp
+    if (!message.isTyping) {
+        updateSidebarCharacters();
+    }
 }
 
 async function getCharacterResponse(character, userMsg) {
@@ -2314,4 +2337,17 @@ function savePersonalContext() {
     
     // Show success message
     showSuccess("Personal context saved successfully", 2000);
+}
+
+// Helper function to get last message timestamp for a chat
+function getLastMessageTimestamp(chatId) {
+    const chat = state.chats[chatId];
+    if (!chat || chat.length === 0) return 0;
+    
+    // Find the last non-deleted message
+    const lastMessage = [...chat]
+        .reverse()
+        .find(msg => !msg.isDeleted);
+    
+    return lastMessage ? new Date(lastMessage.timestamp).getTime() : 0;
 }
