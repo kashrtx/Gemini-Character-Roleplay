@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
     CHARACTERS: "gemini_characters",
     CHATS: "gemini_chats",
     SETTINGS: "gemini_settings",
+    PERSONAL_CONTEXT: "gemini_personal_context", // Add new storage key
 };
 
 // Mobile browser viewport fix for keyboard
@@ -101,11 +102,13 @@ function setupMobileViewportFix() {
 // App Settings
 let appSettings = {
     allowGroupChats: false,
-    modelVersion: "gemini-2.0-flash",
-    temperature: 1.2,
-    maxTokens: 800,
-    topK: 40,
-    topP: 0.95,
+    modelVersion: "gemini-2.0-flash", // default is flash 2.0
+    temperature: 1.0, //  0.5 for a balance between randomness and coherence.
+    maxTokens: 1200, // Helps generate context.
+    topK: 1, //Top-K changes how the model selects tokens for output. 
+    // A top-K of 1 means the next selected token is the most probable 
+    // among all tokens in the model's vocabulary (also called greedy decoding)
+    topP: 0.90,
 };
 
 // App State
@@ -117,7 +120,12 @@ let state = {
     activeChat: null,
     selectedCharacters: [], // For character selection in sidebar
     geminiModel: null, // Store the model reference
-    isApiConnected: false // Track API connection status
+    isApiConnected: false, // Track API connection status
+    personalContext: {
+        name: "",
+        personality: "",
+        context: ""
+    }
 };
 
 // Add Gemini AI SDK
@@ -405,6 +413,12 @@ function loadStoredData() {
         appSettings = {...appSettings, ...storedSettings};
     }
     
+    // Load personal context
+    const storedContext = getStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, null);
+    if (storedContext) {
+        state.personalContext = {...state.personalContext, ...storedContext};
+    }
+    
     // Set up the UI based on loaded data
     const apiKeyInput = document.getElementById('api-key-input');
     if (apiKeyInput && state.apiKey) {
@@ -416,6 +430,15 @@ function loadStoredData() {
     if (groupChatCheckbox) {
         groupChatCheckbox.checked = appSettings.allowGroupChats;
     }
+
+    // Set personal context fields
+    const nameInput = document.getElementById('user-name');
+    const personalityInput = document.getElementById('user-personality');
+    const contextInput = document.getElementById('user-context');
+    
+    if (nameInput) nameInput.value = state.personalContext.name;
+    if (personalityInput) personalityInput.value = state.personalContext.personality;
+    if (contextInput) contextInput.value = state.personalContext.context;
 }
 
 // Set up event listeners
@@ -1411,32 +1434,21 @@ Name of character: ${character.name}
 ${character.enhancedContext 
     ? `Enhanced Character Profile: ${character.enhancedContext}\n`
     : `Character Description: ${character.userContext}\n`}
-${character.enhancedContext && character.userContext 
-    ? `Additional User-Provided Details: ${character.userContext}\n` 
-    : ''}
 
-ROLEPLAY GUIDELINES:
-1. BE the character - think, feel, and respond as they would naturally.
-2. Show personality through speech patterns, expressions, and mannerisms unique to the character.
-3. Stay true to the character's knowledge, background, and emotional state.
-4. Be dynamic - react to the conversation flow and emotional context.
-5. Avoid being defensive or overly cautious - respond naturally as the character would.
-6. Use emotes and actions sparingly and only when they add value to the interaction.
-7. Keep responses concise but meaningful, focusing on quality interaction.
-8. You may refer to knowledge from the wiki and general lore of the original work to make you more accurate.
+USER PROFILE:
+${state.personalContext.name ? `Name: ${state.personalContext.name}\n` : ''}
+${state.personalContext.personality ? `Personality: ${state.personalContext.personality}\n` : ''}
+${state.personalContext.context ? `Additional Context: ${state.personalContext.context}\n` : ''}
 
-CONVERSATION STYLE:
-- Be natural and conversational, act like you are actually that character
-- Show appropriate emotions and reactions
-- Maintain consistent personality
-- Adapt to the user's conversation style
-- Stay in character without being rigid
-- Do not keep asking questions or repeating quotes from the user.
-`;
-    
+ROLEPLAY INSTRUCTIONS:
+- Stay in character at all times
+- Respond naturally as your character would to the user based on their personality and context
+- Maintain consistent personality, knowledge, and speech patterns
+- Engage with the user's personality and context in a way that feels natural to your character`;
+
     // Add group chat context if needed
     if (activeCharacters.length > 1) {
-        context += "\nCONVERSATION PARTICIPANTS:\nYou are in a conversation with:\n";
+        context += "\n\nCONVERSATION PARTICIPANTS:\nYou are in a conversation with:\n";
         activeCharacters.forEach(char => {
             if (char.id !== character.id) {
                 context += `- ${char.name}: ${char.enhancedContext 
@@ -2112,6 +2124,10 @@ function initializeModelSettings() {
     const temperatureRange = document.getElementById('temperature-range');
     const temperatureValue = document.getElementById('temperature-value');
     const maxTokens = document.getElementById('max-tokens');
+    const topKRange = document.getElementById('top-k');
+    const topKValue = document.getElementById('top-k-value');
+    const topPRange = document.getElementById('top-p');
+    const topPValue = document.getElementById('top-p-value');
     const testModelBtn = document.getElementById('test-model-btn');
 
     // Load saved settings
@@ -2124,6 +2140,14 @@ function initializeModelSettings() {
     }
     if (appSettings.maxTokens) {
         maxTokens.value = appSettings.maxTokens;
+    }
+    if (appSettings.topK) {
+        topKRange.value = appSettings.topK;
+        topKValue.textContent = appSettings.topK;
+    }
+    if (appSettings.topP) {
+        topPRange.value = appSettings.topP;
+        topPValue.textContent = appSettings.topP;
     }
 
     // Add event listeners
@@ -2140,6 +2164,18 @@ function initializeModelSettings() {
 
     maxTokens.addEventListener('change', (e) => {
         appSettings.maxTokens = parseInt(e.target.value);
+        saveAppSettings();
+    });
+
+    topKRange.addEventListener('input', (e) => {
+        appSettings.topK = parseInt(e.target.value);
+        topKValue.textContent = e.target.value;
+        saveAppSettings();
+    });
+
+    topPRange.addEventListener('input', (e) => {
+        appSettings.topP = parseFloat(e.target.value);
+        topPValue.textContent = e.target.value;
         saveAppSettings();
     });
 
@@ -2260,4 +2296,22 @@ function debounce(func, wait) {
             func.apply(context, args);
         }, wait);
     };
+}
+
+// Save personal context
+function savePersonalContext() {
+    const nameInput = document.getElementById('user-name');
+    const personalityInput = document.getElementById('user-personality');
+    const contextInput = document.getElementById('user-context');
+    
+    state.personalContext = {
+        name: nameInput.value.trim(),
+        personality: personalityInput.value.trim(),
+        context: contextInput.value.trim()
+    };
+    
+    setStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, state.personalContext);
+    
+    // Show success message
+    showSuccess("Personal context saved successfully", 2000);
 }

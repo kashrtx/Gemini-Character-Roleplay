@@ -169,6 +169,97 @@
                                         <option value="2000">Very Long (2000)</option>
                                     </select>
                                 </div>
+
+                                <div>
+                                    <label for="top-k" class="block text-gray-600 mb-2">
+                                        Top-K: <span id="top-k-value">1</span>
+                                        <span class="text-xs text-gray-500 ml-1">(Controls token selection diversity)</span>
+                                    </label>
+                                    <input 
+                                        type="range" 
+                                        id="top-k" 
+                                        min="1" 
+                                        max="40" 
+                                        step="1" 
+                                        value="1"
+                                        class="w-full accent-primary"
+                                    >
+                                    <div class="flex justify-between text-sm text-gray-500">
+                                        <span>Focused (1)</span>
+                                        <span>Balanced (20)</span>
+                                        <span>Diverse (40)</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="top-p" class="block text-gray-600 mb-2">
+                                        Top-P: <span id="top-p-value">0.90</span>
+                                        <span class="text-xs text-gray-500 ml-1">(Controls response predictability)</span>
+                                    </label>
+                                    <input 
+                                        type="range" 
+                                        id="top-p" 
+                                        min="0.1" 
+                                        max="1" 
+                                        step="0.05" 
+                                        value="0.90"
+                                        class="w-full accent-primary"
+                                    >
+                                    <div class="flex justify-between text-sm text-gray-500">
+                                        <span>Focused (0.1)</span>
+                                        <span>Balanced (0.5)</span>
+                                        <span>Creative (1.0)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Personal Context Settings -->
+                            <div class="mb-8 border-t pt-6">
+                                <h3 class="text-lg font-semibold mb-3 text-gray-700">Personal Context</h3>
+                                <p class="mb-4 text-gray-600">
+                                    Add information about yourself to help the AI better understand and interact with you.
+                                </p>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="user-name" class="block text-gray-600 mb-2">
+                                            Your Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="user-name"
+                                            placeholder="Enter your name"
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label for="user-personality" class="block text-gray-600 mb-2">
+                                            Your Personality
+                                        </label>
+                                        <textarea
+                                            id="user-personality"
+                                            placeholder="Describe your personality traits, interests, and communication style..."
+                                            rows="3"
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                                        ></textarea>
+                                    </div>
+                                    <div>
+                                        <label for="user-context" class="block text-gray-600 mb-2">
+                                            Additional Context
+                                        </label>
+                                        <textarea
+                                            id="user-context"
+                                            placeholder="Add any other relevant information about yourself, preferences, or background..."
+                                            rows="4"
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                                        ></textarea>
+                                    </div>
+                                    <button
+                                        onclick="savePersonalContext()"
+                                        class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition"
+                                    >
+                                        Save Personal Context
+                                    </button>
+                                </div>
                             </div>
                             
                             <!-- Add Test Configuration Button -->
