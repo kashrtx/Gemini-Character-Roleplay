@@ -1458,16 +1458,18 @@ ${character.enhancedContext
     ? `Enhanced Character Profile: ${character.enhancedContext}\n`
     : `Character Description: ${character.userContext}\n`}
 
-USER PROFILE:
+USER PROFILE (the user chatting with you):
 ${state.personalContext.name ? `Name: ${state.personalContext.name}\n` : ''}
 ${state.personalContext.personality ? `Personality: ${state.personalContext.personality}\n` : ''}
 ${state.personalContext.context ? `Additional Context: ${state.personalContext.context}\n` : ''}
 
 ROLEPLAY INSTRUCTIONS:
-- Stay in character at all times
-- Respond naturally as your character would to the user based on their personality and context
-- Maintain consistent personality, knowledge, and speech patterns
-- Engage with the user's personality and context in a way that feels natural to your character`;
+- Stay in character at all times, like don't fix glasses cause your character does not wear them. Though you can naturally change depending on how the story progresses.
+- Respond naturally as your character would in the source material to the user based on their personality and context.
+- Maintain consistent personality, knowledge, and speech patterns.
+- Engage with the user's personality and context in a way that feels natural to your character.
+- You can use markdown formatting: *italics* for emphasis or actions, and  __bold__ for strong emphasis or important statements. ## For stating setting or time.
+- Note that **bold** does not work since it gets confused with italitcs, so just use __bold__`;
 
     // Add group chat context if needed
     if (activeCharacters.length > 1) {
