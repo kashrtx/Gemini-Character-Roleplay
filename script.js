@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
     SETTINGS: "gemini_settings",
     PERSONAL_CONTEXT: "gemini_personal_context", // Add new storage key
 };
+const VERSION = "1.1.2"; // Fixed character context updates in active chats
 
 // Mobile browser viewport fix for keyboard
 function setupMobileViewportFix() {
@@ -506,6 +507,18 @@ function setupEventListeners() {
     window.addEventListener('resize', debounce(() => {
         initMessageDeleteButtons();
     }, 250));
+    
+    // Setup character creation button
+    const createCharacterBtn = document.getElementById('create-character-btn');
+    if (createCharacterBtn) {
+        createCharacterBtn.addEventListener('click', createNewCharacter);
+    }
+    
+    // Setup edit character modal
+    setupEditCharacterModal();
+    
+    // Setup character selection in sidebar
+    updateSidebarCharacterListeners();
 }
 
 // Update sidebar character event listeners
@@ -724,9 +737,14 @@ function createNewCharacter() {
         newCharDiv.innerHTML = `
             <div class="flex justify-between items-start">
                 <h3 class="font-bold text-lg">${newCharacter.name}</h3>
-                <button id="delete-btn-${newCharacter.id}" class="text-red-500 hover:text-red-700" title="Delete character">
-                    <i class="fas fa-trash"></i>
-                </button>
+                <div class="flex space-x-2">
+                    <button id="edit-btn-${newCharacter.id}" class="text-blue-500 hover:text-blue-700" title="Edit character">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button id="delete-btn-${newCharacter.id}" class="text-red-500 hover:text-red-700" title="Delete character">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
             </div>
             
             <div class="mt-2">
@@ -756,6 +774,14 @@ function createNewCharacter() {
         characterListContainer.appendChild(newCharDiv);
         
         // Set up event listeners for the new element:
+        const editBtn = newCharDiv.querySelector(`#edit-btn-${newCharacter.id}`);
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                editCharacter(newCharacter.id);
+            });
+        }
+        
         const deleteBtn = newCharDiv.querySelector(`#delete-btn-${newCharacter.id}`);
         if (deleteBtn) {
             deleteBtn.addEventListener('click', (e) => {
@@ -792,16 +818,40 @@ function setupCharacterItemListeners() {
     // Set up enhance button event listeners
     document.querySelectorAll('[id^="enhance-btn-"]').forEach(button => {
         const characterId = button.id.replace('enhance-btn-', '');
-        button.addEventListener('click', (e) => {
+        
+        // Remove existing event listeners by cloning and replacing
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        
+        newButton.addEventListener('click', (e) => {
             e.preventDefault();
             enhanceCharacterContext(characterId);
+        });
+    });
+    
+    // Set up edit button event listeners
+    document.querySelectorAll('[id^="edit-btn-"]').forEach(button => {
+        const characterId = button.id.replace('edit-btn-', '');
+        
+        // Remove existing event listeners by cloning and replacing
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        
+        newButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            editCharacter(characterId);
         });
     });
     
     // Set up delete button event listeners
     document.querySelectorAll('[id^="delete-btn-"]').forEach(button => {
         const characterId = button.id.replace('delete-btn-', '');
-        button.addEventListener('click', (e) => {
+        
+        // Remove existing event listeners by cloning and replacing
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        
+        newButton.addEventListener('click', (e) => {
             e.preventDefault();
             deleteCharacter(characterId);
         });
@@ -814,13 +864,22 @@ function generateCharacterListHTML() {
         <div class="border rounded-lg p-4 hover:shadow-md transition" id="character-item-${character.id}">
                 <div class="flex justify-between items-start">
                     <h3 class="font-bold text-lg">${character.name}</h3>
-                    <button
-                    id="delete-btn-${character.id}"
-                        class="text-red-500 hover:text-red-700"
-                        title="Delete character"
-                    >
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <div class="flex space-x-2">
+                        <button
+                            id="edit-btn-${character.id}"
+                            class="text-blue-500 hover:text-blue-700"
+                            title="Edit character"
+                        >
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button
+                            id="delete-btn-${character.id}"
+                            class="text-red-500 hover:text-red-700"
+                            title="Delete character"
+                        >
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="mt-2">
@@ -961,6 +1020,7 @@ function toggleCharacterSelection(characterId) {
         return;
     }
     
+    // Check if this character is already selected
     const wasSelected = state.selectedCharacters.includes(characterId);
     
     // Handle selection based on group chat setting
@@ -976,20 +1036,17 @@ function toggleCharacterSelection(characterId) {
         }
     }
     
-    // Update Start Chat button state
-    //removed it
-    
     // Update UI to reflect selection state
     updateSidebarCharacters();
     
     // If we're removing a character from an active chat
     if (wasSelected && state.selectedCharacters.length === 0) {
-        // Reset the chat view if no characters are selected
+        // Show placeholder, hide chat
         const chatWindow = document.getElementById('chat-window');
         const placeholder = document.getElementById('chat-placeholder');
         
-        if (chatWindow) chatWindow.classList.add('hidden');
-        if (placeholder) placeholder.classList.remove('hidden');
+        if (chatWindow) { chatWindow.classList.add('hidden'); }
+        if (placeholder) { placeholder.classList.remove('hidden'); }
         
         // Force a layout refresh
         setTimeout(() => {
@@ -2494,4 +2551,179 @@ async function regenerateMessage(characterId) {
     
     // Generate a new response
     await getCharacterResponse(character, lastUserMsg);
+}
+
+// After the dismissError function
+function editCharacter(characterId) {
+    console.log("Editing character:", characterId);
+    
+    // Find character in state
+    const character = state.characters.find(c => c.id === characterId);
+    if (!character) {
+        showError("Character not found");
+        return;
+    }
+    
+    // Populate the edit form
+    const nameInput = document.getElementById('edit-character-name');
+    const contextInput = document.getElementById('edit-character-context');
+    const idInput = document.getElementById('edit-character-id');
+    
+    if (!nameInput || !contextInput || !idInput) {
+        showError("Edit form elements not found");
+        return;
+    }
+    
+    nameInput.value = character.name;
+    contextInput.value = character.userContext;
+    idInput.value = character.id;
+    
+    // Show the edit modal
+    const modal = document.getElementById('edit-character-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+}
+
+function saveEditedCharacter() {
+    // Get input fields
+    const nameInput = document.getElementById('edit-character-name');
+    const contextInput = document.getElementById('edit-character-context');
+    const idInput = document.getElementById('edit-character-id');
+    
+    if (!nameInput || !contextInput || !idInput) {
+        showError("Edit form elements not found");
+        return;
+    }
+    
+    const name = nameInput.value.trim();
+    const context = contextInput.value.trim();
+    const id = idInput.value;
+    
+    // Validate inputs
+    if (name === '') {
+        showError("Please provide a name for your character");
+        nameInput.focus();
+        return false;
+    }
+    
+    if (context === '') {
+        showError("Please provide context for your character");
+        contextInput.focus();
+        return false;
+    }
+    
+    // Find character in state and update it
+    const characterIndex = state.characters.findIndex(c => c.id === id);
+    if (characterIndex === -1) {
+        showError("Character not found");
+        return;
+    }
+    
+    // Store old name for success message
+    const oldName = state.characters[characterIndex].name;
+    
+    // Update character and REMOVE the enhanced context since we've changed the user context
+    state.characters[characterIndex].name = name;
+    state.characters[characterIndex].userContext = context;
+    state.characters[characterIndex].enhancedContext = null; // Clear enhanced context when editing
+    
+    // IMPORTANT: Update the character in the activeCharacters array as well
+    // This ensures the chat immediately uses the new context
+    if (state.activeCharacters) {
+        const activeCharIndex = state.activeCharacters.findIndex(c => c.id === id);
+        if (activeCharIndex !== -1) {
+            // Update the active character with the new data
+            state.activeCharacters[activeCharIndex] = {
+                ...state.characters[characterIndex]
+            };
+            console.log("Updated active character with new context");
+        }
+    }
+    
+    // If name changed and character is in selected characters, update the chat title
+    if (oldName !== name && state.selectedCharacters.includes(id)) {
+        updateChatUI();
+    }
+    
+    // Save to storage
+    setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
+    
+    // Update the specific character element directly for immediate feedback
+    const charElement = document.getElementById(`character-item-${id}`);
+    if (charElement) {
+        // Find the name element and update it
+        const nameElement = charElement.querySelector('h3');
+        if (nameElement) {
+            nameElement.textContent = name;
+        }
+        
+        // Find and update the user context
+        const contextElement = charElement.querySelector('.text-gray-600.text-sm.mt-1.max-h-32');
+        if (contextElement) {
+            contextElement.textContent = context;
+        }
+        
+        // Remove enhanced context if it exists
+        const enhancedContextElement = charElement.querySelector(`#enhanced-context-${id}`);
+        if (enhancedContextElement) {
+            enhancedContextElement.remove();
+        }
+        
+        // Update enhance button text (since enhanced context was removed)
+        const enhanceBtn = charElement.querySelector(`#enhance-btn-${id}`);
+        if (enhanceBtn) {
+            enhanceBtn.innerHTML = '<i class="fas fa-magic mr-1"></i> Enhance Context';
+        }
+    }
+    
+    // Update sidebar character for immediate feedback
+    const sidebarCharElement = document.getElementById(`sidebar-char-${id}`);
+    if (sidebarCharElement) {
+        const sidebarNameElement = sidebarCharElement.querySelector('.text-sm.font-medium');
+        if (sidebarNameElement) {
+            sidebarNameElement.textContent = name;
+        }
+    }
+    
+    // Update UI
+    updateSidebarCharacters();
+    
+    // Close the modal
+    const modal = document.getElementById('edit-character-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    // Show success message
+    showSuccess(`Character "${oldName}" updated to "${name}" successfully!`);
+}
+
+function setupEditCharacterModal() {
+    // Set up close button
+    const closeButton = document.getElementById('close-edit-modal');
+    if (closeButton) {
+        closeButton.addEventListener('click', () => {
+            const modal = document.getElementById('edit-character-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        });
+    }
+    
+    // Set up save button
+    const saveButton = document.getElementById('save-character-btn');
+    if (saveButton) {
+        saveButton.addEventListener('click', saveEditedCharacter);
+    }
+    
+    // Close modal when clicking outside
+    const modal = document.getElementById('edit-character-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+            }
+        });
+    }
 }
