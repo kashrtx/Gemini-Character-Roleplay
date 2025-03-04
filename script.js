@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
     CHATS: "gemini_chats",
     SETTINGS: "gemini_settings",
     PERSONAL_CONTEXT: "gemini_personal_context", // Add new storage key
+    CHAT_HISTORY: "gemini_chat_history", // Storage for chat history
 };
 const VERSION = "1.1.2"; // Fixed character context updates in active chats
 
@@ -117,6 +118,7 @@ let state = {
     apiKey: "",
     characters: [],
     chats: {},
+    chatHistory: {}, // Store chat history by character ID
     activeCharacters: [],
     activeChat: null,
     selectedCharacters: [], // For character selection in sidebar
@@ -401,12 +403,18 @@ function setupTestChatForm() {
 
 // Load data from localStorage
 function loadStoredData() {
+    console.log("Loading stored data");
+    
     // Load API key
     state.apiKey = getStoredItem(STORAGE_KEYS.API_KEY, "");
     
     // Load characters and chats
     state.characters = getStoredItem(STORAGE_KEYS.CHARACTERS, []);
     state.chats = getStoredItem(STORAGE_KEYS.CHATS, {});
+    state.chatHistory = getStoredItem(STORAGE_KEYS.CHAT_HISTORY, {});
+    
+    // Clean up any invalid chat history entries
+    cleanupChatHistory();
     
     // Load app settings
     const storedSettings = getStoredItem(STORAGE_KEYS.SETTINGS, null);
@@ -440,6 +448,49 @@ function loadStoredData() {
     if (nameInput) nameInput.value = state.personalContext.name;
     if (personalityInput) personalityInput.value = state.personalContext.personality;
     if (contextInput) contextInput.value = state.personalContext.context;
+    
+    // Update UI
+    updateSidebarCharacters();
+    
+    // Check API key
+    checkApiKey();
+}
+
+// Function to clean up any invalid chat history entries
+function cleanupChatHistory() {
+    let hasChanges = false;
+    
+    // Loop through all character history entries
+    for (const historyKey in state.chatHistory) {
+        if (state.chatHistory.hasOwnProperty(historyKey)) {
+            // Filter out undefined or invalid entries
+            const validEntries = state.chatHistory[historyKey].filter(entry => 
+                entry && 
+                entry.id && 
+                entry.characterIds && 
+                entry.characterIds.length > 0 &&
+                state.chats[entry.id] // Only keep entries that have a corresponding chat
+            );
+            
+            // Check if any entries were removed
+            if (validEntries.length !== state.chatHistory[historyKey].length) {
+                state.chatHistory[historyKey] = validEntries;
+                hasChanges = true;
+            }
+            
+            // Remove empty history keys
+            if (state.chatHistory[historyKey].length === 0) {
+                delete state.chatHistory[historyKey];
+                hasChanges = true;
+            }
+        }
+    }
+    
+    // Save changes if needed
+    if (hasChanges) {
+        setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
+        console.log("Cleaned up invalid chat history entries");
+    }
 }
 
 // Set up event listeners
@@ -519,6 +570,27 @@ function setupEventListeners() {
     
     // Setup character selection in sidebar
     updateSidebarCharacterListeners();
+    
+    // Chat history and new chat buttons
+    const newChatBtn = document.getElementById('new-chat-btn');
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', createNewChat);
+    }
+    
+    const chatHistoryBtn = document.getElementById('chat-history-btn');
+    if (chatHistoryBtn) {
+        chatHistoryBtn.addEventListener('click', showChatHistory);
+    }
+    
+    const closeHistoryModalBtn = document.getElementById('close-history-modal-btn');
+    if (closeHistoryModalBtn) {
+        closeHistoryModalBtn.addEventListener('click', closeChatHistoryModal);
+    }
+    
+    const closeHistoryBtn = document.getElementById('close-history-btn');
+    if (closeHistoryBtn) {
+        closeHistoryBtn.addEventListener('click', closeChatHistoryModal);
+    }
 }
 
 // Update sidebar character event listeners
@@ -1335,12 +1407,305 @@ function deleteMessage(messageId) {
 function clearChatMessages() {
     if (!state.activeChat) return;
     
+    // Ask for confirmation
+    if (!confirm("Are you sure you want to clear all messages in this chat?")) {
+        return;
+    }
+    
     // Clear messages
     state.chats[state.activeChat] = [];
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     
     // Update UI
     updateChatMessages();
+    
+    // Show success message
+    showSuccess("Chat cleared");
+}
+
+// Function to create a new chat with the same character(s)
+function createNewChat() {
+    if (state.activeCharacters.length === 0) return;
+    
+    // Save current chat to history before creating a new one
+    saveCurrentChatToHistory();
+    
+    // Generate a new chat ID with timestamp to ensure uniqueness
+    const timestamp = Date.now();
+    const characterIds = state.activeCharacters.map(c => c.id).sort();
+    const newChatId = `${characterIds.join('-')}-${timestamp}`;
+    
+    // Set the new chat as active
+    state.activeChat = newChatId;
+    state.chats[newChatId] = [];
+    
+    // Save to storage
+    setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+    
+    // Create a welcome message for the new chat
+    const welcomeMsg = {
+        id: generateUniqueId(),
+        content: `New conversation started with ${state.activeCharacters.map(c => c.name).join(', ')}`,
+        isUser: false,
+        isSystem: true,
+        timestamp: new Date().toISOString(),
+        isDeleted: false
+    };
+    
+    // Add welcome message to the chat
+    state.chats[newChatId].push(welcomeMsg);
+    setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+    
+    // Save this new chat to history immediately
+    const historyEntry = {
+        id: newChatId,
+        timestamp: timestamp,
+        characterIds: characterIds,
+        characterNames: state.activeCharacters.map(c => c.name).join(', '),
+        messageCount: 1,
+        lastMessage: `Start a new conversation with ${state.activeCharacters.map(c => c.name).join(', ')}`,
+        date: new Date(timestamp).toLocaleString()
+    };
+    
+    // Initialize history for these characters if it doesn't exist
+    const historyKey = characterIds.join('-');
+    if (!state.chatHistory[historyKey]) {
+        state.chatHistory[historyKey] = [];
+    }
+    
+    // Add to history and save
+    state.chatHistory[historyKey].push(historyEntry);
+    setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
+    
+    // Update UI
+    updateChatUI();
+    
+    // Show success message
+    showSuccess("Started a new chat");
+}
+
+// Function to save current chat to history
+function saveCurrentChatToHistory() {
+    if (!state.activeChat || !state.chats[state.activeChat] || state.chats[state.activeChat].length === 0) {
+        return; // Don't save empty chats
+    }
+    
+    // Get the character IDs from the chat ID
+    const chatParts = state.activeChat.split('-');
+    const characterIds = chatParts.filter(part => !isNaN(parseInt(part, 36)) || part.length < 10);
+    
+    // Skip if no valid character IDs found
+    if (characterIds.length === 0 || !state.activeCharacters || state.activeCharacters.length === 0) {
+        return;
+    }
+    
+    // Get the valid messages (not deleted)
+    const validMessages = state.chats[state.activeChat].filter(msg => !msg.isDeleted);
+    if (validMessages.length === 0) return; // Don't save if all messages are deleted
+    
+    // Find the most recent non-system message for the title
+    let lastMessage = validMessages[validMessages.length - 1];
+    let lastNonSystemMessage = null;
+    
+    // Look for the most recent non-system message
+    for (let i = validMessages.length - 1; i >= 0; i--) {
+        if (!validMessages[i].isSystem) {
+            lastNonSystemMessage = validMessages[i];
+            break;
+        }
+    }
+    
+    // If we found a non-system message, use it for the title
+    if (lastNonSystemMessage) {
+        lastMessage = lastNonSystemMessage;
+    }
+    
+    // Create a history entry
+    const timestamp = Date.now();
+    const historyEntry = {
+        id: state.activeChat,
+        timestamp: timestamp,
+        characterIds: characterIds,
+        characterNames: state.activeCharacters.map(c => c.name).join(', '),
+        messageCount: validMessages.length,
+        lastMessage: lastMessage.content ? lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 'No content',
+        date: new Date(timestamp).toLocaleString()
+    };
+    
+    // Initialize history for these characters if it doesn't exist
+    const historyKey = characterIds.join('-');
+    if (!state.chatHistory[historyKey]) {
+        state.chatHistory[historyKey] = [];
+    }
+    
+    // Check if this chat is already in history
+    const existingIndex = state.chatHistory[historyKey].findIndex(entry => entry.id === state.activeChat);
+    
+    if (existingIndex >= 0) {
+        // Update existing entry
+        state.chatHistory[historyKey][existingIndex] = historyEntry;
+    } else {
+        // Add new entry
+        state.chatHistory[historyKey].push(historyEntry);
+    }
+    
+    // Save to storage
+    setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
+}
+
+// Function to show chat history modal
+function showChatHistory() {
+    if (state.activeCharacters.length === 0) return;
+    
+    // Get character IDs
+    const characterIds = state.activeCharacters.map(c => c.id).sort();
+    const historyKey = characterIds.join('-');
+    
+    // Get history for these characters
+    const history = state.chatHistory[historyKey] || [];
+    
+    // Update the modal content
+    const historyList = document.getElementById('chat-history-list');
+    
+    if (history.length === 0) {
+        historyList.innerHTML = `<p class="text-gray-500 italic text-center">No chat history available</p>`;
+    } else {
+        // Sort by timestamp, newest first
+        const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
+        
+        // Update each history entry with the most recent message
+        sortedHistory.forEach(entry => {
+            if (!entry || !entry.id || !state.chats[entry.id]) return;
+            
+            // Get the valid messages (not deleted)
+            const validMessages = state.chats[entry.id].filter(msg => !msg.isDeleted);
+            if (validMessages.length === 0) return;
+            
+            // Find the most recent non-system message for the title
+            let lastMessage = validMessages[validMessages.length - 1];
+            
+            // Look for the most recent non-system message
+            for (let i = validMessages.length - 1; i >= 0; i--) {
+                if (!validMessages[i].isSystem) {
+                    lastMessage = validMessages[i];
+                    break;
+                }
+            }
+            
+            // Update the entry with the most recent message
+            entry.lastMessage = lastMessage.content ? 
+                lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 
+                'No content';
+            entry.messageCount = validMessages.length;
+        });
+        
+        let html = '';
+        sortedHistory.forEach(entry => {
+            if (!entry || !entry.id) return; // Skip undefined entries
+            
+            html += `
+                <div class="mb-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer chat-history-item" data-chat-id="${entry.id}">
+                    <div class="flex justify-between items-start">
+                        <h4 class="font-medium text-gray-800">${entry.characterNames || 'Unnamed Chat'}</h4>
+                        <span class="text-xs text-gray-500">${entry.date || 'No date'}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-1">${entry.messageCount || 0} messages</p>
+                    <div class="mt-2 bg-gray-100 p-2 rounded">
+                        <p class="text-sm text-gray-700">${entry.lastMessage || 'No messages'}</p>
+                    </div>
+                    <div class="mt-2 pt-2 border-t border-gray-200 flex justify-end">
+                        <button class="text-red-500 hover:text-red-700 delete-history-btn p-1" 
+                                data-chat-id="${entry.id}" 
+                                title="Delete this chat history"
+                                onclick="event.stopPropagation();">
+                            <i class="fas fa-trash-alt"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        historyList.innerHTML = html;
+        
+        // Add click listeners to history items
+        const historyItems = document.querySelectorAll('.chat-history-item');
+        historyItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const chatId = item.getAttribute('data-chat-id');
+                loadChatFromHistory(chatId);
+                closeChatHistoryModal();
+            });
+        });
+        
+        // Add click listeners to delete buttons
+        const deleteButtons = document.querySelectorAll('.delete-history-btn');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent triggering the parent click
+                const chatId = button.getAttribute('data-chat-id');
+                deleteChatHistory(chatId, historyKey);
+            });
+        });
+    }
+    
+    // Show the modal
+    const modal = document.getElementById('chat-history-modal');
+    modal.classList.remove('hidden');
+}
+
+// Function to close chat history modal
+function closeChatHistoryModal() {
+    const modal = document.getElementById('chat-history-modal');
+    modal.classList.add('hidden');
+}
+
+// Function to load a chat from history
+function loadChatFromHistory(chatId) {
+    if (!state.chats[chatId]) {
+        showError("Chat history not found");
+        return;
+    }
+    
+    // Set as active chat
+    state.activeChat = chatId;
+    
+    // Update active characters based on the chat ID
+    const chatParts = chatId.split('-');
+    const characterIds = chatParts.filter(part => !isNaN(parseInt(part, 36)) || part.length < 10);
+    state.activeCharacters = state.characters.filter(c => characterIds.includes(c.id));
+    
+    // Update UI
+    updateChatUI();
+    
+    // Show success message
+    showSuccess("Loaded chat from history");
+}
+
+// Function to delete a chat from history
+function deleteChatHistory(chatId, historyKey) {
+    // Confirm deletion
+    if (!confirm("Are you sure you want to delete this chat history?")) {
+        return;
+    }
+    
+    // Remove from history
+    if (state.chatHistory[historyKey]) {
+        state.chatHistory[historyKey] = state.chatHistory[historyKey].filter(entry => entry.id !== chatId);
+        
+        // If history is empty for this character, remove the key
+        if (state.chatHistory[historyKey].length === 0) {
+            delete state.chatHistory[historyKey];
+        }
+        
+        // Save to storage
+        setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
+        
+        // Refresh the history modal
+        showChatHistory();
+        
+        // Show success message
+        showSuccess("Chat history deleted");
+    }
 }
 
 async function sendMessage() {
@@ -1425,6 +1790,11 @@ function addMessage(message) {
     // Update sidebar to reflect new message timestamp
     if (!message.isTyping) {
         updateSidebarCharacters();
+        
+        // Update chat history entry if this is a real message (not typing indicator)
+        if (!message.isSystem) {
+            saveCurrentChatToHistory();
+        }
     }
 }
 

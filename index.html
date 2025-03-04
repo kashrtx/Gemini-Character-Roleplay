@@ -400,26 +400,42 @@
                 <div id="chat-window" class="flex-grow flex flex-col bg-gray-50 hidden">
                     <!-- Chat header -->
                     <div class="p-4 bg-white border-b flex justify-between items-center shadow-sm">
-                        <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-4 max-w-[60%]">
                             <button
                                 id="show-chat-sidebar-btn"
-                                class="text-gray-600 hover:text-primary lg:hidden"
+                                class="text-gray-600 hover:text-primary lg:hidden flex-shrink-0"
                                 aria-label="Show Characters"
                             >
                                 <i class="fas fa-bars"></i>
                             </button>
-                            <div>
-                                <h2 id="chat-header-title" class="font-bold text-gray-800">Character Name</h2>
-                                <p id="chat-header-subtitle" class="text-sm text-gray-500">Private conversation</p>
+                            <div class="overflow-hidden">
+                                <h2 id="chat-header-title" class="font-bold text-gray-800 truncate">Character Name</h2>
+                                <p id="chat-header-subtitle" class="text-sm text-gray-500 truncate">Private conversation</p>
                             </div>
                         </div>
-                        <button
-                            onclick="clearChatMessages()"
-                            class="text-red-500 hover:text-red-700 px-2 py-1 rounded"
-                            title="Clear chat"
-                        >
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <div class="flex items-center space-x-2 flex-wrap justify-end">
+                            <button
+                                id="new-chat-btn"
+                                class="text-primary hover:text-primary/80 px-2 py-1 rounded text-sm md:text-base"
+                                title="Start a new chat with this character"
+                            >
+                                <i class="fas fa-plus-circle"></i> <span class="hidden sm:inline">New Chat</span>
+                            </button>
+                            <button
+                                id="chat-history-btn"
+                                class="text-primary hover:text-primary/80 px-2 py-1 rounded text-sm md:text-base"
+                                title="View chat history"
+                            >
+                                <i class="fas fa-history"></i> <span class="hidden sm:inline">History</span>
+                            </button>
+                            <button
+                                onclick="clearChatMessages()"
+                                class="text-red-500 hover:text-red-700 px-2 py-1 rounded text-sm md:text-base"
+                                title="Clear chat"
+                            >
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Chat messages -->
@@ -452,6 +468,26 @@
                 </div>
             </div>
         </main>
+
+        <!-- Chat History Modal -->
+        <div id="chat-history-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-gray-800">Chat History</h3>
+                    <button id="close-history-modal-btn" class="text-gray-500 hover:text-gray-700 p-2">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="chat-history-list" class="p-4 overflow-y-auto flex-grow">
+                    <p class="text-gray-500 italic text-center">No chat history available</p>
+                </div>
+                <div class="p-3 border-t flex justify-end">
+                    <button id="close-history-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Load Gemini SDK -->
