@@ -1178,40 +1178,64 @@ function createMessageHTML(message) {
                 </div>
             </div>
         `;
-    } else {
-        // Character message - left aligned
-        return `
-            <div 
-                class="flex justify-start w-full"
-                onmouseenter="showMessageActions('${message.id}')"
-                onmouseleave="hideMessageActions('${message.id}')"
-            >
-                <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1">
-                    ${character.name.charAt(0).toUpperCase()}
+    }
+    
+    // Check if this is the last message from this character
+    const isLastCharacterMessage = (() => {
+        if (!state.activeChat) return false;
+        const messages = state.chats[state.activeChat] || [];
+        const characterMessages = messages.filter(m => 
+            !m.isUser && 
+            m.characterId === message.characterId && 
+            !m.isDeleted && 
+            !m.isTyping
+        );
+        return characterMessages.length > 0 && 
+               characterMessages[characterMessages.length - 1].id === message.id;
+    })();
+    
+    // Character message - left aligned
+    return `
+        <div 
+            class="flex justify-start w-full"
+            onmouseenter="showMessageActions('${message.id}')"
+            onmouseleave="hideMessageActions('${message.id}')"
+        >
+            <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1">
+                ${character.name.charAt(0).toUpperCase()}
+            </div>
+            
+            <div class="message-container-character">
+                <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
+            
+                <div class="message-bubble character-message">
+                    ${processContent(message.content)}
+                    
+                    <button
+                        id="delete-msg-${message.id}"
+                        onclick="deleteMessage('${message.id}')"
+                        class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
+                    >
+                        <i class="fas fa-times text-xs"></i>
+                    </button>
                 </div>
                 
-                <div class="message-container-character">
-                    <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
-                
-                    <div class="message-bubble character-message">
-                        ${processContent(message.content)}
-                        
-                        <button
-                            id="delete-msg-${message.id}"
-                            onclick="deleteMessage('${message.id}')"
-                            class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
-                        >
-                            <i class="fas fa-times text-xs"></i>
-                        </button>
-                    </div>
-                    
+                <div class="flex items-center">
                     <div class="text-xs text-gray-500 mt-1 ml-2">
                         ${time}
                     </div>
+                    ${isLastCharacterMessage ? `
+                    <button
+                        onclick="regenerateMessage('${message.characterId}')"
+                        class="ml-2 mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center"
+                    >
+                        <i class="fas fa-redo-alt mr-1 text-xs"></i> Regenerate
+                    </button>
+                    ` : ''}
                 </div>
             </div>
-        `;
-    }
+        </div>
+    `;
 }
 
 // Message action buttons
@@ -1276,10 +1300,39 @@ async function sendMessage() {
     const messageInput = document.getElementById('message-input');
     const userMessage = messageInput.value.trim();
     
-    if (!userMessage) return;
-    
-    // Clear input
+    // Clear input regardless of content
     messageInput.value = '';
+    
+    // Check if we have an empty message
+    if (!userMessage) {
+        // For empty messages, we'll just trigger the AI to continue
+        // Get response from each character using async/await and Promise.all for concurrency
+        await Promise.all(state.activeCharacters.map(async (character) => {
+            // Find the last message in the chat
+            const messages = state.chats[state.activeChat] || [];
+            const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+            
+            // Create a special "continue" message that won't be displayed
+            const continueMsg = {
+                id: generateUniqueId(),
+                content: "[Continue]", // This is just for internal use
+                isUser: true,
+                timestamp: new Date().toISOString(),
+                isDeleted: true, // Mark as deleted so it won't show in the UI
+            };
+            
+            // Add the hidden message to the chat history
+            if (!state.chats[state.activeChat]) {
+                state.chats[state.activeChat] = [];
+            }
+            state.chats[state.activeChat].push(continueMsg);
+            setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+            
+            // Generate a response
+            await getCharacterResponse(character, continueMsg);
+        }));
+        return;
+    }
     
     // Add user message
     const userMsg = {
@@ -1346,23 +1399,32 @@ async function getCharacterResponse(character, userMsg) {
         const chatHistory = state.chats[state.activeChat] || [];
         const userMessages = chatHistory.filter(m => m.isUser && !m.isDeleted);
         
-        if (userMessages.length === 0) {
+        // Check if this is a continue message
+        const isContinue = userMsg.content === "[Continue]" && userMsg.isDeleted;
+        
+        // Add special instructions for continue messages
+        let promptContext = context;
+        if (isContinue) {
+            promptContext = `${context}\n\nThe user wants you to continue your previous response or elaborate further on what you were saying. Please continue the conversation naturally as ${character.name} without repeating yourself too much.`;
+        }
+        
+        if (userMessages.length === 0 && !isContinue) {
             console.log("No user messages yet, using a simplified approach");
             // For the first message, we'll use a simpler approach
-            const result = await callGeminiAPI(context);
+            const result = await callGeminiAPI(promptContext);
             
             // Remove typing indicator
             removeTypingIndicator(typingMsg.id);
             
             // Add the response as a message
-        addMessage({
-            id: generateUniqueId(),
+            addMessage({
+                id: generateUniqueId(),
                 content: result,
-            isUser: false,
-            characterId: character.id,
-            timestamp: new Date().toISOString(),
-            isDeleted: false,
-        });
+                isUser: false,
+                characterId: character.id,
+                timestamp: new Date().toISOString(),
+                isDeleted: false,
+            });
             
             return;
         }
@@ -1400,7 +1462,7 @@ async function getCharacterResponse(character, userMsg) {
         addMessage(responseMsg);
         
         // Send the message and stream the response
-        const result = await chat.sendMessageStream(context);
+        const result = await chat.sendMessageStream(promptContext);
         
         for await (const chunk of result.stream) {
             const chunkText = chunk.text();
@@ -1704,18 +1766,37 @@ async function testModelCapabilities() {
 
 // Function for testing the chat without API
 function testSendMessage() {
-    if (!state.activeChat || state.activeCharacters.length === 0) {
-        showError("Please select at least one character to chat with");
-        return;
-    }
-    
     const messageInput = document.getElementById('message-input');
     const userMessage = messageInput.value.trim();
     
-    if (!userMessage) return;
-    
-    // Clear input
+    // Clear input regardless of content
     messageInput.value = '';
+    
+    // Check if we have an empty message
+    if (!userMessage) {
+        // For empty messages, we'll just trigger the AI to continue
+        state.activeCharacters.forEach(character => {
+            // Create a special "continue" message that won't be displayed
+            const continueMsg = {
+                id: generateUniqueId(),
+                content: "[Continue]", // This is just for internal use
+                isUser: true,
+                timestamp: new Date().toISOString(),
+                isDeleted: true, // Mark as deleted so it won't show in the UI
+            };
+            
+            // Add the hidden message to the chat history
+            if (!state.chats[state.activeChat]) {
+                state.chats[state.activeChat] = [];
+            }
+            state.chats[state.activeChat].push(continueMsg);
+            setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+            
+            // Generate a test response
+            getTestCharacterResponse(character);
+        });
+        return;
+    }
     
     // Add user message
     const userMsg = {
@@ -1764,21 +1845,40 @@ async function getTestCharacterResponse(character) {
     const userMessages = messages.filter(m => m.isUser && !m.isDeleted);
     const lastUserMessage = userMessages[userMessages.length - 1]?.content || "Hello";
     
+    // Check if this is a continue message
+    const isContinue = userMessages.length > 0 && 
+                      userMessages[userMessages.length - 1]?.content === "[Continue]" &&
+                      userMessages[userMessages.length - 1]?.isDeleted;
+    
     // Generate fake response based on character when API is not connected
-    const fakeResponses = [
-        `As ${character.name}, I find your message "${lastUserMessage}" quite interesting. But the API is not connected. Add your Gemini API key in settings for real responses!`,
-        `Hmm, let me think about "${lastUserMessage}" for a moment...lol the API is not connected. Add your Gemini API key in settings for real responses!`,
-        `That's an excellent point about "${lastUserMessage}". I would add that...but the API is not connected.Add your Gemini API key in settings for real responses!`,
-        `I disagree with your assessment of "${lastUserMessage}", because... but the API is not connected.Add your Gemini API key in settings for real responses!`,
-        ` You said "${lastUserMessage}?"I've never thought about it that way before. And btw the API is not connected!Add your Gemini API key in settings for real responses!`
-    ];
-    // Generate a random response from the fake responses
-    const randomResponse = fakeResponses[Math.floor(Math.random() * fakeResponses.length)];
+    let fakeResponse;
+    
+    if (isContinue) {
+        // For continue messages, generate a response that continues the story
+        const continueFakeResponses = [
+            `*continues the story* As ${character.name}, I think we should explore this further...`,
+            `Let me elaborate on that. I believe that...`,
+            `*nods thoughtfully* I understand. Let me add to what I was saying earlier...`,
+            `Actually, there's something else I wanted to mention about this topic...`,
+            `*pauses for a moment* On second thought, I should clarify what I meant earlier...`
+        ];
+        fakeResponse = continueFakeResponses[Math.floor(Math.random() * continueFakeResponses.length)];
+    } else {
+        // Regular responses for normal user messages
+        const fakeResponses = [
+            `As ${character.name}, I find your message "${lastUserMessage}" quite interesting. But the API is not connected. Add your Gemini API key in settings for real responses!`,
+            `Hmm, let me think about "${lastUserMessage}" for a moment...lol the API is not connected. Add your Gemini API key in settings for real responses!`,
+            `That's an excellent point about "${lastUserMessage}". I would add that...but the API is not connected. Add your Gemini API key in settings for real responses!`,
+            `I disagree with your assessment of "${lastUserMessage}", because... but the API is not connected. Add your Gemini API key in settings for real responses!`,
+            `You said "${lastUserMessage}?" I've never thought about it that way before. And btw the API is not connected! Add your Gemini API key in settings for real responses!`
+        ];
+        fakeResponse = fakeResponses[Math.floor(Math.random() * fakeResponses.length)];
+    }
     
     // Add actual response
     addMessage({
         id: generateUniqueId(),
-        content: randomResponse,
+        content: fakeResponse,
         isUser: false,
         characterId: character.id,
         timestamp: new Date().toISOString(),
@@ -2352,4 +2452,46 @@ function getLastMessageTimestamp(chatId) {
         .find(msg => !msg.isDeleted);
     
     return lastMessage ? new Date(lastMessage.timestamp).getTime() : 0;
+}
+
+// Function to regenerate the last AI message
+async function regenerateMessage(characterId) {
+    if (!state.activeChat || state.activeCharacters.length === 0) {
+        showError("No active chat or characters selected");
+        return;
+    }
+    
+    // Get the messages in the current chat
+    const messages = state.chats[state.activeChat] || [];
+    if (messages.length === 0) return;
+    
+    // Find the last message from the specified character
+    const characterMessages = messages
+        .filter(m => !m.isUser && m.characterId === characterId && !m.isDeleted && !m.isTyping)
+        .reverse();
+    
+    if (characterMessages.length === 0) return;
+    
+    // Get the last message from this character
+    const lastMessage = characterMessages[0];
+    
+    // Delete the last message
+    lastMessage.isDeleted = true;
+    setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+    
+    // Update UI
+    updateChatMessages();
+    
+    // Find the character object
+    const character = state.characters.find(c => c.id === characterId);
+    if (!character) return;
+    
+    // Find the last user message for context
+    const userMessages = messages.filter(m => m.isUser && !m.isDeleted);
+    if (userMessages.length === 0) return;
+    
+    const lastUserMsg = userMessages[userMessages.length - 1];
+    
+    // Generate a new response
+    await getCharacterResponse(character, lastUserMsg);
 }
