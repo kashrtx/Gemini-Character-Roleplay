@@ -156,18 +156,33 @@
                                 </div>
                                 
                                 <div>
-                                    <label for="max-tokens" class="block text-gray-600 mb-2">
-                                        Max Response Length (tokens)
+                                    <label for="enhanced-context-tokens" class="block text-gray-600 mb-2">
+                                        Enhanced Character Context Token Length
                                     </label>
-                                    <select 
-                                        id="max-tokens" 
+                                    <input 
+                                        type="number" 
+                                        id="enhanced-context-tokens" 
                                         class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                        min="1"
+                                        max="8192"
+                                        value="2000"
                                     >
-                                        <option value="400">Short (400)</option>
-                                        <option value="800" selected>Medium (800)</option>
-                                        <option value="1200">Long (1200)</option>
-                                        <option value="2000">Very Long (2000)</option>
-                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1">Controls token length for character context enhancement (1-8192)</p>
+                                </div>
+                                
+                                <div>
+                                    <label for="conversation-tokens" class="block text-gray-600 mb-2">
+                                        AI Conversation Message Token Length
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        id="conversation-tokens" 
+                                        class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                        min="1"
+                                        max="8192"
+                                        value="300"
+                                    >
+                                    <p class="text-xs text-gray-500 mt-1">Controls token length for AI responses in chat (1-8192)</p>
                                 </div>
 
                                 <div>

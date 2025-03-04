@@ -106,7 +106,9 @@ let appSettings = {
     allowGroupChats: false,
     modelVersion: "gemini-2.0-flash", // default is flash 2.0
     temperature: 1.0, //  0.5 for a balance between randomness and coherence.
-    maxTokens: 1200, // Helps generate context.
+    enhancedContextTokens: 2000, // Controls token length for character context enhancement
+    conversationTokens: 300, // Controls token length for AI responses in chat
+    maxTokens: 300, // For backward compatibility
     topK: 1, //Top-K changes how the model selects tokens for output. 
     // A top-K of 1 means the next selected token is the most probable 
     // among all tokens in the model's vocabulary (also called greedy decoding)
@@ -1865,7 +1867,7 @@ async function getCharacterResponse(character, userMsg) {
             history: history,
             generationConfig: {
                 temperature: appSettings.temperature,
-                maxOutputTokens: parseInt(appSettings.maxTokens),
+                maxOutputTokens: parseInt(appSettings.conversationTokens || appSettings.maxTokens), // Use conversationTokens with fallback
                 topK: appSettings.topK,
                 topP: appSettings.topP,
             }
@@ -1937,6 +1939,9 @@ function removeTypingIndicator(typingMsgId) {
 
 // Context preparation for chat
 function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
+    // Calculate approximate word count based on token limit (0.75 tokens per word)
+    const wordLimit = Math.floor(appSettings.conversationTokens * 0.75);
+    
     // Base context with character information and roleplay instructions
     let context = `You are now roleplaying as ${character.name}. This is NOT a simulation. You ARE ${character.name}. 
 Your responses should maintain the character's personality, speech patterns, and knowledge at all times.
@@ -1958,7 +1963,8 @@ ROLEPLAY INSTRUCTIONS:
 - Maintain consistent personality, knowledge, and speech patterns.
 - Engage with the user's personality and context in a way that feels natural to your character.
 - You can use markdown formatting: *italics* for emphasis or actions, and  __bold__ for strong emphasis or important statements. ## For stating setting or time.
-- Note that **bold** does not work since it gets confused with italitcs, so just use __bold__`;
+- Note that **bold** does not work since it gets confused with italitcs, so just use __bold__
+- IMPORTANT: Keep your responses to approximately ${wordLimit} words or fewer to fit within the token limit of ${appSettings.conversationTokens} tokens.`;
 
     // Add group chat context if needed
     if (activeCharacters.length > 1) {
@@ -2325,7 +2331,7 @@ async function callGeminiAPI(prompt) {
         
         const generationConfig = {
             temperature: appSettings.temperature,
-            maxOutputTokens: appSettings.maxTokens,
+            maxOutputTokens: appSettings.enhancedContextTokens || appSettings.maxTokens, // Use enhancedContextTokens with fallback
             topK: appSettings.topK,
             topP: appSettings.topP,
         };
@@ -2485,6 +2491,9 @@ function showSuccess(message, duration = 3000) {
 }
 
 async function callEnhanceAPI(characterName, userContext) {
+    // Calculate approximate word count based on token limit (0.75 tokens per word)
+    const wordLimit = Math.floor(appSettings.enhancedContextTokens * 0.75);
+    
     const prompt = `
 You are an expert character developer for roleplaying. Transform this brief character description into a detailed character profile that can guide an AI in consistently roleplaying as this character.
 Fill in the details about but dont sound like the character, because this is for generating a character context which will be used to roleplay with the user.
@@ -2505,10 +2514,10 @@ CREATE A COMPREHENSIVE CHARACTER PROFILE INCLUDING:
 9. Fears, insecurities, and internal conflicts
 
 FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE.
-Make the character feel authentic and three-dimensional with consistent traits.
-Include specific examples of how they would speak and react.
-Write in third person, approximately 400-500 words.
-Focus on depth and specificity rather than generic descriptions.
+- Make the character feel authentic and three-dimensional with consistent traits.
+- Include specific examples of how they would speak and react.
+- Write in third person.
+- IMPORTANT: Your response MUST be approximately ${wordLimit} words or fewer to fit within the token limit of ${appSettings.enhancedContextTokens} tokens. Focus on depth and specificity rather than length.
 `;
 
     try {
@@ -2675,7 +2684,8 @@ function initializeModelSettings() {
     const modelSelect = document.getElementById('model-select');
     const temperatureRange = document.getElementById('temperature-range');
     const temperatureValue = document.getElementById('temperature-value');
-    const maxTokens = document.getElementById('max-tokens');
+    const enhancedContextTokens = document.getElementById('enhanced-context-tokens');
+    const conversationTokens = document.getElementById('conversation-tokens');
     const topKRange = document.getElementById('top-k');
     const topKValue = document.getElementById('top-k-value');
     const topPRange = document.getElementById('top-p');
@@ -2690,9 +2700,36 @@ function initializeModelSettings() {
         temperatureRange.value = appSettings.temperature;
         temperatureValue.textContent = appSettings.temperature;
     }
-    if (appSettings.maxTokens) {
-        maxTokens.value = appSettings.maxTokens;
+    
+    // Initialize enhanced context tokens (default: 2000)
+    if (appSettings.enhancedContextTokens) {
+        enhancedContextTokens.value = appSettings.enhancedContextTokens;
+    } else {
+        appSettings.enhancedContextTokens = 2000;
+        enhancedContextTokens.value = 2000;
     }
+    
+    // Initialize conversation tokens (default: 300)
+    if (appSettings.conversationTokens) {
+        conversationTokens.value = appSettings.conversationTokens;
+    } else {
+        appSettings.conversationTokens = 300;
+        conversationTokens.value = 300;
+    }
+    
+    // For backward compatibility, if maxTokens exists but the new settings don't
+    if (appSettings.maxTokens && (!appSettings.enhancedContextTokens || !appSettings.conversationTokens)) {
+        // Use the old maxTokens value for both new settings if they weren't set
+        if (!appSettings.enhancedContextTokens) {
+            appSettings.enhancedContextTokens = parseInt(appSettings.maxTokens);
+            enhancedContextTokens.value = appSettings.enhancedContextTokens;
+        }
+        if (!appSettings.conversationTokens) {
+            appSettings.conversationTokens = parseInt(appSettings.maxTokens);
+            conversationTokens.value = appSettings.conversationTokens;
+        }
+    }
+    
     if (appSettings.topK) {
         topKRange.value = appSettings.topK;
         topKValue.textContent = appSettings.topK;
@@ -2714,7 +2751,22 @@ function initializeModelSettings() {
         saveAppSettings();
     });
 
-    maxTokens.addEventListener('change', (e) => {
+    enhancedContextTokens.addEventListener('change', (e) => {
+        const value = parseInt(e.target.value);
+        // Enforce min/max constraints
+        if (value < 1) e.target.value = 1;
+        if (value > 8192) e.target.value = 8192;
+        appSettings.enhancedContextTokens = parseInt(e.target.value);
+        saveAppSettings();
+    });
+    
+    conversationTokens.addEventListener('change', (e) => {
+        const value = parseInt(e.target.value);
+        // Enforce min/max constraints
+        if (value < 1) e.target.value = 1;
+        if (value > 8192) e.target.value = 8192;
+        appSettings.conversationTokens = parseInt(e.target.value);
+        // For backward compatibility, also update maxTokens
         appSettings.maxTokens = parseInt(e.target.value);
         saveAppSettings();
     });
@@ -2761,7 +2813,9 @@ async function testModelConfiguration() {
         console.log("Testing with settings:", {
             model: appSettings.modelVersion,
             temperature: appSettings.temperature,
-            maxTokens: appSettings.maxTokens,
+            enhancedContextTokens: appSettings.enhancedContextTokens,
+            conversationTokens: appSettings.conversationTokens,
+            maxTokens: appSettings.maxTokens, // For backward compatibility
             topK: appSettings.topK,
             topP: appSettings.topP
         });
@@ -2782,7 +2836,7 @@ async function testModelConfiguration() {
             contents: [{ parts: [{ text: "Respond with 'Configuration test successful' if you receive this message." }] }],
             generationConfig: {
                 temperature: appSettings.temperature,
-                maxOutputTokens: parseInt(appSettings.maxTokens),
+                maxOutputTokens: parseInt(appSettings.conversationTokens || appSettings.maxTokens),
                 topK: appSettings.topK,
                 topP: appSettings.topP,
             }
@@ -2802,7 +2856,8 @@ async function testModelConfiguration() {
             <div class="space-y-1">
                 <p>✓ Model: ${appSettings.modelVersion}</p>
                 <p>✓ Temperature: ${appSettings.temperature}</p>
-                <p>✓ Max Tokens: ${appSettings.maxTokens}</p>
+                <p>✓ Enhanced Context Tokens: ${appSettings.enhancedContextTokens}</p>
+                <p>✓ Conversation Tokens: ${appSettings.conversationTokens}</p>
                 <p>✓ Response received: ${response.substring(0, 50)}...</p>
             </div>
         `;
