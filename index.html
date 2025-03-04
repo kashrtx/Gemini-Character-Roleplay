@@ -324,6 +324,33 @@
                                 other than directly to Google's API. Uses Gemini 2.0 Flash for quick and witted responses!
                             </p>
                         </div>
+                        
+                        <!-- Data Backup and Restore Section -->
+                        <div class="border-t pt-6 mt-6">
+                            <h3 class="text-lg font-semibold mb-3 text-gray-700">Data Backup & Restore</h3>
+                            <p class="text-gray-600 mb-4">
+                                Export your data for backup or import previously exported data.
+                                <span class="text-red-500 font-medium block mt-1">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i> Warning: Never share your backup file with others as it contains your API key.
+                                </span>
+                            </p>
+                            <div class="flex flex-col sm:flex-row gap-3">
+                                <button
+                                    id="export-data-btn"
+                                    class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition flex items-center justify-center gap-2"
+                                >
+                                    <i class="fas fa-download"></i>
+                                    Export Data
+                                </button>
+                                <button
+                                    id="import-data-btn"
+                                    class="bg-secondary text-white px-4 py-2 rounded hover:bg-secondary/90 transition flex items-center justify-center gap-2"
+                                >
+                                    <i class="fas fa-upload"></i>
+                                    Load Data
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -593,6 +593,18 @@ function setupEventListeners() {
     if (closeHistoryBtn) {
         closeHistoryBtn.addEventListener('click', closeChatHistoryModal);
     }
+    
+    // Setup data export and import buttons
+    const exportDataBtn = document.getElementById('export-data-btn');
+    const importDataBtn = document.getElementById('import-data-btn');
+    
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', exportAppData);
+    }
+    
+    if (importDataBtn) {
+        importDataBtn.addEventListener('click', importAppData);
+    }
 }
 
 // Update sidebar character event listeners
@@ -3151,4 +3163,132 @@ function setupEditCharacterModal() {
             }
         });
     }
+}
+
+// Export app data to a JSON file
+function exportAppData() {
+    try {
+        // Collect all data from localStorage
+        const appData = {
+            apiKey: getStoredItem(STORAGE_KEYS.API_KEY, ""),
+            characters: getStoredItem(STORAGE_KEYS.CHARACTERS, []),
+            chats: getStoredItem(STORAGE_KEYS.CHATS, {}),
+            settings: getStoredItem(STORAGE_KEYS.SETTINGS, {}),
+            personalContext: getStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, {}),
+            chatHistory: getStoredItem(STORAGE_KEYS.CHAT_HISTORY, {}),
+            version: VERSION,
+            exportDate: new Date().toISOString()
+        };
+        
+        // Convert to JSON string
+        const jsonData = JSON.stringify(appData, null, 2);
+        
+        // Create a Blob with the JSON data
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        
+        // Create a download link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        
+        // Generate filename with timestamp
+        const date = new Date();
+        const timestamp = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        a.href = url;
+        a.download = `characterChatBackup_${timestamp}.json`;
+        
+        // Trigger download
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+        
+        showSuccess("Data exported successfully!", 3000);
+    } catch (error) {
+        console.error("Error exporting data:", error);
+        showError(`Failed to export data: ${error.message}`);
+    }
+}
+
+// Import app data from a JSON file
+function importAppData() {
+    // Create a file input element
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    
+    // Handle file selection
+    fileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        // Confirm before proceeding
+        if (!confirm("Warning: This will replace all your current data including characters, chats, and settings. Are you sure you want to continue?")) {
+            return;
+        }
+        
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            try {
+                // Parse the JSON data
+                const importedData = JSON.parse(e.target.result);
+                
+                // Validate the imported data
+                if (!importedData || typeof importedData !== 'object') {
+                    throw new Error("Invalid data format");
+                }
+                
+                // Store each data type in localStorage
+                if (importedData.apiKey !== undefined) {
+                    setStoredItem(STORAGE_KEYS.API_KEY, importedData.apiKey);
+                }
+                
+                if (importedData.characters) {
+                    setStoredItem(STORAGE_KEYS.CHARACTERS, importedData.characters);
+                }
+                
+                if (importedData.chats) {
+                    setStoredItem(STORAGE_KEYS.CHATS, importedData.chats);
+                }
+                
+                if (importedData.settings) {
+                    setStoredItem(STORAGE_KEYS.SETTINGS, importedData.settings);
+                }
+                
+                if (importedData.personalContext) {
+                    setStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, importedData.personalContext);
+                }
+                
+                if (importedData.chatHistory) {
+                    setStoredItem(STORAGE_KEYS.CHAT_HISTORY, importedData.chatHistory);
+                }
+                
+                // Show success message
+                showSuccess("Data imported successfully! Reloading page...", 2000);
+                
+                // Reload the page to apply changes
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+                
+            } catch (error) {
+                console.error("Error importing data:", error);
+                showError(`Failed to import data: ${error.message}. Please make sure the file is a valid backup.`);
+            }
+        };
+        
+        reader.onerror = () => {
+            showError("Error reading the file. Please try again.");
+        };
+        
+        // Read the file as text
+        reader.readAsText(file);
+    });
+    
+    // Trigger file selection
+    fileInput.click();
 }
