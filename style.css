@@ -1125,3 +1125,35 @@ button[id^="delete-msg-"] {
         }
     }
 }
+
+/* Profile Picture Styles */
+#profile-picture-preview,
+#edit-profile-picture-preview {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+#profile-picture-preview.has-image,
+#edit-profile-picture-preview.has-image {
+    background-color: transparent;
+}
+
+#profile-picture-preview img,
+#edit-profile-picture-preview img {
+    border-radius: 50%;
+}
+
+.character-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    overflow: hidden;
+}
+
+.character-avatar.has-image {
+    background-color: transparent !important;
+}

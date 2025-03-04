@@ -364,6 +364,25 @@
                             <h2 class="text-2xl font-bold mb-6 text-gray-800">Create New Character</h2>
                             
                             <div class="mb-4">
+                                <label class="block text-gray-700 mb-2">Profile Picture</label>
+                                <div class="flex flex-col items-center">
+                                    <div id="profile-picture-preview" class="w-32 h-32 rounded-full bg-gray-200 mb-3 flex items-center justify-center text-gray-500 text-4xl overflow-hidden">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <label for="profile-picture-upload" class="cursor-pointer bg-secondary text-white px-3 py-2 rounded hover:bg-secondary/90 transition">
+                                            <i class="fas fa-upload mr-1"></i> Upload Picture
+                                        </label>
+                                        <button id="remove-profile-picture" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition hidden">
+                                            <i class="fas fa-trash mr-1"></i> Remove
+                                        </button>
+                                    </div>
+                                    <input type="file" id="profile-picture-upload" accept="image/jpeg, image/png" class="hidden" />
+                                    <p class="text-xs text-gray-500 mt-2">Supported formats: JPG, PNG. Max size: 2MB. Recommended: 200x200px.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
                                 <label class="block text-gray-700 mb-2">Character Name</label>
                                 <input
                                     type="text"
@@ -450,9 +469,12 @@
                             >
                                 <i class="fas fa-bars"></i>
                             </button>
-                            <div class="overflow-hidden">
-                                <h2 id="chat-header-title" class="font-bold text-gray-800 truncate">Character Name</h2>
-                                <p id="chat-header-subtitle" class="text-sm text-gray-500 truncate">Private conversation</p>
+                            <div class="flex items-center">
+                                <div id="chat-header-avatars" class="flex mr-2"></div>
+                                <div class="overflow-hidden">
+                                    <h2 id="chat-header-title" class="font-bold text-gray-800 truncate">Character Name</h2>
+                                    <p id="chat-header-subtitle" class="text-sm text-gray-500 truncate">Private conversation</p>
+                                </div>
                             </div>
                         </div>
                         <div class="flex items-center space-x-2 flex-wrap justify-end">
@@ -602,6 +624,25 @@
                 <button id="close-edit-modal" class="text-gray-600 hover:text-gray-800">
                     <i class="fas fa-times"></i>
                 </button>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Profile Picture</label>
+                <div class="flex flex-col items-center">
+                    <div id="edit-profile-picture-preview" class="w-32 h-32 rounded-full bg-gray-200 mb-3 flex items-center justify-center text-gray-500 text-4xl overflow-hidden">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="flex space-x-2">
+                        <label for="edit-profile-picture-upload" class="cursor-pointer bg-secondary text-white px-3 py-2 rounded hover:bg-secondary/90 transition">
+                            <i class="fas fa-upload mr-1"></i> Upload Picture
+                        </label>
+                        <button id="edit-remove-profile-picture" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition hidden">
+                            <i class="fas fa-trash mr-1"></i> Remove
+                        </button>
+                    </div>
+                    <input type="file" id="edit-profile-picture-upload" accept="image/jpeg, image/png" class="hidden" />
+                    <p class="text-xs text-gray-500 mt-2">Supported formats: JPG, PNG. Max size: 2MB. Recommended: 200x200px.</p>
+                </div>
             </div>
             
             <div class="mb-4">

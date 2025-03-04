@@ -605,6 +605,9 @@ function setupEventListeners() {
     if (importDataBtn) {
         importDataBtn.addEventListener('click', importAppData);
     }
+    
+    // Setup profile picture handlers
+    setupProfilePictureHandlers();
 }
 
 // Update sidebar character event listeners
@@ -786,12 +789,23 @@ function createNewCharacter() {
         return false;
     }
 
+    // Get profile picture if available
+    const profilePicturePreview = document.getElementById('profile-picture-preview');
+    let profilePicture = null;
+    
+    // Check if the preview has an image (not the default icon)
+    if (profilePicturePreview && profilePicturePreview.querySelector('img')) {
+        // Get the src attribute which contains the base64 data
+        profilePicture = profilePicturePreview.querySelector('img').src;
+    }
+
     // Create new character
     const newCharacter = {
         id: generateUniqueId(),
         name,
         userContext: context,
         enhancedContext: null,
+        profilePicture: profilePicture,
         createdAt: new Date().toISOString(),
     };
     
@@ -804,6 +818,18 @@ function createNewCharacter() {
     // Clear inputs AFTER validation and saving
     nameInput.value = '';
     contextInput.value = '';
+    
+    // Reset profile picture preview
+    if (profilePicturePreview) {
+        profilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
+        profilePicturePreview.classList.remove('has-image');
+        
+        // Hide the remove button
+        const removeButton = document.getElementById('remove-profile-picture');
+        if (removeButton) {
+            removeButton.classList.add('hidden');
+        }
+    }
     
     // Show success message
     showSuccess(`Character "${name}" created successfully!`);
@@ -820,9 +846,20 @@ function createNewCharacter() {
         newCharDiv.id = `character-item-${newCharacter.id}`;
         newCharDiv.className = "border rounded-lg p-4 hover:shadow-md transition";
         
+        // Determine how to display the character avatar
+        let avatarHTML = '';
+        if (newCharacter.profilePicture) {
+            avatarHTML = `<img src="${newCharacter.profilePicture}" alt="${newCharacter.name}" class="w-10 h-10 rounded-full object-cover mr-3">`;
+        } else {
+            avatarHTML = `<div class="character-avatar bg-primary/20 text-primary mr-3">${newCharacter.name.charAt(0).toUpperCase()}</div>`;
+        }
+        
         newCharDiv.innerHTML = `
             <div class="flex justify-between items-start">
-                <h3 class="font-bold text-lg">${newCharacter.name}</h3>
+                <div class="flex items-center">
+                    ${avatarHTML}
+                    <h3 class="font-bold text-lg">${newCharacter.name}</h3>
+                </div>
                 <div class="flex space-x-2">
                     <button id="edit-btn-${newCharacter.id}" class="text-blue-500 hover:text-blue-700" title="Edit character">
                         <i class="fas fa-edit"></i>
@@ -946,10 +983,22 @@ function setupCharacterItemListeners() {
 
 // Function to generate HTML for character list
 function generateCharacterListHTML() {
-    return state.characters.map(character => `
+    return state.characters.map(character => {
+        // Determine how to display the character avatar
+        let avatarHTML = '';
+        if (character.profilePicture) {
+            avatarHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-10 h-10 rounded-full object-cover mr-3">`;
+        } else {
+            avatarHTML = `<div class="character-avatar bg-primary/20 text-primary mr-3">${character.name.charAt(0).toUpperCase()}</div>`;
+        }
+        
+        return `
         <div class="border rounded-lg p-4 hover:shadow-md transition" id="character-item-${character.id}">
                 <div class="flex justify-between items-start">
-                    <h3 class="font-bold text-lg">${character.name}</h3>
+                    <div class="flex items-center">
+                        ${avatarHTML}
+                        <h3 class="font-bold text-lg">${character.name}</h3>
+                    </div>
                     <div class="flex space-x-2">
                         <button
                             id="edit-btn-${character.id}"
@@ -994,8 +1043,9 @@ function generateCharacterListHTML() {
                     </button>
                 </div>
             </div>
-        `).join('');
-    }
+        `;
+    }).join('');
+}
     
 // Function to update just the sidebar character list
 function updateSidebarCharacters() {
@@ -1026,6 +1076,16 @@ function updateSidebarCharacters() {
                 const lastMessageTime = getLastMessageTimestamp(character.id);
                 const hasRecentChat = lastMessageTime > 0;
                 
+                // Determine how to display the character avatar
+                let avatarHTML = '';
+                if (character.profilePicture) {
+                    avatarHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
+                    avatarClass = 'has-image';
+                } else {
+                    avatarHTML = character.name.charAt(0).toUpperCase();
+                    avatarClass = '';
+                }
+                
                 return `
                 <div 
                     id="sidebar-char-${character.id}"
@@ -1038,8 +1098,8 @@ function updateSidebarCharacters() {
                 >
                     <div class="flex items-center justify-between">
                         <div class="flex items-center">
-                            <div class="character-avatar bg-primary/20 text-primary">
-                                ${character.name.charAt(0).toUpperCase()}
+                            <div class="character-avatar bg-primary/20 text-primary ${avatarClass}">
+                                ${avatarHTML}
                             </div>
                             <div class="ml-2 overflow-hidden">
                                 <p class="font-medium truncate">${character.name}</p>
@@ -1189,30 +1249,36 @@ function updateChatUI() {
     const headerTitle = document.getElementById('chat-header-title');
     if (headerTitle) headerTitle.textContent = characterNames;
     
-    const headerSubtitle = document.getElementById('chat-header-subtitle');
-    if (headerSubtitle) {
-        headerSubtitle.textContent = 
-        state.activeCharacters.length > 1 ? 'Group conversation' : 'Private conversation';
+    // Update chat header with profile pictures
+    const chatHeaderAvatars = document.getElementById('chat-header-avatars');
+    if (chatHeaderAvatars) {
+        // Clear existing avatars
+        chatHeaderAvatars.innerHTML = '';
+        
+        // Add avatars for each active character
+        state.activeCharacters.forEach(character => {
+            const avatarElement = document.createElement('div');
+            avatarElement.className = 'character-avatar bg-primary/20 text-primary mr-2';
+            
+            if (character.profilePicture) {
+                avatarElement.innerHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
+                avatarElement.classList.add('has-image');
+            } else {
+                avatarElement.textContent = character.name.charAt(0).toUpperCase();
+            }
+            
+            chatHeaderAvatars.appendChild(avatarElement);
+        });
     }
     
     // Update messages
     updateChatMessages();
     
-    // Force a layout refresh to prevent spacing issues
-    setTimeout(() => {
-        const chatMessages = document.getElementById('chat-messages');
-        if (chatMessages) {
-            // Reset any potential accumulated margins or paddings
-            chatMessages.style.height = null;
-            chatMessages.style.height = 'auto';
-            
-            // Force browser to recalculate layout
-            window.dispatchEvent(new Event('resize'));
-            
-            // Scroll to bottom
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-    }, 50);
+    // Scroll to bottom
+    const messagesContainer = document.getElementById('chat-messages');
+    if (messagesContainer) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
 }
 
 function updateChatMessages() {
@@ -1251,8 +1317,22 @@ function updateChatMessages() {
 
 function createMessageHTML(message) {
     if (message.isTyping) {
+        // Find the character for the typing indicator
+        const character = state.characters.find(c => c.id === message.characterId) || { name: 'Character' };
+        
+        // Determine how to display the character avatar
+        let avatarHTML = '';
+        if (character.profilePicture) {
+            avatarHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
+        } else {
+            avatarHTML = character.name.charAt(0).toUpperCase();
+        }
+        
         return `
-            <div class="flex w-full">
+            <div class="flex w-full mb-4">
+                <div class="character-avatar bg-primary/20 text-primary mr-3 ${character.profilePicture ? 'has-image' : ''}">
+                    ${avatarHTML}
+                </div>
                 <div class="typing-indicator">
                     <div class="typing-dot"></div>
                     <div class="typing-dot"></div>
@@ -1344,8 +1424,11 @@ function createMessageHTML(message) {
             onmouseenter="showMessageActions('${message.id}')"
             onmouseleave="hideMessageActions('${message.id}')"
         >
-            <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1">
-                ${character.name.charAt(0).toUpperCase()}
+            <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 ${character.profilePicture ? 'has-image' : ''}">
+                ${character.profilePicture ? 
+                    `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">` : 
+                    character.name.charAt(0).toUpperCase()
+                }
             </div>
             
             <div class="message-container-character">
@@ -3015,6 +3098,32 @@ function editCharacter(characterId) {
     contextInput.value = character.userContext;
     idInput.value = character.id;
     
+    // Set profile picture if available
+    const profilePicturePreview = document.getElementById('edit-profile-picture-preview');
+    const removeButton = document.getElementById('edit-remove-profile-picture');
+    
+    if (profilePicturePreview) {
+        if (character.profilePicture) {
+            // Display the existing profile picture
+            profilePicturePreview.innerHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
+            profilePicturePreview.classList.add('has-image');
+            
+            // Show the remove button
+            if (removeButton) {
+                removeButton.classList.remove('hidden');
+            }
+        } else {
+            // Display the default icon
+            profilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
+            profilePicturePreview.classList.remove('has-image');
+            
+            // Hide the remove button
+            if (removeButton) {
+                removeButton.classList.add('hidden');
+            }
+        }
+    }
+    
     // Show the edit modal
     const modal = document.getElementById('edit-character-modal');
     if (modal) {
@@ -3050,6 +3159,16 @@ function saveEditedCharacter() {
         return false;
     }
     
+    // Get profile picture if available
+    const profilePicturePreview = document.getElementById('edit-profile-picture-preview');
+    let profilePicture = null;
+    
+    // Check if the preview has an image (not the default icon)
+    if (profilePicturePreview && profilePicturePreview.querySelector('img')) {
+        // Get the src attribute which contains the base64 data
+        profilePicture = profilePicturePreview.querySelector('img').src;
+    }
+    
     // Find character in state and update it
     const characterIndex = state.characters.findIndex(c => c.id === id);
     if (characterIndex === -1) {
@@ -3064,6 +3183,7 @@ function saveEditedCharacter() {
     state.characters[characterIndex].name = name;
     state.characters[characterIndex].userContext = context;
     state.characters[characterIndex].enhancedContext = null; // Clear enhanced context when editing
+    state.characters[characterIndex].profilePicture = profilePicture; // Update profile picture
     
     // IMPORTANT: Update the character in the activeCharacters array as well
     // This ensures the chat immediately uses the new context
@@ -3089,10 +3209,34 @@ function saveEditedCharacter() {
     // Update the specific character element directly for immediate feedback
     const charElement = document.getElementById(`character-item-${id}`);
     if (charElement) {
-        // Find the name element and update it
-        const nameElement = charElement.querySelector('h3');
-        if (nameElement) {
-            nameElement.textContent = name;
+        // Determine how to display the character avatar
+        let avatarHTML = '';
+        if (profilePicture) {
+            avatarHTML = `<img src="${profilePicture}" alt="${name}" class="w-10 h-10 rounded-full object-cover mr-3">`;
+        } else {
+            avatarHTML = `<div class="character-avatar bg-primary/20 text-primary mr-3">${name.charAt(0).toUpperCase()}</div>`;
+        }
+        
+        // Find and update the character header with name and avatar
+        const headerElement = charElement.querySelector('.flex.justify-between.items-start');
+        if (headerElement) {
+            const nameWithAvatarHTML = `
+                <div class="flex items-center">
+                    ${avatarHTML}
+                    <h3 class="font-bold text-lg">${name}</h3>
+                </div>
+            `;
+            
+            // Replace the first child (which should be either the name or the flex container with avatar and name)
+            const firstChild = headerElement.firstElementChild;
+            if (firstChild) {
+                // Create a temporary container
+                const temp = document.createElement('div');
+                temp.innerHTML = nameWithAvatarHTML.trim();
+                
+                // Replace the first child with our new element
+                headerElement.replaceChild(temp.firstElementChild, firstChild);
+            }
         }
         
         // Find and update the user context
@@ -3117,9 +3261,22 @@ function saveEditedCharacter() {
     // Update sidebar character for immediate feedback
     const sidebarCharElement = document.getElementById(`sidebar-char-${id}`);
     if (sidebarCharElement) {
+        // Update the name
         const sidebarNameElement = sidebarCharElement.querySelector('.text-sm.font-medium');
         if (sidebarNameElement) {
             sidebarNameElement.textContent = name;
+        }
+        
+        // Update the avatar
+        const avatarElement = sidebarCharElement.querySelector('.character-avatar');
+        if (avatarElement) {
+            if (profilePicture) {
+                avatarElement.innerHTML = `<img src="${profilePicture}" alt="${name}" class="w-full h-full object-cover">`;
+                avatarElement.classList.add('has-image');
+            } else {
+                avatarElement.innerHTML = name.charAt(0).toUpperCase();
+                avatarElement.classList.remove('has-image');
+            }
         }
     }
     
@@ -3291,4 +3448,168 @@ function importAppData() {
     
     // Trigger file selection
     fileInput.click();
+}
+
+function setupProfilePictureHandlers() {
+    // Setup for the create character form
+    const profilePictureUpload = document.getElementById('profile-picture-upload');
+    const profilePicturePreview = document.getElementById('profile-picture-preview');
+    const removeProfilePictureBtn = document.getElementById('remove-profile-picture');
+    
+    if (profilePictureUpload && profilePicturePreview) {
+        // Handle file selection
+        profilePictureUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                // Validate file type
+                const validTypes = ['image/jpeg', 'image/png'];
+                
+                // Additional check for GIF files (in case the browser ignores the accept attribute)
+                const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
+                if (isGif) {
+                    showError("GIF files are not supported to prevent performance issues. Please use JPG or PNG instead.");
+                    return;
+                }
+                
+                if (!validTypes.includes(file.type)) {
+                    showError("Please select a valid image file (JPG or PNG only)");
+                    return;
+                }
+                
+                // Validate file size (2MB max)
+                const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+                if (file.size > maxSize) {
+                    showError("Image file is too large. Maximum size is 2MB.");
+                    return;
+                }
+                
+                // Read the file and create a preview
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    // Create an image element to get dimensions
+                    const img = new Image();
+                    img.onload = function() {
+                        // Check if dimensions are reasonable
+                        if (img.width < 50 || img.height < 50) {
+                            showError("Image is too small. Minimum dimensions are 50x50 pixels.");
+                            return;
+                        }
+                        
+                        // Check for animated PNG (APNG)
+                        if (event.target.result.indexOf('ANIM') !== -1 || event.target.result.indexOf('acTL') !== -1) {
+                            showError("Animated images are not supported to prevent performance issues. Please use a static image instead.");
+                            return;
+                        }
+                        
+                        // Update the preview
+                        profilePicturePreview.innerHTML = `<img src="${event.target.result}" alt="Profile Preview" class="w-full h-full object-cover">`;
+                        profilePicturePreview.classList.add('has-image');
+                        
+                        // Show the remove button
+                        if (removeProfilePictureBtn) {
+                            removeProfilePictureBtn.classList.remove('hidden');
+                        }
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Handle remove button click
+        if (removeProfilePictureBtn) {
+            removeProfilePictureBtn.addEventListener('click', () => {
+                // Reset the file input
+                profilePictureUpload.value = '';
+                
+                // Reset the preview
+                profilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
+                profilePicturePreview.classList.remove('has-image');
+                
+                // Hide the remove button
+                removeProfilePictureBtn.classList.add('hidden');
+            });
+        }
+    }
+    
+    // Setup for the edit character modal
+    const editProfilePictureUpload = document.getElementById('edit-profile-picture-upload');
+    const editProfilePicturePreview = document.getElementById('edit-profile-picture-preview');
+    const editRemoveProfilePictureBtn = document.getElementById('edit-remove-profile-picture');
+    
+    if (editProfilePictureUpload && editProfilePicturePreview) {
+        // Handle file selection
+        editProfilePictureUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                // Validate file type
+                const validTypes = ['image/jpeg', 'image/png'];
+                
+                // Additional check for GIF files (in case the browser ignores the accept attribute)
+                const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
+                if (isGif) {
+                    showError("GIF files are not supported to prevent performance issues. Please use JPG or PNG instead.");
+                    return;
+                }
+                
+                if (!validTypes.includes(file.type)) {
+                    showError("Please select a valid image file (JPG or PNG only)");
+                    return;
+                }
+                
+                // Validate file size (2MB max)
+                const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+                if (file.size > maxSize) {
+                    showError("Image file is too large. Maximum size is 2MB.");
+                    return;
+                }
+                
+                // Read the file and create a preview
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    // Create an image element to get dimensions
+                    const img = new Image();
+                    img.onload = function() {
+                        // Check if dimensions are reasonable
+                        if (img.width < 50 || img.height < 50) {
+                            showError("Image is too small. Minimum dimensions are 50x50 pixels.");
+                            return;
+                        }
+                        
+                        // Check for animated PNG (APNG)
+                        if (event.target.result.indexOf('ANIM') !== -1 || event.target.result.indexOf('acTL') !== -1) {
+                            showError("Animated images are not supported to prevent performance issues. Please use a static image instead.");
+                            return;
+                        }
+                        
+                        // Update the preview
+                        editProfilePicturePreview.innerHTML = `<img src="${event.target.result}" alt="Profile Preview" class="w-full h-full object-cover">`;
+                        editProfilePicturePreview.classList.add('has-image');
+                        
+                        // Show the remove button
+                        if (editRemoveProfilePictureBtn) {
+                            editRemoveProfilePictureBtn.classList.remove('hidden');
+                        }
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Handle remove button click
+        if (editRemoveProfilePictureBtn) {
+            editRemoveProfilePictureBtn.addEventListener('click', () => {
+                // Reset the file input
+                editProfilePictureUpload.value = '';
+                
+                // Reset the preview
+                editProfilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
+                editProfilePicturePreview.classList.remove('has-image');
+                
+                // Hide the remove button
+                editRemoveProfilePictureBtn.classList.add('hidden');
+            });
+        }
+    }
 }
