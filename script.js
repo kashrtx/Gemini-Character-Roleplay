@@ -2190,7 +2190,7 @@ async function getCharacterResponse(character, userMsg) {
         // Add special instructions for continue messages
         let promptContext = context;
         if (isContinue) {
-            promptContext = `${context}\n\nThe user wants you to continue your previous response or elaborate further on what you were saying. Please continue the conversation naturally as ${character.name} without repeating yourself too much.`;
+            promptContext = `${context}\n\nThe user pressed send without typing any message, which means they want you to continue the roleplay on your own. As ${character.name}, continue the conversation by advancing the scene or narrative. You should act as if the user wants you to keep roleplaying autonomously for a while. Continue from your last message and build upon the current scene naturally. Do not ask questions or wait for user input - keep the roleplay flowing by taking action or continuing dialog until the user responds with their own message.`;
         }
         
         if (userMessages.length === 0 && !isContinue) {
@@ -2319,6 +2319,8 @@ ROLEPLAY INSTRUCTIONS:
 - Respond naturally as your character would in the source material to the user based on their personality and context.
 - Maintain consistent personality, knowledge, and speech patterns.
 - Engage with the user's personality and context in a way that feels natural to your character.
+- When the user sends an empty message, it means they want you to continue roleplaying autonomously - advance the scene, take action, or continue dialog without waiting for user input.
+- Always read and reference your previous messages to maintain continuity when self-roleplaying after empty user messages.
 - You can use markdown formatting: *italics* for emphasis or actions, and  __bold__ for strong emphasis or important statements. ## For stating setting or time.
 - Note that **bold** does not work since it gets confused with italitcs, so just use __bold__
 - IMPORTANT: Keep your responses to approximately ${wordLimit} words or fewer to fit within the token limit of ${appSettings.conversationTokens} tokens.`;
@@ -2352,7 +2354,8 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
 
     // First, check if there's at least one user message in the history
     for (const msg of chatHistory) {
-        if (msg.isUser && !msg.isDeleted) {
+        // Count both regular user messages and [Continue] messages
+        if (msg.isUser && (!msg.isDeleted || msg.content === "[Continue]")) {
             hasUserMessage = true;
             break;
         }
@@ -2366,7 +2369,8 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
 
     // Process each message
     for (const msg of chatHistory) {
-        if (msg.isTyping || msg.isDeleted) continue; // Skip typing indicators and deleted messages
+        // Skip typing indicators and deleted messages that are not [Continue] messages
+        if (msg.isTyping || (msg.isDeleted && msg.content !== "[Continue]")) continue; 
 
         // Determine message role
         let role = "";
@@ -2582,8 +2586,20 @@ function testSendMessage() {
             state.chats[state.activeChat].push(continueMsg);
             setStoredItem(STORAGE_KEYS.CHATS, state.chats);
             
-            // Generate a test response
-            getTestCharacterResponse(character);
+            // Add a delay to simulate thinking
+            setTimeout(() => {
+                // Generate a test response that demonstrates self-roleplay
+                const characterMessages = state.chats[state.activeChat].filter(
+                    m => !m.isUser && m.characterId === character.id && !m.isDeleted
+                );
+                const lastCharacterMessage = characterMessages.length > 0 ? 
+                    characterMessages[characterMessages.length - 1].content : "";
+                
+                // Generate a test response that builds on the last message for continuity
+                const testContinueResponse = `*continues the ongoing action based on previous messages*\n\n${character.name} is showing self-roleplaying behavior and continuing autonomously.`;
+                
+                getTestCharacterResponse(character, testContinueResponse);
+            }, 1000);
         });
         return;
     }
@@ -2606,7 +2622,7 @@ function testSendMessage() {
 }
 
 // Generate a test response without using the API
-async function getTestCharacterResponse(character) {
+async function getTestCharacterResponse(character, customResponse = null) {
     // Add typing indicator
     const typingMsg = {
         id: generateUniqueId(),
@@ -2639,6 +2655,20 @@ async function getTestCharacterResponse(character) {
     const isContinue = userMessages.length > 0 && 
                       userMessages[userMessages.length - 1]?.content === "[Continue]" &&
                       userMessages[userMessages.length - 1]?.isDeleted;
+    
+    // If a custom response was provided, use that instead of generating one
+    if (customResponse) {
+        // Add the response as a message
+        addMessage({
+            id: generateUniqueId(),
+            content: customResponse,
+            isUser: false,
+            characterId: character.id,
+            timestamp: new Date().toISOString(),
+            isDeleted: false,
+        });
+        return;
+    }
     
     // Generate fake response based on character when API is not connected
     let fakeResponse;
