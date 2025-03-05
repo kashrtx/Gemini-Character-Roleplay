@@ -12,93 +12,50 @@ const VERSION = "1.1.2"; // Fixed character context updates in active chats
 
 // Mobile browser viewport fix for keyboard
 function setupMobileViewportFix() {
-    // Only apply on mobile devices
-    if (window.innerWidth > 768) return;
-    
-    const viewport = document.querySelector('meta[name="viewport"]');
-    const originalContent = viewport.getAttribute('content');
-    
-    // Fix for iOS keyboard issues
-    const chatInput = document.getElementById('message-input');
-    const chatForm = document.getElementById('chat-form');
-    const sendButton = document.getElementById('send-message-btn');
-    
-    // Add chat-input-container class to the container div
-    const inputContainer = document.querySelector('#chat-window > div:last-of-type');
-    if (inputContainer) {
-        inputContainer.classList.add('chat-input-container');
+    // Fix for mobile viewport issues
+    const metaViewport = document.querySelector('meta[name=viewport]');
+    if (metaViewport) {
+        metaViewport.content = "width=device-width, initial-scale=1.0, viewport-fit=cover";
     }
     
-    if (chatInput) {
-        // When chat input gets focus (keyboard shows)
-        chatInput.addEventListener('focus', () => {
-            // Prevent viewport from auto-zooming
-            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0');
+    // Handle keyboard visibility on mobile devices
+    const messageInput = document.getElementById('message-input');
+    const body = document.body;
+    
+    // Detect if we're on iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+    if (messageInput) {
+        // Handle focus events for keyboard visibility
+        messageInput.addEventListener('focus', () => {
+            body.classList.add('keyboard-visible');
             
-            // Ensure input is visible by scrolling to it
-            setTimeout(() => {
-                // Scroll input into view
-                chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                
-                // Ensure the chat form and send button are visible
-                if (chatForm) {
-                    chatForm.style.position = 'fixed';
-                    chatForm.style.bottom = '0';
-                    chatForm.style.left = '0';
-                    chatForm.style.right = '0';
-                    chatForm.style.zIndex = '100';
-                    chatForm.style.backgroundColor = 'white';
-                    chatForm.style.padding = '8px';
-                }
-                
-                if (sendButton) {
-                    sendButton.style.display = 'flex';
-                    sendButton.style.alignItems = 'center';
-                    sendButton.style.justifyContent = 'center';
-                }
-            }, 300);
+            // For iOS, we need to handle viewport height differently
+            if (isIOS) {
+                setTimeout(() => {
+                    // Scroll to the input field
+                    messageInput.scrollIntoView(false);
+                }, 300);
+            }
         });
         
-        // When keyboard hides
-        chatInput.addEventListener('blur', () => {
-            // Restore original viewport settings
-            viewport.setAttribute('content', originalContent);
-            
-            // Reset positions after keyboard is hidden
-            setTimeout(() => {
-                window.scrollTo(0, 0);
-            }, 100);
+        messageInput.addEventListener('blur', () => {
+            body.classList.remove('keyboard-visible');
         });
     }
     
-    // Handle window resize (for when keyboard appears/disappears)
-    let windowHeight = window.innerHeight;
-    window.addEventListener('resize', () => {
-        // If the window height changes dramatically (keyboard appearing)
-        if (window.innerHeight < windowHeight * 0.75) {
-            // Make sure our chat form is visible
-            if (chatForm) {
-                chatForm.style.position = 'fixed';
-                chatForm.style.bottom = '0';
-                chatForm.style.left = '0';
-                chatForm.style.right = '0';
-                chatForm.style.zIndex = '100';
-                chatForm.style.backgroundColor = 'white';
-                chatForm.style.padding = '8px';
+    // Setup resize event listener for keyboard detection on Android
+    if (!isIOS) {
+        const initialHeight = window.innerHeight;
+        window.addEventListener('resize', debounce(() => {
+            // If height is significantly smaller, keyboard is likely visible
+            if (window.innerHeight < initialHeight * 0.75) {
+                body.classList.add('keyboard-visible');
+            } else {
+                body.classList.remove('keyboard-visible');
             }
-            
-            // Scroll to the input after a brief delay
-            setTimeout(() => {
-                if (chatInput) chatInput.scrollIntoView();
-            }, 300);
-        } else {
-            // When keyboard disappears, make sure we're at the right position
-            setTimeout(() => {
-                window.scrollTo(0, 0);
-            }, 100);
-        }
-        windowHeight = window.innerHeight;
-    });
+        }, 100));
+    }
 }
 
 // App Settings
@@ -608,6 +565,9 @@ function setupEventListeners() {
     
     // Setup profile picture handlers
     setupProfilePictureHandlers();
+    
+    // Setup mobile-specific focus handling
+    setupFocusHandling();
 }
 
 // Update sidebar character event listeners
@@ -1185,6 +1145,17 @@ function toggleCharacterSelection(characterId) {
     // Update UI to reflect selection state
     updateSidebarCharacters();
     
+    // Close the sidebar on mobile after character selection
+    if (window.innerWidth <= 768) {
+        const sidebar = document.getElementById('character-sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar && sidebar.classList.contains('sidebar-open')) {
+            sidebar.classList.remove('sidebar-open');
+            if (overlay) overlay.classList.remove('active');
+        }
+    }
+    
+    // If we're removing a character from an active chat
     // If we're removing a character from an active chat
     if (wasSelected && state.selectedCharacters.length === 0) {
         // Show placeholder, hide chat
@@ -2550,40 +2521,36 @@ function resetEnhanceButton(button, text = 'Enhance Context') {
 
 // Success message function
 function showSuccess(message, duration = 3000) {
-    // Check if there's an existing success container, if not create one
-    let successContainer = document.getElementById('success-container');
+    // Remove any existing success messages
+    const existingMessages = document.querySelectorAll('.success-message');
+    existingMessages.forEach(msg => msg.remove());
     
-    if (!successContainer) {
-        // Create success container if it doesn't exist
-        successContainer = document.createElement('div');
-        successContainer.id = 'success-container';
-        successContainer.className = 'bg-green-100 border-l-4 border-green-500 text-green-700 p-4 m-4 rounded shadow-md';
-        successContainer.style.position = 'fixed';
-        successContainer.style.top = '20px';
-        successContainer.style.right = '20px';
-        successContainer.style.zIndex = '1000';
-        successContainer.style.maxWidth = '400px';
-        
-        document.body.appendChild(successContainer);
-    }
-    
-    // Set the message
-    successContainer.innerHTML = `
-        <div class="flex">
-            <div class="py-1"><i class="fas fa-check-circle"></i></div>
-            <div class="ml-3">
-                <p>${message}</p>
+    // Create a new success message element
+    const successMessage = document.createElement('div');
+    successMessage.className = 'success-message';
+    successMessage.innerHTML = `
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <i class="fas fa-check-circle mr-2"></i>
+                <span>${message}</span>
             </div>
+            <button class="text-green-800 hover:text-green-900" onclick="this.parentElement.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
     `;
     
-    // Show the container
-    successContainer.style.display = 'block';
+    // Add to document
+    document.body.appendChild(successMessage);
     
-    // Hide after duration
-    setTimeout(() => {
-        successContainer.style.display = 'none';
-    }, duration);
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            if (successMessage.parentNode) {
+                successMessage.remove();
+            }
+        }, duration);
+    }
 }
 
 async function callEnhanceAPI(characterName, userContext) {
@@ -3613,5 +3580,60 @@ function setupProfilePictureHandlers() {
                 editRemoveProfilePictureBtn.classList.add('hidden');
             });
         }
+    }
+}
+
+// Add this near the debounce function
+function setupFocusHandling() {
+    const messageInput = document.getElementById('message-input');
+    const chatWindow = document.getElementById('chat-window');
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+    if (!messageInput || !chatWindow) return;
+    
+    // Focus handling function - ensures input is visible when focused
+    const handleFocus = () => {
+        // Add class to body to indicate keyboard is visible
+        document.body.classList.add('keyboard-visible');
+        
+        // Wait for keyboard to appear
+        setTimeout(() => {
+            // For iOS, scroll the input into view
+            if (isIOS) {
+                messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
+            }
+            
+            // Scroll to bottom of chat window
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }, 300);
+    };
+    
+    // Blur handling function - resets when keyboard is hidden
+    const handleBlur = () => {
+        document.body.classList.remove('keyboard-visible');
+    };
+    
+    // Add event listeners
+    messageInput.addEventListener('focus', handleFocus);
+    messageInput.addEventListener('blur', handleBlur);
+    
+    // For Android, handle resize events to detect keyboard
+    if (!isIOS) {
+        const initialHeight = window.innerHeight;
+        window.addEventListener('resize', debounce(() => {
+            if (window.innerHeight < initialHeight * 0.75) {
+                document.body.classList.add('keyboard-visible');
+                
+                // Ensure input is visible
+                setTimeout(() => {
+                    messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
+                }, 100);
+            } else {
+                document.body.classList.remove('keyboard-visible');
+            }
+        }, 100));
     }
 }
