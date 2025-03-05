@@ -1955,6 +1955,12 @@ function showChatHistory() {
 function closeChatHistoryModal() {
     const modal = document.getElementById('chat-history-modal');
     modal.classList.add('hidden');
+    
+    // Ensure the chat UI is updated when closing the modal
+    // This helps especially after deletion operations
+    if (state.activeChat) {
+        updateChatUI();
+    }
 }
 
 // Function to load a chat from history
@@ -1998,6 +2004,9 @@ function deleteChatHistory(chatId, historyKey) {
         return;
     }
     
+    // Check if this is the currently active chat
+    const isActiveChatDeleted = (state.activeChat === chatId);
+    
     // Remove from history
     if (state.chatHistory[historyKey]) {
         state.chatHistory[historyKey] = state.chatHistory[historyKey].filter(entry => entry.id !== chatId);
@@ -2010,11 +2019,50 @@ function deleteChatHistory(chatId, historyKey) {
         // Save to storage
         setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
         
-        // Refresh the history modal
-        showChatHistory();
-        
-        // Show success message
-        showSuccess("Chat history deleted");
+        // If we deleted the active chat, load another chat
+        if (isActiveChatDeleted) {
+            // Get the character IDs from the history key
+            const characterIds = historyKey.split('-');
+            
+            // Find another chat for the same character(s)
+            let foundAnotherChat = false;
+            
+            // First try to find another chat with the same characters
+            if (state.chatHistory[historyKey] && state.chatHistory[historyKey].length > 0) {
+                // Sort chats by timestamp, newest first
+                const sortedHistory = [...state.chatHistory[historyKey]].sort((a, b) => b.timestamp - a.timestamp);
+                if (sortedHistory.length > 0 && sortedHistory[0].id && state.chats[sortedHistory[0].id]) {
+                    // Load the most recent chat for this character
+                    loadChatFromHistory(sortedHistory[0].id);
+                    foundAnotherChat = true;
+                    showSuccess("Deleted chat and loaded most recent conversation");
+                }
+            }
+            
+            // If we couldn't find another chat for the same character, create a new one
+            if (!foundAnotherChat) {
+                // Get the actual character objects based on IDs
+                const activeCharacters = state.characters.filter(c => characterIds.includes(c.id));
+                if (activeCharacters.length > 0) {
+                    // Set active characters and create a new chat
+                    state.activeCharacters = activeCharacters;
+                    createNewChat();
+                    showSuccess("Deleted chat and started a new conversation");
+                } else {
+                    // Clear the active chat since we couldn't find a suitable replacement
+                    state.activeChat = null;
+                    state.activeCharacters = [];
+                    updateChatUI();
+                    showError("Chat deleted. Please select a character to start a new conversation.");
+                }
+            }
+        } else {
+            // Refresh the history modal
+            showChatHistory();
+            
+            // Show success message
+            showSuccess("Chat history deleted");
+        }
     }
 }
 
