@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
     SETTINGS: "gemini_settings",
     PERSONAL_CONTEXT: "gemini_personal_context", // Add new storage key
     CHAT_HISTORY: "gemini_chat_history", // Storage for chat history
+    LAST_ACTIVE_CHATS: "gemini_last_active_chats", // Track last active chat per character
 };
 const VERSION = "1.1.2"; // Fixed character context updates in active chats
 
@@ -87,7 +88,8 @@ let state = {
         name: "",
         personality: "",
         context: ""
-    }
+    },
+    lastActiveChats: {}, // Map character IDs to their last active chat IDs
 };
 
 // Add Gemini AI SDK
@@ -416,6 +418,7 @@ function loadStoredData() {
     state.characters = getStoredItem(STORAGE_KEYS.CHARACTERS, []);
     state.chats = getStoredItem(STORAGE_KEYS.CHATS, {});
     state.chatHistory = getStoredItem(STORAGE_KEYS.CHAT_HISTORY, {});
+    state.lastActiveChats = getStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, {});
     
     // Clean up any invalid chat history entries
     cleanupChatHistory();
@@ -1201,7 +1204,6 @@ function toggleCharacterSelection(characterId) {
     }
     
     // If we're removing a character from an active chat
-    // If we're removing a character from an active chat
     if (wasSelected && state.selectedCharacters.length === 0) {
         // Show placeholder, hide chat
         const chatWindow = document.getElementById('chat-window');
@@ -1219,7 +1221,26 @@ function toggleCharacterSelection(characterId) {
     // Auto-start chat in single character mode
     if (!appSettings.allowGroupChats && state.selectedCharacters.length === 1) {
         console.log("Auto-starting chat since character was selected");
-        startChat();
+        
+        // Check if there's a last active chat for this character
+        const lastChatId = state.lastActiveChats[characterId];
+        
+        if (lastChatId && state.chats[lastChatId]) {
+            console.log("Resuming last active chat:", lastChatId);
+            
+            // Set as active chat
+            state.activeChat = lastChatId;
+            
+            // Update active characters
+            state.activeCharacters = state.characters.filter(c => state.selectedCharacters.includes(c.id));
+            
+            // Update UI
+            changeView('chat');
+            updateChatUI();
+        } else {
+            // Start a new chat if no last active chat exists
+            startChat();
+        }
     }
 }
 
@@ -1244,6 +1265,12 @@ function startChat() {
     
     // Update active characters
     state.activeCharacters = state.characters.filter(c => state.selectedCharacters.includes(c.id));
+    
+    // Save the active chat ID for each selected character
+    state.selectedCharacters.forEach(characterId => {
+        state.lastActiveChats[characterId] = chatId;
+    });
+    setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
     
     // Update UI - Make sure to switch to chat view first
     changeView('chat');
@@ -1555,6 +1582,12 @@ function createNewChat() {
     // Save to storage
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     
+    // Update the last active chat for each character
+    characterIds.forEach(characterId => {
+        state.lastActiveChats[characterId] = newChatId;
+    });
+    setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
+    
     // Create a welcome message for the new chat
     const welcomeMsg = {
         id: generateUniqueId(),
@@ -1796,11 +1829,20 @@ function loadChatFromHistory(chatId) {
     const characterIds = chatParts.filter(part => !isNaN(parseInt(part, 36)) || part.length < 10);
     state.activeCharacters = state.characters.filter(c => characterIds.includes(c.id));
     
+    // Update the last active chat for each character
+    characterIds.forEach(characterId => {
+        state.lastActiveChats[characterId] = chatId;
+    });
+    setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
+    
     // Update UI
     updateChatUI();
     
     // Show success message
     showSuccess("Loaded chat from history");
+    
+    // Close the chat history modal
+    closeChatHistoryModal();
 }
 
 // Function to delete a chat from history
@@ -2663,6 +2705,12 @@ function deleteCharacter(characterId) {
         state.activeCharacters = state.activeCharacters.filter(c => c.id !== characterId);
     }
     
+    // Remove from last active chats
+    if (state.lastActiveChats[characterId]) {
+        delete state.lastActiveChats[characterId];
+        setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
+    }
+    
     // Remove associated chats
     let chatsRemoved = 0;
     for (const chatId in state.chats) {
@@ -3356,6 +3404,7 @@ function exportAppData() {
             settings: getStoredItem(STORAGE_KEYS.SETTINGS, {}),
             personalContext: getStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, {}),
             chatHistory: getStoredItem(STORAGE_KEYS.CHAT_HISTORY, {}),
+            lastActiveChats: getStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, {}),
             version: VERSION,
             exportDate: new Date().toISOString()
         };
@@ -3447,29 +3496,26 @@ function importAppData() {
                     setStoredItem(STORAGE_KEYS.CHAT_HISTORY, importedData.chatHistory);
                 }
                 
+                if (importedData.lastActiveChats) {
+                    setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, importedData.lastActiveChats);
+                }
+                
+                // Reload everything
+                loadStoredData();
+                updateCharacterLists();
+                
                 // Show success message
-                showSuccess("Data imported successfully! Reloading page...", 2000);
-                
-                // Reload the page to apply changes
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
-                
+                showSuccess("Data imported successfully!", 3000);
             } catch (error) {
                 console.error("Error importing data:", error);
-                showError(`Failed to import data: ${error.message}. Please make sure the file is a valid backup.`);
+                showError(`Failed to import data: ${error.message}`);
             }
         };
         
-        reader.onerror = () => {
-            showError("Error reading the file. Please try again.");
-        };
-        
-        // Read the file as text
         reader.readAsText(file);
     });
     
-    // Trigger file selection
+    // Trigger file input click
     fileInput.click();
 }
 
