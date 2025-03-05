@@ -2039,7 +2039,8 @@ function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
     
     // Base context with character information and roleplay instructions
     let context = `You are now roleplaying as ${character.name}. This is NOT a simulation. You ARE ${character.name}. 
-Your responses should maintain the character's personality, speech patterns, and knowledge at all times.
+Your responses should maintain the character's personality, speech patterns, and knowledge at all times. Do not mention or confirm that you are an AI at all!
+Do not start your response with something like "As ${character.name}," or "As an AI," or anything similar. Just start with the response and stay in character.
 
 CHARACTER PROFILE:
 Name of character: ${character.name}
@@ -2591,7 +2592,8 @@ async function callEnhanceAPI(characterName, userContext) {
     
     const prompt = `
 You are an expert character developer for roleplaying. Transform this brief character description into a detailed character profile that can guide an AI in consistently roleplaying as this character.
-Fill in the details about but dont sound like the character, because this is for generating a character context which will be used to roleplay with the user.
+Fill in the details about but dont sound like the character, because this is for generating a character context which will be used to roleplay with the user. Importantly do not have a starting message at
+all, like for example Here's a comprehensive character profile of the character, designed to guide..... Do not do that!!!  Just start providing the character profile without any confirmation.
 CHARACTER NAME: "${characterName}"
 
 BRIEF DESCRIPTION (that user provided that needs to be enhanced with more critical details):
