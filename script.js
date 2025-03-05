@@ -3485,17 +3485,17 @@ function setupProfilePictureHandlers() {
             const file = e.target.files[0];
             if (file) {
                 // Validate file type
-                const validTypes = ['image/jpeg', 'image/png'];
+                const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
                 
                 // Additional check for GIF files (in case the browser ignores the accept attribute)
                 const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
                 if (isGif) {
-                    showError("GIF files are not supported to prevent performance issues. Please use JPG or PNG instead.");
+                    showError("GIF files are not supported to prevent performance issues. Please use JPG, PNG or WebP instead.");
                     return;
                 }
                 
                 if (!validTypes.includes(file.type)) {
-                    showError("Please select a valid image file (JPG or PNG only)");
+                    showError("Please select a valid image file (JPG, PNG or WebP only)");
                     return;
                 }
                 
@@ -3566,17 +3566,17 @@ function setupProfilePictureHandlers() {
             const file = e.target.files[0];
             if (file) {
                 // Validate file type
-                const validTypes = ['image/jpeg', 'image/png'];
+                const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
                 
                 // Additional check for GIF files (in case the browser ignores the accept attribute)
                 const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
                 if (isGif) {
-                    showError("GIF files are not supported to prevent performance issues. Please use JPG or PNG instead.");
+                    showError("GIF files are not supported to prevent performance issues. Please use JPG, PNG or WebP instead.");
                     return;
                 }
                 
                 if (!validTypes.includes(file.type)) {
-                    showError("Please select a valid image file (JPG or PNG only)");
+                    showError("Please select a valid image file (JPG, PNG or WebP only)");
                     return;
                 }
                 
