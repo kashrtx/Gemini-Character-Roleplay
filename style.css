@@ -1215,15 +1215,8 @@ button[id^="delete-msg-"] {
     
     /* Class to be added when keyboard is visible */
     body.keyboard-visible .p-4.bg-white.border-t {
-        position: fixed;
+        position: absolute;
         bottom: 0;
-        left: 0;
-        right: 0;
-        z-index: 50;
-        width: 100%;
-        transform: translateZ(0); /* Force hardware acceleration */
-        -webkit-transform: translateZ(0);
-        touch-action: manipulation; /* Improve touch handling */
     }
     
     /* When the sidemenu is open, ensure the message container stays on top */
@@ -1243,25 +1236,6 @@ button[id^="delete-msg-"] {
         /* Fix for iOS viewport height issues with keyboard */
         .keyboard-visible #chat-window {
             height: -webkit-fill-available;
-            position: relative;
-            z-index: 1;
-        }
-        
-        /* Ensure UI remains responsive when keyboard is visible */
-        body.keyboard-visible {
-            overflow: auto;
-            -webkit-overflow-scrolling: touch;
-            touch-action: manipulation;
-        }
-        
-        /* Keep header accessible */
-        body.keyboard-visible header {
-            z-index: 55;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            touch-action: manipulation;
         }
     }
 }
