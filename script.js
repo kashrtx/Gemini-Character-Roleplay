@@ -1245,6 +1245,9 @@ function toggleCharacterSelection(characterId) {
     if (!appSettings.allowGroupChats && state.selectedCharacters.length === 1) {
         console.log("Auto-starting chat since character was selected");
         
+        // Ensure the character's chat reference is maintained
+        ensureCharacterChatReference(characterId);
+        
         // Check if there's a last active chat for this character
         const lastChatId = state.lastActiveChats[characterId];
         
@@ -1256,6 +1259,21 @@ function toggleCharacterSelection(characterId) {
             
             // Update active characters
             state.activeCharacters = state.characters.filter(c => state.selectedCharacters.includes(c.id));
+            
+            // Ensure the chat has at least one message (add a welcome message if empty)
+            if (state.chats[lastChatId].length === 0) {
+                const welcomeMsg = {
+                    id: generateUniqueId(),
+                    content: `Starting conversation with ${state.activeCharacters.map(c => c.name).join(', ')}.`,
+                    isUser: false,
+                    isSystem: true,
+                    timestamp: new Date().toISOString(),
+                    isDeleted: false
+                };
+                
+                state.chats[lastChatId].push(welcomeMsg);
+                setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+            }
             
             // Update UI
             changeView('chat');
@@ -1301,6 +1319,43 @@ function startChat() {
     
     // Update sidebar to show the most recent characters at the top
     updateSidebarCharacters();
+}
+
+// Helper function to ensure that chat references are maintained when a chat is cleared
+function ensureCharacterChatReference(characterId) {
+    // Check if the character exists
+    const character = state.characters.find(c => c.id === characterId);
+    if (!character) return false;
+    
+    // Check if there's a last active chat for this character
+    const lastChatId = state.lastActiveChats[characterId];
+    
+    // If no lastChatId or no chat data exists for it, create a new chat
+    if (!lastChatId || !state.chats[lastChatId]) {
+        const newChatId = characterId;
+        state.lastActiveChats[characterId] = newChatId;
+        state.chats[newChatId] = [];
+        
+        // Add welcome message
+        const welcomeMsg = {
+            id: generateUniqueId(),
+            content: `New conversation started with ${character.name}.`,
+            isUser: false,
+            isSystem: true,
+            timestamp: new Date().toISOString(),
+            isDeleted: false
+        };
+        
+        state.chats[newChatId].push(welcomeMsg);
+        
+        // Save to storage
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+        setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
+        
+        return true;
+    }
+    
+    return true;
 }
 
 function updateChatUI() {
@@ -1354,34 +1409,35 @@ function updateChatMessages() {
     if (!state.activeChat) return;
     
     const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
+    
     const messages = state.chats[state.activeChat] || [];
     
-    if (messages.length === 0) {
+    // Filter out deleted messages
+    const visibleMessages = messages.filter(message => !message.isDeleted);
+    
+    if (visibleMessages.length === 0) {
         messagesContainer.innerHTML = `
             <div class="text-center text-gray-500 mt-8">
                 <p>No messages yet. Start the conversation!</p>
             </div>
         `;
+        
+        // Make sure the chat window is visible even if empty
+        const chatWindow = document.getElementById('chat-window');
+        const placeholder = document.getElementById('chat-placeholder');
+        
+        if (chatWindow) chatWindow.classList.remove('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
     } else {
-        // Filter out deleted messages
-        const visibleMessages = messages.filter(message => !message.isDeleted);
-        
-        if (visibleMessages.length === 0) {
-            messagesContainer.innerHTML = `
-                <div class="text-center text-gray-500 mt-8">
-                    <p>No messages in this conversation. Start chatting!</p>
-                </div>
-            `;
-        } else {
-            messagesContainer.innerHTML = visibleMessages.map(message => createMessageHTML(message)).join('');
-        }
-        
-        // Scroll to bottom
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
-        // Initialize delete buttons based on device type
-        initMessageDeleteButtons();
+        messagesContainer.innerHTML = visibleMessages.map(message => createMessageHTML(message)).join('');
     }
+    
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Initialize delete buttons based on device type
+    initMessageDeleteButtons();
 }
 
 function createMessageHTML(message) {
@@ -1580,6 +1636,21 @@ function clearChatMessages() {
     
     // Clear messages
     state.chats[state.activeChat] = [];
+    
+    // Add a system message to indicate the chat was cleared
+    const welcomeMsg = {
+        id: generateUniqueId(),
+        content: `Chat cleared. You can continue your conversation with ${state.activeCharacters.map(c => c.name).join(', ')}.`,
+        isUser: false,
+        isSystem: true,
+        timestamp: new Date().toISOString(),
+        isDeleted: false
+    };
+    
+    // Add welcome message to the chat
+    state.chats[state.activeChat].push(welcomeMsg);
+    
+    // Update storage
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     
     // Update UI
