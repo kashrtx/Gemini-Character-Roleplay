@@ -1365,4 +1365,11 @@ button[id^="delete-msg-"] {
         max-height: 85vh;
         width: 95%;
     }
+    
+    /* Remove sidebar overlay on mobile devices */
+    .sidebar-overlay {
+        display: none !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
 }

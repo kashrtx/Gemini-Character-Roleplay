@@ -241,7 +241,11 @@ function initializeSidebar() {
     // Toggle sidebar function
     function toggleSidebar() {
         sidebar.classList.toggle('sidebar-open');
-        overlay.classList.toggle('active');
+        
+        // Only use overlay on non-mobile devices
+        if (window.innerWidth > 768) {
+            overlay.classList.toggle('active');
+        }
         
         // Ensure body scrolling is disabled when sidebar is open
         if (sidebar.classList.contains('sidebar-open')) {
@@ -250,14 +254,16 @@ function initializeSidebar() {
             document.body.style.overflow = '';
             
             // Small delay to ensure overlay is fully hidden before allowing interaction
-            setTimeout(() => {
-                if (!sidebar.classList.contains('sidebar-open')) {
-                    overlay.style.display = 'none';
-                    setTimeout(() => {
-                        overlay.style.display = '';
-                    }, 50);
-                }
-            }, 300); // Match the transition duration
+            if (window.innerWidth > 768) {
+                setTimeout(() => {
+                    if (!sidebar.classList.contains('sidebar-open')) {
+                        overlay.style.display = 'none';
+                        setTimeout(() => {
+                            overlay.style.display = '';
+                        }, 50);
+                    }
+                }, 300); // Match the transition duration
+            }
         }
     }
     
@@ -322,7 +328,9 @@ function initializeSidebar() {
         originalStartChat();
         if (window.innerWidth < 1024) { // lg breakpoint
             sidebar.classList.remove('sidebar-open');
-            overlay.classList.remove('active');
+            if (window.innerWidth > 768) { // Only manage overlay on non-mobile
+                overlay.classList.remove('active');
+            }
             chatView.classList.add('chat-active');
         }
     };
@@ -339,7 +347,9 @@ function initializeSidebar() {
     window.addEventListener('resize', () => {
         if (window.innerWidth >= 1024) {
             sidebar.classList.remove('sidebar-open');
-            overlay.classList.remove('active');
+            if (window.innerWidth > 768) { // Only manage overlay on non-mobile
+                overlay.classList.remove('active');
+            }
         }
         adjustSidebarPosition();
     });
@@ -1186,7 +1196,7 @@ function toggleCharacterSelection(characterId) {
         const overlay = document.querySelector('.sidebar-overlay');
         if (sidebar && sidebar.classList.contains('sidebar-open')) {
             sidebar.classList.remove('sidebar-open');
-            if (overlay) overlay.classList.remove('active');
+            // No need to manage overlay on mobile as it's hidden via CSS
         }
     }
     
