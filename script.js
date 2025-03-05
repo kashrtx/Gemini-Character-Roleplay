@@ -25,23 +25,58 @@ function setupMobileViewportFix() {
     
     // Detect if we're on iOS
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    // Detect if we're on a mobile browser
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    // Detect non-Safari iOS browsers
+    const isNonSafariIOS = isIOS && !/Safari/.test(navigator.userAgent) || (isIOS && /CriOS|FxiOS|OPiOS|mercury|Instagram/.test(navigator.userAgent));
+    // Detect if we're on Safari
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    
+    // Add browser-specific classes to the body
+    if (isSafari) {
+        document.body.classList.add('safari');
+    } else {
+        document.body.classList.add('not-safari');
+    }
     
     if (messageInput) {
         // Handle focus events for keyboard visibility
         messageInput.addEventListener('focus', () => {
             body.classList.add('keyboard-visible');
             
-            // For iOS, we need to handle viewport height differently
-            if (isIOS) {
+            // Set fixed position style for message container to prevent jumping
+            const messageContainer = document.querySelector('.p-4.bg-white.border-t');
+            if (messageContainer) {
+                messageContainer.style.zIndex = '1000';
+            }
+            
+            // For iOS or non-Safari browsers on iOS, we need to handle viewport height differently
+            if (isIOS || isNonSafariIOS) {
                 setTimeout(() => {
                     // Scroll to the input field
-                    messageInput.scrollIntoView(false);
+                    messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
+                    
+                    // Adjust height for non-Safari iOS browsers which have different height behavior
+                    if (isNonSafariIOS) {
+                        const chatMessages = document.getElementById('chat-messages');
+                        if (chatMessages) {
+                            chatMessages.style.maxHeight = 'calc(100vh - 180px)';
+                        }
+                    }
                 }, 300);
             }
         });
         
         messageInput.addEventListener('blur', () => {
             body.classList.remove('keyboard-visible');
+            
+            // Reset any custom styles for non-Safari iOS browsers
+            if (isNonSafariIOS) {
+                const chatMessages = document.getElementById('chat-messages');
+                if (chatMessages) {
+                    chatMessages.style.maxHeight = '';
+                }
+            }
         });
     }
     
@@ -52,6 +87,14 @@ function setupMobileViewportFix() {
             // If height is significantly smaller, keyboard is likely visible
             if (window.innerHeight < initialHeight * 0.75) {
                 body.classList.add('keyboard-visible');
+                
+                // Adjust messages container position
+                setTimeout(() => {
+                    const messageInput = document.getElementById('message-input');
+                    if (messageInput) {
+                        messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
+                    }
+                }, 100);
             } else {
                 body.classList.remove('keyboard-visible');
             }
