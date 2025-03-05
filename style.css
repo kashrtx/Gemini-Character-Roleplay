@@ -70,6 +70,7 @@ main {
         z-index: 50;
         transform: translateX(-100%);
         width: 280px;
+        max-width: 90%; /* Ensure it doesn't exceed screen width */
         background: white;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         overflow-y: auto; /* Ensure content is scrollable */
@@ -124,16 +125,18 @@ main {
         right: 0;
         bottom: 0;
         background-color: rgba(0, 0, 0, 0.5);
-        z-index: 45;
+        z-index: 45; /* Lower than sidebar but higher than other content */
         display: none;
         opacity: 0;
         transition: opacity 0.3s ease;
+        pointer-events: none; /* Don't capture clicks when not active */
     }
     
     /* Active overlay */
     .sidebar-overlay.active {
         display: block;
         opacity: 1;
+        pointer-events: auto; /* Capture clicks when active */
     }
 
     /* Adjust header spacing */

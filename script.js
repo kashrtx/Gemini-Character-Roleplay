@@ -242,6 +242,23 @@ function initializeSidebar() {
     function toggleSidebar() {
         sidebar.classList.toggle('sidebar-open');
         overlay.classList.toggle('active');
+        
+        // Ensure body scrolling is disabled when sidebar is open
+        if (sidebar.classList.contains('sidebar-open')) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+            
+            // Small delay to ensure overlay is fully hidden before allowing interaction
+            setTimeout(() => {
+                if (!sidebar.classList.contains('sidebar-open')) {
+                    overlay.style.display = 'none';
+                    setTimeout(() => {
+                        overlay.style.display = '';
+                    }, 50);
+                }
+            }, 300); // Match the transition duration
+        }
     }
     
     // Function to adjust sidebar position based on header height
@@ -276,9 +293,27 @@ function initializeSidebar() {
     adjustSidebarPosition();
     
     // Add click events for all toggle buttons
-    if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
-    if (showCharactersBtn) showCharactersBtn.addEventListener('click', toggleSidebar);
-    if (showChatSidebarBtn) showChatSidebarBtn.addEventListener('click', toggleSidebar);
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            toggleSidebar();
+        });
+    }
+    
+    if (showCharactersBtn) {
+        showCharactersBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            toggleSidebar();
+        });
+    }
+    
+    if (showChatSidebarBtn) {
+        showChatSidebarBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            toggleSidebar();
+        });
+    }
+    
     overlay.addEventListener('click', toggleSidebar);
     
     // Close sidebar on chat start in mobile view
@@ -1665,6 +1700,15 @@ function showChatHistory() {
                 lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 
                 'No content';
             entry.messageCount = validMessages.length;
+            
+            // Update the timestamp and date with the most recent message timestamp
+            if (lastMessage.timestamp) {
+                const messageTimestamp = new Date(lastMessage.timestamp).getTime();
+                if (messageTimestamp > 0) {
+                    entry.timestamp = messageTimestamp;
+                    entry.date = new Date(messageTimestamp).toLocaleString();
+                }
+            }
         });
         
         let html = '';
