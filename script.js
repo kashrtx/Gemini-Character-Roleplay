@@ -894,7 +894,7 @@ function createNewCharacter() {
             </div>
             ` : '' }
             
-            <div class="mt-3">
+            <div class="mt-3 flex justify-center">
                 <button id="enhance-btn-${newCharacter.id}" class="text-sm bg-secondary text-white px-3 py-1 rounded hover:bg-secondary/90 transition ${!state.apiKey ? 'disabled:bg-gray-400' : ''}" ${!state.apiKey ? 'disabled' : ''}>
                     <i class="fas fa-magic mr-1"></i> ${ newCharacter.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context' }
                 </button>
@@ -1041,7 +1041,7 @@ function generateCharacterListHTML() {
                     </div>
                 ` : ''}
                 
-                <div class="mt-3">
+                <div class="mt-3 flex justify-center">
                     <button
                         id="enhance-btn-${character.id}"
                         class="text-sm bg-secondary text-white px-3 py-1 rounded hover:bg-secondary/90 transition disabled:bg-gray-400"

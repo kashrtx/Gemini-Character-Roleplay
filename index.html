@@ -369,7 +369,7 @@
                                     <div id="profile-picture-preview" class="w-32 h-32 rounded-full bg-gray-200 mb-3 flex items-center justify-center text-gray-500 text-4xl overflow-hidden">
                                         <i class="fas fa-user"></i>
                                     </div>
-                                    <div class="flex space-x-2">
+                                    <div class="flex space-x-2 justify-center">
                                         <label for="profile-picture-upload" class="cursor-pointer bg-secondary text-white px-3 py-2 rounded hover:bg-secondary/90 transition">
                                             <i class="fas fa-upload mr-1"></i> Upload Picture
                                         </label>
@@ -378,7 +378,7 @@
                                         </button>
                                     </div>
                                     <input type="file" id="profile-picture-upload" accept="image/jpeg, image/png, image/webp" class="hidden" />
-                                    <p class="text-xs text-gray-500 mt-2">Supported formats: JPG, PNG, WebP. Max size: 2MB. Recommended: 200x200px.</p>
+                                    <p class="text-xs text-gray-500 mt-2 text-center">Supported formats: JPG, PNG, WebP. Max size: 2MB. Recommended: 200x200px.</p>
                                 </div>
                             </div>
                             
@@ -402,12 +402,14 @@
                                 ></textarea>
                             </div>
                             
-                            <button
-                                id="create-character-btn"
-                                class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition disabled:bg-gray-400"
-                            >
-                                Create Character
-                            </button>
+                            <div class="flex justify-center">
+                                <button
+                                    id="create-character-btn"
+                                    class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition disabled:bg-gray-400"
+                                >
+                                    Create Character
+                                </button>
+                            </div>
                         </div>
                         
                         <!-- Character List -->
@@ -632,7 +634,7 @@
                     <div id="edit-profile-picture-preview" class="w-32 h-32 rounded-full bg-gray-200 mb-3 flex items-center justify-center text-gray-500 text-4xl overflow-hidden">
                         <i class="fas fa-user"></i>
                     </div>
-                    <div class="flex space-x-2">
+                    <div class="flex space-x-2 justify-center">
                         <label for="edit-profile-picture-upload" class="cursor-pointer bg-secondary text-white px-3 py-2 rounded hover:bg-secondary/90 transition">
                             <i class="fas fa-upload mr-1"></i> Upload Picture
                         </label>
@@ -641,7 +643,7 @@
                         </button>
                     </div>
                     <input type="file" id="edit-profile-picture-upload" accept="image/jpeg, image/png, image/webp" class="hidden" />
-                    <p class="text-xs text-gray-500 mt-2">Supported formats: JPG, PNG, WebP. Max size: 2MB. Recommended: 200x200px.</p>
+                    <p class="text-xs text-gray-500 mt-2 text-center">Supported formats: JPG, PNG, WebP. Max size: 2MB. Recommended: 200x200px.</p>
                 </div>
             </div>
             
