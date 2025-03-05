@@ -78,6 +78,7 @@ main {
         height: calc(100vh - 56px); /* Fixed height to prevent resizing */
         position: fixed !important; /* Ensure it stays fixed regardless of other styles */
         transition: transform 0.3s ease;
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     }
 
     /* Show sidebar by default when no chat is selected */
@@ -1194,29 +1195,27 @@ button[id^="delete-msg-"] {
 }
 
 @media (max-width: 768px) {
-    /* Message container positioning for mobile */
     .p-4.bg-white.border-t {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        z-index: 40;
-        padding: 0.5rem;
-        background-color: white;
-        border-top: 1px solid #e5e7eb;
-        width: 100%;
+        padding-bottom: calc(env(safe-area-inset-bottom, 8px) + 8px); /* Add padding for iOS home indicator */
+        position: relative;
+        z-index: 20;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
     }
     
     /* Ensure the chat messages area doesn't overlap with the fixed message input */
     #chat-messages {
-        padding-bottom: 80px !important;
+        padding-bottom: 90px !important; /* Increased padding to avoid overlap */
         margin-bottom: env(safe-area-inset-bottom, 0);
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     }
     
     /* Class to be added when keyboard is visible */
     body.keyboard-visible .p-4.bg-white.border-t {
-        position: absolute;
+        position: fixed;
         bottom: 0;
+        left: 0;
+        right: 0;
+        padding-bottom: env(safe-area-inset-bottom, 8px); /* Account for iPhone home indicator */
     }
     
     /* When the sidemenu is open, ensure the message container stays on top */
@@ -1235,6 +1234,18 @@ button[id^="delete-msg-"] {
         
         /* Fix for iOS viewport height issues with keyboard */
         .keyboard-visible #chat-window {
+            height: -webkit-fill-available;
+        }
+        
+        /* Improve scrolling on iOS devices */
+        #chat-messages, 
+        #sidebar-characters,
+        .overflow-y-auto {
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Prevent content from being hidden under the keyboard */
+        .keyboard-visible main {
             height: -webkit-fill-available;
         }
     }

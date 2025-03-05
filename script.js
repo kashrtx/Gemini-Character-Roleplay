@@ -21,6 +21,8 @@ function setupMobileViewportFix() {
     // Handle keyboard visibility on mobile devices
     const messageInput = document.getElementById('message-input');
     const body = document.body;
+    const chatWindow = document.getElementById('chat-window');
+    const chatMessages = document.getElementById('chat-messages');
     
     // Detect if we're on iOS
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -35,12 +37,29 @@ function setupMobileViewportFix() {
                 setTimeout(() => {
                     // Scroll to the input field
                     messageInput.scrollIntoView(false);
+                    
+                    // Apply iOS-specific layout adjustments
+                    if (chatWindow) {
+                        chatWindow.style.height = '-webkit-fill-available';
+                    }
                 }, 300);
             }
+            
+            // Scroll to bottom of chat after keyboard appears
+            setTimeout(() => {
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }, 500);
         });
         
         messageInput.addEventListener('blur', () => {
             body.classList.remove('keyboard-visible');
+            
+            // Reset iOS-specific height adjustment
+            if (isIOS && chatWindow) {
+                chatWindow.style.height = '';
+            }
         });
     }
     
@@ -51,6 +70,13 @@ function setupMobileViewportFix() {
             // If height is significantly smaller, keyboard is likely visible
             if (window.innerHeight < initialHeight * 0.75) {
                 body.classList.add('keyboard-visible');
+                
+                // Scroll to bottom of chat after keyboard appears
+                setTimeout(() => {
+                    if (chatMessages) {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                }, 300);
             } else {
                 body.classList.remove('keyboard-visible');
             }
@@ -170,35 +196,31 @@ const setStoredItem = (key, value) => {
     }
 };
 
-// Initialize app
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log("DOM fully loaded - initializing app");
-    
-    // Load data from localStorage
+// Initialize the application
+document.addEventListener('DOMContentLoaded', () => {
+    // Load stored data first
     loadStoredData();
-
-    // Initialize views
-    changeView('chat');
     
-    // Update character lists
+    // Initialize key UI components
+    initializeSidebar();
+    setupDirectListeners(); // Restore this critical function call
+    setupEventListeners();
+    setupCharacterItemListeners();
+    setupEditCharacterModal();
+    setupProfilePictureHandlers();
+    
+    // Update character lists after data is loaded
     updateCharacterLists();
     
-    // Set up event listeners
-    setupEventListeners();
+    // Default to chat view
+    changeView('chat');
     
-    // Initialize mobile viewport fixes
-    setupMobileViewportFix();
-    
-    // Add direct event listeners for critical functionality
-    setupDirectListeners();
-    
-    // Show API warning if needed
+    // Check for API key and update UI accordingly
     checkApiKey();
     
     // Initialize Gemini API if key is available
     if (state.apiKey) {
-        try {
-            const success = await initializeGeminiAPI();
+        initializeGeminiAPI().then(success => {
             if (success) {
                 console.log("Gemini API initialized successfully");
                 // Update UI to show connection status
@@ -209,20 +231,61 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Show success message
                 showSuccess("API connected successfully", 3000);
             }
-        } catch (error) {
+        }).catch(error => {
             console.error("Error initializing Gemini API:", error);
-        }
+        });
     }
-
-    // Set up test chat form for easier testing
-    setupTestChatForm();
-
-    // Initialize sidebar functionality
-    initializeSidebar();
-
-    // Initialize model settings
+    
+    // Initialize mobile-specific optimizations
+    setupMobileViewportFix();
+    setupFocusHandling();
+    
+    // Initialize model settings and set up test framework
     initializeModelSettings();
+    setupTestChatForm();
+    
+    // Add a slight delay to ensure DOM elements are fully rendered before final adjustments
+    setTimeout(() => {
+        adjustSidebarPosition();
+        
+        // Force a redraw/layout calculation on mobile
+        if (window.innerWidth < 1024) {
+            document.body.style.opacity = '0.99';
+            setTimeout(() => {
+                document.body.style.opacity = '1';
+            }, 100);
+        }
+        
+        // Apply any URL parameters if present (for deep linking)
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewParam = urlParams.get('view');
+        const characterParam = urlParams.get('character');
+        
+        if (viewParam) {
+            changeView(viewParam);
+        }
+        
+        if (characterParam) {
+            // Find and select character if exists
+            const characters = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHARACTERS) || '[]');
+            const character = characters.find(c => c.id === characterParam);
+            if (character) {
+                toggleCharacterSelection(characterParam);
+                setTimeout(() => {
+                    startChat();
+                }, 300);
+            }
+        }
+    }, 300);
+    
+    // Log application version
+    console.log(`GCCRP Version: ${VERSION}`);
 });
+
+// Throttled resize handler for performance
+window.addEventListener('resize', debounce(() => {
+    adjustSidebarPosition();
+}, 100));
 
 // Initialize sidebar functionality
 function initializeSidebar() {
@@ -271,6 +334,16 @@ function initializeSidebar() {
     function adjustSidebarPosition() {
         if (window.innerWidth < 1024) {
             const headerHeight = header.offsetHeight;
+            
+            // Ensure fixed positioning for the header
+            header.style.position = 'fixed';
+            header.style.top = '0';
+            header.style.left = '0';
+            header.style.right = '0';
+            header.style.width = '100%';
+            header.style.zIndex = '51';
+            
+            // Position sidebar below header
             sidebar.style.top = `${headerHeight}px`;
             
             // Update main content padding to account for fixed header
@@ -282,7 +355,27 @@ function initializeSidebar() {
             // Update height and max-height to ensure proper scrolling
             sidebar.style.height = `calc(100vh - ${headerHeight}px)`;
             sidebar.style.maxHeight = `calc(100vh - ${headerHeight}px)`;
+            
+            // Force a small delay and reapply to ensure calculations are correct after DOM is fully rendered
+            setTimeout(() => {
+                const updatedHeaderHeight = header.offsetHeight;
+                sidebar.style.top = `${updatedHeaderHeight}px`;
+                sidebar.style.height = `calc(100vh - ${updatedHeaderHeight}px)`;
+                sidebar.style.maxHeight = `calc(100vh - ${updatedHeaderHeight}px)`;
+                
+                if (main) {
+                    main.style.paddingTop = `${updatedHeaderHeight}px`;
+                }
+            }, 200);
         } else {
+            // Reset styles for desktop view
+            header.style.position = '';
+            header.style.top = '';
+            header.style.left = '';
+            header.style.right = '';
+            header.style.width = '';
+            header.style.zIndex = '';
+            
             sidebar.style.top = '';
             sidebar.style.height = '';
             sidebar.style.maxHeight = '';
