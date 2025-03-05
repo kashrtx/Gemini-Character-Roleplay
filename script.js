@@ -12,10 +12,15 @@ const VERSION = "1.1.2"; // Fixed character context updates in active chats
 
 // Mobile browser viewport fix for keyboard
 function setupMobileViewportFix() {
-    // Fix for mobile viewport issues
+    // Fix for mobile viewport issues by setting the right viewport meta
     const metaViewport = document.querySelector('meta[name=viewport]');
     if (metaViewport) {
-        metaViewport.content = "width=device-width, initial-scale=1.0, viewport-fit=cover";
+        metaViewport.content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover";
+        
+        // For iOS specifically, we'll update this again after a delay to ensure it applies
+        setTimeout(() => {
+            metaViewport.content = "width=device-width, initial-scale=1.0, viewport-fit=cover";
+        }, 300);
     }
     
     // Handle keyboard visibility on mobile devices
@@ -32,15 +37,54 @@ function setupMobileViewportFix() {
             
             // For iOS, we need to handle viewport height differently
             if (isIOS) {
+                // Enable touch events throughout the document
+                document.documentElement.style.touchAction = 'manipulation';
+                document.body.style.touchAction = 'manipulation';
+                
                 setTimeout(() => {
                     // Scroll to the input field
                     messageInput.scrollIntoView(false);
+                    
+                    // Ensure header buttons remain clickable
+                    const headerButtons = document.querySelectorAll('header button');
+                    headerButtons.forEach(button => {
+                        button.style.touchAction = 'manipulation';
+                    });
                 }, 300);
             }
         });
         
         messageInput.addEventListener('blur', () => {
             body.classList.remove('keyboard-visible');
+            
+            // Reset iOS-specific changes
+            if (isIOS) {
+                setTimeout(() => {
+                    // Force layout recalculation
+                    window.scrollTo(0, 0);
+                }, 100);
+            }
+        });
+    }
+    
+    // For iOS devices, add a special handler to recover from potential freezes
+    if (isIOS) {
+        // Add a double tap handler on body to force UI refresh
+        let lastTap = 0;
+        document.body.addEventListener('touchend', (e) => {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            
+            if (tapLength < 300 && tapLength > 0) {
+                // Double tap detected - refresh the UI by forcing a small scroll
+                setTimeout(() => {
+                    window.scrollBy(0, 1);
+                    window.scrollBy(0, -1);
+                }, 10);
+                e.preventDefault();
+            }
+            
+            lastTap = currentTime;
         });
     }
     
@@ -3650,24 +3694,49 @@ function setupFocusHandling() {
         // Add class to body to indicate keyboard is visible
         document.body.classList.add('keyboard-visible');
         
-        // Wait for keyboard to appear
-        setTimeout(() => {
-            // For iOS, scroll the input into view
-            if (isIOS) {
-                messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
-            }
+        // Allow touch events to propagate properly on iOS
+        if (isIOS) {
+            // Enable scrolling throughout the document
+            document.documentElement.style.overflow = 'auto';
+            document.body.style.overflow = 'auto';
             
-            // Scroll to bottom of chat window
-            const chatMessages = document.getElementById('chat-messages');
-            if (chatMessages) {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }
-        }, 300);
+            // Make sure input is visible
+            setTimeout(() => {
+                // Scroll input into view with a delay to account for keyboard animation
+                messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
+                
+                // Ensure buttons remain clickable by refreshing their event listeners
+                const headerButtons = document.querySelectorAll('header button');
+                headerButtons.forEach(button => {
+                    const clone = button.cloneNode(true);
+                    button.parentNode.replaceChild(clone, button);
+                    // Re-add event handlers as needed
+                    if (clone.id === 'chat-btn') clone.addEventListener('click', () => changeView('chat'));
+                    if (clone.id === 'characters-btn') clone.addEventListener('click', () => changeView('characters'));
+                    if (clone.id === 'settings-btn') clone.addEventListener('click', () => changeView('settings'));
+                });
+            }, 300);
+        }
+        
+        // Scroll to bottom of chat window
+        const chatMessages = document.getElementById('chat-messages');
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
     };
     
     // Blur handling function - resets when keyboard is hidden
     const handleBlur = () => {
         document.body.classList.remove('keyboard-visible');
+        
+        // Reset any iOS-specific adjustments
+        if (isIOS) {
+            // Small delay to ensure animations complete
+            setTimeout(() => {
+                // Force layout recalculation to fix potential rendering issues
+                window.scrollTo(0, 0);
+            }, 100);
+        }
     };
     
     // Add event listeners
@@ -3689,5 +3758,20 @@ function setupFocusHandling() {
                 document.body.classList.remove('keyboard-visible');
             }
         }, 100));
+    }
+    
+    // Add additional touchend event to entire document to help recover from freezes
+    if (isIOS) {
+        document.addEventListener('touchend', (e) => {
+            // If touch is outside the chat messages area and keyboard is visible
+            if (document.body.classList.contains('keyboard-visible') && 
+                !document.getElementById('chat-messages').contains(e.target)) {
+                // Force UI refresh by triggering a small scroll
+                setTimeout(() => {
+                    window.scrollBy(0, 1);
+                    window.scrollBy(0, -1);
+                }, 50);
+            }
+        });
     }
 }
