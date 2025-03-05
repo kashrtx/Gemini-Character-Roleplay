@@ -25,49 +25,18 @@ function setupMobileViewportFix() {
     // Detect if we're on iOS
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     
-    if (messageInput && isIOS) {
-        // Add a dedicated touch handler for iOS to help with keyboard transitions
-        document.addEventListener('touchend', (e) => {
-            // If we just tapped outside the keyboard area while it's visible
-            if (body.classList.contains('keyboard-visible') && 
-                document.activeElement !== messageInput) {
-                // This forces the keyboard to dismiss properly
-                messageInput.blur();
-                
-                // Add a small delay then force a UI refresh
-                setTimeout(() => {
-                    // Force redraw/refresh
-                    window.scrollTo(0, 0);
-                    document.body.style.display = 'none';
-                    void document.body.offsetHeight;
-                    document.body.style.display = '';
-                }, 300);
-            }
-        }, {passive: true});
-        
+    if (messageInput) {
         // Handle focus events for keyboard visibility
         messageInput.addEventListener('focus', () => {
             body.classList.add('keyboard-visible');
             
             // For iOS, we need to handle viewport height differently
-            setTimeout(() => {
-                // Scroll to the input field
-                messageInput.scrollIntoView(false);
-            }, 300);
-        });
-        
-        messageInput.addEventListener('blur', () => {
-            // Delay the class removal to prevent UI freeze
-            setTimeout(() => {
-                body.classList.remove('keyboard-visible');
-                // Force small redraw
-                window.scrollTo(0, 0);
-            }, 300);
-        });
-    } else if (messageInput) {
-        // For non-iOS devices
-        messageInput.addEventListener('focus', () => {
-            body.classList.add('keyboard-visible');
+            if (isIOS) {
+                setTimeout(() => {
+                    // Scroll to the input field
+                    messageInput.scrollIntoView(false);
+                }, 300);
+            }
         });
         
         messageInput.addEventListener('blur', () => {
@@ -3698,16 +3667,7 @@ function setupFocusHandling() {
     
     // Blur handling function - resets when keyboard is hidden
     const handleBlur = () => {
-        // For iOS, add a delay to let the viewport adjust
-        if (isIOS) {
-            setTimeout(() => {
-                document.body.classList.remove('keyboard-visible');
-                // Trigger a small resize event to help iOS redraw properly
-                window.dispatchEvent(new Event('resize'));
-            }, 300);
-        } else {
-            document.body.classList.remove('keyboard-visible');
-        }
+        document.body.classList.remove('keyboard-visible');
     };
     
     // Add event listeners
@@ -3729,20 +3689,5 @@ function setupFocusHandling() {
                 document.body.classList.remove('keyboard-visible');
             }
         }, 100));
-    } else {
-        // Add iOS-specific touch handler to unfreeze UI if needed
-        document.addEventListener('touchstart', function iosTouchUnfreezer(e) {
-            // If something's frozen, this will trigger a redraw
-            if (!document.body.classList.contains('keyboard-visible')) {
-                // Small timeout to let iOS catch up
-                setTimeout(() => {
-                    // Force a repaint
-                    document.body.style.display = 'none';
-                    // Reading this property forces a repaint
-                    void document.body.offsetHeight;
-                    document.body.style.display = '';
-                }, 50);
-            }
-        }, {passive: true});
     }
 }
