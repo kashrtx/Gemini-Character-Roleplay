@@ -1075,6 +1075,15 @@ function updateSidebarCharacters() {
         } else {
             // Sort characters by most recent chat
             const sortedCharacters = [...state.characters].sort((a, b) => {
+                // If a character is in the active chat, prioritize it
+                const aIsActive = state.activeCharacters && state.activeCharacters.some(c => c.id === a.id);
+                const bIsActive = state.activeCharacters && state.activeCharacters.some(c => c.id === b.id);
+                
+                // Active characters come first
+                if (aIsActive && !bIsActive) return -1;
+                if (!aIsActive && bIsActive) return 1;
+                
+                // Then sort by timestamp
                 const aTimestamp = getLastMessageTimestamp(a.id);
                 const bTimestamp = getLastMessageTimestamp(b.id);
                 return bTimestamp - aTimestamp; // Sort in descending order (most recent first)
@@ -1083,9 +1092,24 @@ function updateSidebarCharacters() {
             const sidebarHTML = sortedCharacters.map(character => {
                 const lastMessageTime = getLastMessageTimestamp(character.id);
                 const hasRecentChat = lastMessageTime > 0;
+                const isActive = state.activeCharacters && state.activeCharacters.some(c => c.id === character.id);
+                
+                // Format date with time
+                const formatDateTime = (timestamp) => {
+                    const date = new Date(timestamp);
+                    return date.toLocaleString(undefined, {
+                        month: '2-digit',
+                        day: '2-digit',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                    });
+                };
                 
                 // Determine how to display the character avatar
                 let avatarHTML = '';
+                let avatarClass = '';
                 if (character.profilePicture) {
                     avatarHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
                     avatarClass = 'has-image';
@@ -1102,7 +1126,7 @@ function updateSidebarCharacters() {
                         state.selectedCharacters.includes(character.id)
                             ? 'bg-primary/10 border-primary/30 border' 
                             : 'hover:bg-gray-100 border border-transparent'
-                    }"
+                    } ${isActive ? 'border-primary' : ''}"
                 >
                     <div class="flex items-center justify-between">
                         <div class="flex items-center">
@@ -1113,13 +1137,12 @@ function updateSidebarCharacters() {
                                 <p class="font-medium truncate">${character.name}</p>
                                 ${hasRecentChat ? `
                                 <p class="text-xs text-gray-500">
-                                    Last chat: ${new Date(lastMessageTime).toLocaleDateString()}
+                                    Last chat: ${isActive ? 'Active now' : formatDateTime(lastMessageTime)}
                                 </p>` : ''}
                             </div>
                         </div>
-                        ${hasRecentChat ? `
-                        <div class="w-2 h-2 rounded-full bg-primary/50"></div>
-                        ` : ''}
+                        
+                        <div class="w-2 h-2 rounded-full ${isActive ? 'bg-primary' : 'bg-primary/50'}"></div>
                     </div>
                 </div>
             `}).join('');
@@ -1275,6 +1298,9 @@ function startChat() {
     // Update UI - Make sure to switch to chat view first
     changeView('chat');
     updateChatUI();
+    
+    // Update sidebar to show the most recent characters at the top
+    updateSidebarCharacters();
 }
 
 function updateChatUI() {
@@ -1626,6 +1652,9 @@ function createNewChat() {
     // Update UI
     updateChatUI();
     
+    // Update sidebar to show the most recent characters at the top
+    updateSidebarCharacters();
+    
     // Show success message
     showSuccess("Started a new chat");
 }
@@ -1817,7 +1846,7 @@ function closeChatHistoryModal() {
 // Function to load a chat from history
 function loadChatFromHistory(chatId) {
     if (!state.chats[chatId]) {
-        showError("Chat history not found");
+        showError("Chat not found");
         return;
     }
     
@@ -1840,6 +1869,9 @@ function loadChatFromHistory(chatId) {
     
     // Show success message
     showSuccess("Loaded chat from history");
+    
+    // Update sidebar to show the most recent characters at the top
+    updateSidebarCharacters();
     
     // Close the chat history modal
     closeChatHistoryModal();
@@ -3090,16 +3122,48 @@ function savePersonalContext() {
 }
 
 // Helper function to get last message timestamp for a chat
-function getLastMessageTimestamp(chatId) {
-    const chat = state.chats[chatId];
-    if (!chat || chat.length === 0) return 0;
+function getLastMessageTimestamp(characterId) {
+    // Find all chats with this character
+    const chatsWithCharacter = Object.keys(state.chats).filter(chatId => chatId.includes(characterId));
     
-    // Find the last non-deleted message
-    const lastMessage = [...chat]
-        .reverse()
-        .find(msg => !msg.isDeleted);
+    if (chatsWithCharacter.length === 0) return 0;
     
-    return lastMessage ? new Date(lastMessage.timestamp).getTime() : 0;
+    // Track the latest timestamp found
+    let latestTimestamp = 0;
+    
+    // Find the most recent message in any chat with this character
+    chatsWithCharacter.forEach(chatId => {
+        const messages = state.chats[chatId] || [];
+        if (messages.length === 0) {
+            // Check if this is the active chat - if so, use current time
+            if (state.activeChat === chatId) {
+                const currentTime = Date.now();
+                if (currentTime > latestTimestamp) {
+                    latestTimestamp = currentTime;
+                }
+            }
+            return;
+        }
+        
+        const lastMessage = messages
+            .filter(msg => !msg.isDeleted)
+            .reverse()
+            .find(msg => true); // Get first non-deleted message
+        
+        if (lastMessage) {
+            const msgTimestamp = new Date(lastMessage.timestamp).getTime();
+            if (msgTimestamp > latestTimestamp) {
+                latestTimestamp = msgTimestamp;
+            }
+        }
+    });
+    
+    // If this character is in the active chat, prioritize it by using current time
+    if (state.activeChat && state.activeChat.includes(characterId) && state.activeCharacters.some(c => c.id === characterId)) {
+        return Date.now();
+    }
+    
+    return latestTimestamp;
 }
 
 // Function to regenerate the last AI message
