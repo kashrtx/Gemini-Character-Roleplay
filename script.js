@@ -779,6 +779,11 @@ async function saveApiKey() {
     if (savedMessage) {
         if (success) {
             savedMessage.textContent = "API key saved and connected successfully";
+            
+            // Add a short delay before refreshing to allow the user to see the success message
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
         } else {
             savedMessage.textContent = "API key saved but connection failed";
         }
