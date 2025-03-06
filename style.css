@@ -1097,7 +1097,10 @@ button[id^="delete-msg-"] {
 
 /* Message editing styles */
 .message-bubble.editing {
-    padding: 8px;
+    width: 100%;
+    max-width: 600px;
+    padding: 16px;
+    background-color: #f8fafc;
 }
 
 .edit-message-textarea {
@@ -1107,6 +1110,12 @@ button[id^="delete-msg-"] {
     border-color: #d1d5db;
     border-width: 1px;
     transition: border-color 0.2s ease;
+    min-width: 280px;
+    width: 100%;
+    max-width: 600px;
+    padding: 12px;
+    line-height: 1.5;
+    border-radius: 8px;
 }
 
 .edit-message-textarea:focus {
@@ -1133,21 +1142,34 @@ button[id^="delete-msg-"] {
     /* Make delete buttons visible on mobile without requiring hover */
     button[id^="delete-msg-"] {
         display: flex !important;
-        opacity: 0.8;
-        width: 24px !important;
-        height: 24px !important;
-        right: -8px !important;
-        top: -8px !important;
+        top: -8px;
+        right: -8px;
+        width: 20px;
+        height: 20px;
+        opacity: 0.7;
     }
     
-    /* Slightly increase the size of the X icon for better tap target */
     button[id^="delete-msg-"] .fa-times {
-        font-size: 0.8rem;
+        font-size: 0.65rem;
     }
     
     /* Make edit buttons more visible on mobile */
     .edit-msg-btn {
-        opacity: 1;
+        opacity: 0.7;
+        display: flex !important;
+    }
+    
+    /* Make the edit message textarea responsive on mobile */
+    .edit-message-textarea {
+        min-width: 200px;
+        max-width: 100%;
+        font-size: 0.95rem;
+        padding: 10px;
+    }
+    
+    .message-bubble.editing {
+        max-width: 100%;
+        padding: 12px;
     }
 }
 
