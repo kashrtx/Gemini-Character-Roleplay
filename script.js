@@ -818,128 +818,109 @@ function createNewCharacter() {
     // Get input fields
     const nameInput = document.getElementById('character-name');
     const contextInput = document.getElementById('character-context');
-    
-    if (!nameInput || !contextInput) {
-        showError("Character creation form elements not found");
-        return;
-    }
-    
-    const name = nameInput.value.trim();
-    const context = contextInput.value.trim();
-    
-    // Better validation with more specific error messages
-    if (name === '') {
-        showError("Please provide a name for your character");
-        nameInput.focus();
-        return false;
-    }
-    
-    if (context === '') {
-        showError("Please provide context for your character");
-        contextInput.focus();
-        return false;
-    }
-
-    // Get profile picture if available
     const profilePicturePreview = document.getElementById('profile-picture-preview');
-    let profilePicture = null;
     
-    // Check if the preview has an image (not the default icon)
-    if (profilePicturePreview && profilePicturePreview.querySelector('img')) {
-        // Get the src attribute which contains the base64 data
-        profilePicture = profilePicturePreview.querySelector('img').src;
+    // Get values
+    const name = nameInput?.value.trim();
+    const context = contextInput?.value.trim();
+    
+    // Validate
+    if (!name) {
+        showError("Character name is required.");
+        return false;
     }
-
-    // Create new character
+    
+    // Check for duplicate names
+    if (state.characters.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+        showError("A character with this name already exists. Please choose a different name.");
+        return false;
+    }
+    
+    // Get profile picture if available
+    let profilePicture = "";
+    if (profilePicturePreview && profilePicturePreview.classList.contains('has-image')) {
+        const img = profilePicturePreview.querySelector('img');
+        if (img && img.src) {
+            profilePicture = img.src;
+        }
+    }
+    
+    // Generate a unique ID for the new character
+    const id = generateUniqueId();
+    
+    // Create the character object
     const newCharacter = {
-        id: generateUniqueId(),
+        id,
         name,
-        userContext: context,
-        enhancedContext: null,
-        profilePicture: profilePicture,
-        createdAt: new Date().toISOString(),
+        context,
+        profilePicture,
+        createdAt: new Date().toISOString(), // Add creation timestamp
+        enhancedContext: ""
     };
     
-    console.log("Creating new character:", newCharacter);
-
-    // Add to state and save
+    // Add to state
     state.characters.push(newCharacter);
+    
+    // Save to localStorage
     setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
     
-    // Clear inputs AFTER validation and saving
-    nameInput.value = '';
-    contextInput.value = '';
+    // Clear input fields
+    if (nameInput) nameInput.value = "";
+    if (contextInput) contextInput.value = "";
     
-    // Reset profile picture preview
+    // Reset profile picture
     if (profilePicturePreview) {
         profilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
         profilePicturePreview.classList.remove('has-image');
-        
-        // Hide the remove button
-        const removeButton = document.getElementById('remove-profile-picture');
-        if (removeButton) {
-            removeButton.classList.add('hidden');
-        }
     }
     
-    // Show success message
-    showSuccess(`Character "${name}" created successfully!`);
-
-    // Instead of re-rendering the entire list, append the new element:
+    // Hide remove button
+    const removeProfilePictureBtn = document.getElementById('remove-profile-picture');
+    if (removeProfilePictureBtn) {
+        removeProfilePictureBtn.classList.add('hidden');
+    }
+    
+    // Add to character list UI
     const characterListContainer = document.getElementById('character-list');
     if (characterListContainer) {
-        // Remove "no characters" message if present
-        const noChars = document.getElementById('no-characters');
-        if (noChars) { noChars.remove(); }
-        
-        // Create a new div element for the character
+        // Create a new div for the character
         const newCharDiv = document.createElement('div');
+        newCharDiv.className = 'bg-white p-4 rounded-lg shadow-md mb-4 fade-in';
         newCharDiv.id = `character-item-${newCharacter.id}`;
-        newCharDiv.className = "border rounded-lg p-4 hover:shadow-md transition";
         
-        // Determine how to display the character avatar
-        let avatarHTML = '';
-        if (newCharacter.profilePicture) {
-            avatarHTML = `<img src="${newCharacter.profilePicture}" alt="${newCharacter.name}" class="w-10 h-10 rounded-full object-cover mr-3">`;
-        } else {
-            avatarHTML = `<div class="character-avatar bg-primary/20 text-primary mr-3">${newCharacter.name.charAt(0).toUpperCase()}</div>`;
-        }
-        
+        // Add the character HTML
         newCharDiv.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div class="flex items-center">
-                    ${avatarHTML}
+            <div class="flex items-start">
+                <div class="character-avatar bg-primary/20 text-primary ${newCharacter.profilePicture ? 'has-image' : ''} mr-3">
+                    ${newCharacter.profilePicture ? 
+                        `<img src="${newCharacter.profilePicture}" alt="${newCharacter.name}" class="w-full h-full object-cover">` : 
+                        newCharacter.name.charAt(0).toUpperCase()
+                    }
+                </div>
+                <div class="flex-grow">
                     <h3 class="font-bold text-lg">${newCharacter.name}</h3>
-                </div>
-                <div class="flex space-x-2">
-                    <button id="edit-btn-${newCharacter.id}" class="text-blue-500 hover:text-blue-700" title="Edit character">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button id="delete-btn-${newCharacter.id}" class="text-red-500 hover:text-red-700" title="Delete character">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <p class="text-gray-600 text-sm mt-1 line-clamp-2">${newCharacter.context || "No context provided"}</p>
                 </div>
             </div>
-            
-            <div class="mt-2">
-                <p class="text-sm text-gray-700 font-semibold">User-Provided Context:</p>
-                <div class="text-gray-600 text-sm mt-1 max-h-32 overflow-auto p-1 border rounded bg-gray-50">
-                    ${newCharacter.userContext}
-                </div>
-            </div>
-            
-            ${ newCharacter.enhancedContext ? `
-            <div class="mt-3 bg-gray-50 p-2 rounded enhanced-context" id="enhanced-context-${newCharacter.id}">
-                <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
-                <div class="text-gray-600 text-sm mt-1 max-h-60 overflow-auto p-1 border rounded bg-white">
-                    ${newCharacter.enhancedContext}
-                </div>
-            </div>
-            ` : '' }
-            
-            <div class="mt-3 flex justify-center">
-                <button id="enhance-btn-${newCharacter.id}" class="text-sm bg-secondary text-white px-3 py-1 rounded hover:bg-secondary/90 transition ${!state.apiKey ? 'disabled:bg-gray-400' : ''}" ${!state.apiKey ? 'disabled' : ''}>
-                    <i class="fas fa-magic mr-1"></i> ${ newCharacter.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context' }
+            <div class="flex mt-4 space-x-2 justify-end">
+                <button
+                    id="delete-btn-${newCharacter.id}"
+                    class="text-red-500 hover:text-red-700 transition"
+                >
+                    <i class="fas fa-trash mr-1"></i> Delete
+                </button>
+                <button
+                    id="edit-btn-${newCharacter.id}"
+                    class="text-gray-500 hover:text-gray-700 transition"
+                >
+                    <i class="fas fa-edit mr-1"></i> Edit
+                </button>
+                <button
+                    id="enhance-btn-${newCharacter.id}"
+                    class="text-primary hover:text-primary/80 transition"
+                >
+                    <i class="fas fa-magic mr-1"></i>
+                    ${newCharacter.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context'}
                 </button>
             </div>
         `;
@@ -1126,6 +1107,20 @@ function updateSidebarCharacters() {
                 if (aIsActive && !bIsActive) return -1;
                 if (!aIsActive && bIsActive) return 1;
                 
+                // Check if this is a newly created character (last 5 minutes)
+                const fiveMinutesAgo = Date.now() - (5 * 60 * 1000); // 5 minutes in milliseconds
+                const aIsNew = a.createdAt && (new Date(a.createdAt).getTime() > fiveMinutesAgo);
+                const bIsNew = b.createdAt && (new Date(b.createdAt).getTime() > fiveMinutesAgo);
+                
+                // New characters come next after active ones
+                if (aIsNew && !bIsNew) return -1;
+                if (!aIsNew && bIsNew) return 1;
+                
+                // If both are new, sort by creation time (newest first)
+                if (aIsNew && bIsNew) {
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                }
+                
                 // Then sort by timestamp
                 const aTimestamp = getLastMessageTimestamp(a.id);
                 const bTimestamp = getLastMessageTimestamp(b.id);
@@ -1161,6 +1156,12 @@ function updateSidebarCharacters() {
                     avatarClass = '';
                 }
                 
+                // Check if this is a newly created character
+                const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+                const isNew = character.createdAt && 
+                             (new Date(character.createdAt).getTime() > fiveMinutesAgo) && 
+                             !hasRecentChat; // Remove "New" tag if there's chat history
+                
                 return `
                 <div 
                     id="sidebar-char-${character.id}"
@@ -1177,7 +1178,7 @@ function updateSidebarCharacters() {
                                 ${avatarHTML}
                             </div>
                             <div class="ml-2 overflow-hidden">
-                                <p class="font-medium truncate">${character.name}</p>
+                                <p class="font-medium truncate">${character.name} ${isNew ? '<span class="text-xs text-accent">(New)</span>' : ''}</p>
                                 ${hasRecentChat ? `
                                 <p class="text-xs text-gray-500">
                                     Last chat: ${isActive ? 'Active now' : formatDateTime(lastMessageTime)}
@@ -3621,127 +3622,95 @@ function editCharacter(characterId) {
 }
 
 function saveEditedCharacter() {
-    // Get input fields
+    // Get input fields and values
     const nameInput = document.getElementById('edit-character-name');
     const contextInput = document.getElementById('edit-character-context');
     const idInput = document.getElementById('edit-character-id');
+    const profilePicturePreview = document.getElementById('edit-profile-picture-preview');
     
+    // Check if we have the necessary elements
     if (!nameInput || !contextInput || !idInput) {
-        showError("Edit form elements not found");
+        showError("Could not find all edit form elements.");
         return;
     }
     
+    // Get values
     const name = nameInput.value.trim();
     const context = contextInput.value.trim();
     const id = idInput.value;
     
-    // Validate inputs
-    if (name === '') {
-        showError("Please provide a name for your character");
-        nameInput.focus();
-        return false;
+    // Validate
+    if (!name) {
+        showError("Character name is required.");
+        return;
     }
     
-    if (context === '') {
-        showError("Please provide context for your character");
-        contextInput.focus();
-        return false;
+    // Find the character to edit
+    const characterIndex = state.characters.findIndex(c => c.id === id);
+    if (characterIndex === -1) {
+        showError("Character not found.");
+        return;
+    }
+    
+    // Check for duplicate names (excluding the current character)
+    if (state.characters.some(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) {
+        showError("A character with this name already exists. Please choose a different name.");
+        return;
     }
     
     // Get profile picture if available
-    const profilePicturePreview = document.getElementById('edit-profile-picture-preview');
-    let profilePicture = null;
-    
-    // Check if the preview has an image (not the default icon)
-    if (profilePicturePreview && profilePicturePreview.querySelector('img')) {
-        // Get the src attribute which contains the base64 data
-        profilePicture = profilePicturePreview.querySelector('img').src;
-    }
-    
-    // Find character in state and update it
-    const characterIndex = state.characters.findIndex(c => c.id === id);
-    if (characterIndex === -1) {
-        showError("Character not found");
-        return;
+    let profilePicture = "";
+    if (profilePicturePreview && profilePicturePreview.classList.contains('has-image')) {
+        const img = profilePicturePreview.querySelector('img');
+        if (img && img.src) {
+            profilePicture = img.src;
+        }
     }
     
     // Store old name for success message
     const oldName = state.characters[characterIndex].name;
     
-    // Update character and REMOVE the enhanced context since we've changed the user context
-    state.characters[characterIndex].name = name;
-    state.characters[characterIndex].userContext = context;
-    state.characters[characterIndex].enhancedContext = null; // Clear enhanced context when editing
-    state.characters[characterIndex].profilePicture = profilePicture; // Update profile picture
+    // Preserve createdAt timestamp
+    const createdAt = state.characters[characterIndex].createdAt || new Date().toISOString();
     
-    // IMPORTANT: Update the character in the activeCharacters array as well
-    // This ensures the chat immediately uses the new context
-    if (state.activeCharacters) {
-        const activeCharIndex = state.activeCharacters.findIndex(c => c.id === id);
-        if (activeCharIndex !== -1) {
-            // Update the active character with the new data
-            state.activeCharacters[activeCharIndex] = {
-                ...state.characters[characterIndex]
-            };
-            console.log("Updated active character with new context");
-        }
-    }
-    
-    // If name changed and character is in selected characters, update the chat title
-    if (oldName !== name && state.selectedCharacters.includes(id)) {
-        updateChatUI();
-    }
+    // Update character data
+    state.characters[characterIndex] = {
+        ...state.characters[characterIndex],
+        name,
+        context,
+        profilePicture,
+        createdAt, // Preserve the original creation timestamp
+        updatedAt: new Date().toISOString() // Add update timestamp
+    };
     
     // Save to storage
     setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
     
-    // Update the specific character element directly for immediate feedback
-    const charElement = document.getElementById(`character-item-${id}`);
-    if (charElement) {
-        // Determine how to display the character avatar
-        let avatarHTML = '';
-        if (profilePicture) {
-            avatarHTML = `<img src="${profilePicture}" alt="${name}" class="w-10 h-10 rounded-full object-cover mr-3">`;
-        } else {
-            avatarHTML = `<div class="character-avatar bg-primary/20 text-primary mr-3">${name.charAt(0).toUpperCase()}</div>`;
-        }
+    // Update UI in character view
+    const characterItem = document.getElementById(`character-item-${id}`);
+    if (characterItem) {
+        // Update name
+        const nameElement = characterItem.querySelector('h3');
+        if (nameElement) nameElement.textContent = name;
         
-        // Find and update the character header with name and avatar
-        const headerElement = charElement.querySelector('.flex.justify-between.items-start');
-        if (headerElement) {
-            const nameWithAvatarHTML = `
-                <div class="flex items-center">
-                    ${avatarHTML}
-                    <h3 class="font-bold text-lg">${name}</h3>
-                </div>
-            `;
-            
-            // Replace the first child (which should be either the name or the flex container with avatar and name)
-            const firstChild = headerElement.firstElementChild;
-            if (firstChild) {
-                // Create a temporary container
-                const temp = document.createElement('div');
-                temp.innerHTML = nameWithAvatarHTML.trim();
-                
-                // Replace the first child with our new element
-                headerElement.replaceChild(temp.firstElementChild, firstChild);
+        // Update context
+        const contextElement = characterItem.querySelector('p');
+        if (contextElement) contextElement.textContent = context || "No context provided";
+        
+        // Update avatar
+        const avatarElement = characterItem.querySelector('.character-avatar');
+        if (avatarElement) {
+            if (profilePicture) {
+                avatarElement.innerHTML = `<img src="${profilePicture}" alt="${name}" class="w-full h-full object-cover">`;
+                avatarElement.classList.add('has-image');
+            } else {
+                avatarElement.innerHTML = name.charAt(0).toUpperCase();
+                avatarElement.classList.remove('has-image');
             }
         }
         
-        // Find and update the user context
-        const contextElement = charElement.querySelector('.text-gray-600.text-sm.mt-1.max-h-32');
-        if (contextElement) {
-            contextElement.textContent = context;
-        }
-        
-        // Remove enhanced context if it exists
-        const enhancedContextElement = charElement.querySelector(`#enhanced-context-${id}`);
-        if (enhancedContextElement) {
-            enhancedContextElement.remove();
-        }
-        
-        // Update enhance button text (since enhanced context was removed)
-        const enhanceBtn = charElement.querySelector(`#enhance-btn-${id}`);
+        // Reset enhance button if needed
+        const enhanceBtn = characterItem.querySelector(`#enhance-btn-${id}`);
         if (enhanceBtn) {
             enhanceBtn.innerHTML = '<i class="fas fa-magic mr-1"></i> Enhance Context';
         }
@@ -3751,7 +3720,7 @@ function saveEditedCharacter() {
     const sidebarCharElement = document.getElementById(`sidebar-char-${id}`);
     if (sidebarCharElement) {
         // Update the name
-        const sidebarNameElement = sidebarCharElement.querySelector('.text-sm.font-medium');
+        const sidebarNameElement = sidebarCharElement.querySelector('.font-medium');
         if (sidebarNameElement) {
             sidebarNameElement.textContent = name;
         }
