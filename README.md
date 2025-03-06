@@ -109,7 +109,7 @@ The easiest way to use the application is through the hosted version at:
 
 ## 👥 Contributing
 
-Contributions are welcome and appreciated! This project was inspired by Character AI but aims to leverage Gemini's capabilities for even better roleplaying experiences.
+Contributions are welcome and appreciated! This project was inspired by Character AI but aims to leverage Gemini's capabilities (1M context window and better intelligence) for even better roleplaying experiences.
 
 ### How to Contribute
 
