@@ -3918,12 +3918,13 @@ function importAppData() {
                     setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, importedData.lastActiveChats);
                 }
                 
-                // Reload everything
-                loadStoredData();
-                updateCharacterLists();
-                
                 // Show success message
-                showSuccess("Data imported successfully!", 3000);
+                showSuccess("Data imported successfully! Refreshing page...", 2000);
+                
+                // Refresh the page after a short delay to show the success message
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2200);
             } catch (error) {
                 console.error("Error importing data:", error);
                 showError(`Failed to import data: ${error.message}`);
