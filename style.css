@@ -391,6 +391,58 @@ main {
         transform: translateX(0);
         width: 100%; /* Full width sidebar when open */
     }
+
+    /* Fix for chat messages appearing behind the input container on mobile */
+    #chat-window {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    #chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding-bottom: 80px; /* Add padding to bottom to prevent content from being hidden behind input area */
+        max-height: calc(100vh - 120px); /* Adjust based on your header height */
+    }
+    
+    .p-4.bg-white.border-t {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: white;
+        z-index: 20; /* Ensure it's above the messages */
+        border-top: 1px solid #e5e7eb;
+    }
+    
+    /* When keyboard is visible, adjust layout */
+    body.keyboard-visible #chat-messages {
+        padding-bottom: 120px; /* Increase padding when keyboard is visible */
+    }
+    
+    /* Ensure sidebar doesn't overlap with input when open */
+    #character-sidebar.sidebar-open + #chat-window .p-4.bg-white.border-t {
+        width: calc(100% - 260px); /* Adjust based on sidebar width */
+        right: 0;
+        left: auto;
+    }
+}
+
+/* Additional fix for very tall mobile screens */
+@media (min-height: 800px) and (max-width: 768px) {
+    #chat-messages {
+        max-height: calc(100vh - 180px); /* More space for taller screens */
+    }
+}
+
+/* Fix for iOS devices specifically */
+@media all and (max-width: 768px) and (min-device-width: 320px) and (max-device-width: 812px) and (-webkit-min-device-pixel-ratio: 2) {
+    body:not(.safari) #chat-messages {
+        padding-bottom: 100px; /* Extra padding for iOS */
+    }
 }
 
 /* Message containers to ensure consistent alignment */
@@ -1173,134 +1225,57 @@ button[id^="delete-msg-"] {
     }
 }
 
-/* iOS only - move input container higher to avoid browser tab overlay */
+/* iOS-specific fixes for proper scrolling */
 @supports (-webkit-touch-callout: none) {
-    #chat-window > div:last-of-type,
-    .chat-input-container {
-        bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important; /* Reduced bottom spacing */
-        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important; /* Reduced padding */
-        max-height: none !important; /* Ensure full height is available */
-        z-index: 1000 !important; /* Ensure it stays above other elements */
-    }
-    
-    /* Add extra padding to the chat messages to ensure content isn't hidden behind the input */
     #chat-messages {
-        padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important; /* Reduced padding */
-        max-height: calc(100vh - 150px) !important; /* Adjusted for better viewable area */
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     }
     
-    /* Handle different device sizes */
-    @media (max-height: 700px) {
-        /* Smaller iOS devices or landscape mode */
-        #chat-window > div:last-of-type,
-        .chat-input-container {
-            bottom: calc(5px + env(safe-area-inset-bottom, 0px)) !important;
-        }
-    }
-    
-    @media (min-height: 800px) {
-        /* Taller iOS devices (newer models) */
-        #chat-window > div:last-of-type,
-        .chat-input-container {
-            bottom: calc(15px + env(safe-area-inset-bottom, 0px)) !important;
-        }
-    }
-}
-
-/* Fix for all mobile browsers including Firefox, Brave, etc. */
-@media (max-width: 768px) {
-    /* Universal input container positioning for all mobile browsers */
-    #chat-window > div:last-of-type,
-    .chat-input-container,
+    /* Fix iOS position: fixed issues */
     .p-4.bg-white.border-t {
+        position: sticky !important;
+        bottom: 0 !important;
+        z-index: 50 !important;
+    }
+    
+    /* Prevent rubber-banding effect on iOS */
+    html, body {
         position: fixed;
-        bottom: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+    
+    #app {
+        position: absolute;
+        top: 0;
         left: 0;
         right: 0;
-        padding: 0.5rem;
-        padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
-        background-color: white;
-        border-top: 1px solid #e5e7eb;
-        width: 100%;
-        z-index: 100;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Ensure chat messages don't get hidden behind the fixed input */
-    #chat-messages {
-        padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
-        margin-bottom: env(safe-area-inset-bottom, 0);
-        max-height: calc(100vh - 130px) !important;
-    }
-    
-    /* Class to be added when keyboard is visible - works in all browsers */
-    body.keyboard-visible .p-4.bg-white.border-t,
-    body.keyboard-visible #chat-window > div:last-of-type,
-    body.keyboard-visible .chat-input-container {
-        position: absolute; /* Change to absolute when keyboard visible */
         bottom: 0;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
     }
-}
-
-/* iOS-specific fixes for keyboard handling - including non-Safari browsers */
-@supports (-webkit-touch-callout: none) {
+    
+    /* Fix for iOS chat container */
     @media (max-width: 768px) {
-        /* Additional padding for iOS devices to account for home indicator */
-        #chat-form {
-            padding-bottom: env(safe-area-inset-bottom, 0);
+        #chat-window {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
         }
         
-        /* Fix for iOS viewport height issues with keyboard */
-        .keyboard-visible #chat-window {
-            height: -webkit-fill-available;
+        #chat-messages {
+            position: absolute;
+            top: 60px; /* Header height */
+            left: 0;
+            right: 0;
+            bottom: 80px; /* Input container height */
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
-        
-        /* Fix for Firefox, Brave and other browsers on iOS */
-        @supports (not (-webkit-appearance:none)) {
-            #chat-window > div:last-of-type,
-            .chat-input-container,
-            .p-4.bg-white.border-t {
-                bottom: 0 !important; /* Keep at bottom for non-Safari */
-                padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
-            }
-            
-            #chat-messages {
-                max-height: calc(100vh - 145px) !important; /* More space for messages */
-                padding-bottom: calc(85px + env(safe-area-inset-bottom, 0px)) !important;
-            }
-        }
-    }
-}
-
-/* Specific targeting for Firefox and other non-Safari WebKit browsers on iOS */
-@media all and (max-width: 768px) and (min-device-width: 320px) and (max-device-width: 812px) and (-webkit-min-device-pixel-ratio: 2) {
-    /* Target Firefox, Brave and other WebKit browsers on iOS */
-    body:not(.safari) #chat-window > div:last-of-type,
-    body:not(.safari) .chat-input-container,
-    body:not(.safari) .p-4.bg-white.border-t {
-        position: fixed !important;
-        bottom: 8px !important; /* Lower position for better UI */
-        left: 0 !important;
-        right: 0 !important;
-        z-index: 1000 !important;
-        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    
-    /* Give more viewable area for messages */
-    body:not(.safari) #chat-messages {
-        max-height: calc(100vh - 145px) !important;
-        padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    
-    /* Make input take less vertical space */
-    body:not(.safari) #message-input {
-        min-height: 40px !important;
-        max-height: 80px !important; 
-    }
-    
-    /* Ensure proper z-index for layering */
-    body:not(.safari) #chat-window {
-        z-index: 1 !important;
     }
 }
 
@@ -1536,5 +1511,44 @@ button[id^="delete-msg-"] {
         display: none !important;
         opacity: 0 !important;
         pointer-events: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Make sure the main chat view takes full height */
+    #chat-view {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* Ensure the chat window has proper height */
+    #chat-window {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+        max-height: calc(100vh - 60px); /* Subtract header height */
+    }
+    
+    /* Additional fix to ensure all chat content is visible */
+    main.flex-grow {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 60px); /* Subtract header height */
+    }
+    
+    /* Ensure the chat input is properly spaced */
+    #chat-form {
+        padding: 10px;
+        position: relative;
+        z-index: 30;
+    }
+    
+    /* Prevent the message input from being too tall on mobile */
+    #message-input {
+        max-height: 100px;
     }
 }

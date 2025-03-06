@@ -4108,54 +4108,62 @@ function setupProfilePictureHandlers() {
 // Add this near the debounce function
 function setupFocusHandling() {
     const messageInput = document.getElementById('message-input');
-    const chatWindow = document.getElementById('chat-window');
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     
-    if (!messageInput || !chatWindow) return;
-    
-    // Focus handling function - ensures input is visible when focused
     const handleFocus = () => {
-        // Add class to body to indicate keyboard is visible
         document.body.classList.add('keyboard-visible');
         
-        // Wait for keyboard to appear
-        setTimeout(() => {
-            // For iOS, scroll the input into view
-            if (isIOS) {
-                messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
-            }
-            
-            // Scroll to bottom of chat window
-            const chatMessages = document.getElementById('chat-messages');
-            if (chatMessages) {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }
-        }, 300);
+        // On mobile, scroll to bottom when keyboard appears
+        if (window.innerWidth <= 768) {
+            // Small delay to allow keyboard to appear
+            setTimeout(() => {
+                scrollChatToBottom();
+                // Further adjust for iOS
+                adjustLayoutForKeyboard();
+            }, 300);
+        }
     };
     
-    // Blur handling function - resets when keyboard is hidden
     const handleBlur = () => {
         document.body.classList.remove('keyboard-visible');
+        
+        // Small delay to allow layout to adjust
+        setTimeout(() => {
+            scrollChatToBottom();
+        }, 100);
     };
     
-    // Add event listeners
-    messageInput.addEventListener('focus', handleFocus);
-    messageInput.addEventListener('blur', handleBlur);
+    // Function to adjust layout specifically for mobile keyboard
+    const adjustLayoutForKeyboard = () => {
+        const chatMessages = document.getElementById('chat-messages');
+        const windowHeight = window.innerHeight;
+        const visibleHeight = window.visualViewport ? window.visualViewport.height : windowHeight;
+        
+        // If visual viewport is significantly smaller than window height, keyboard is likely open
+        if (visibleHeight < windowHeight * 0.8) {
+            // Add more padding to ensure messages are visible above keyboard
+            chatMessages.style.paddingBottom = `${windowHeight - visibleHeight + 80}px`;
+        } else {
+            chatMessages.style.paddingBottom = '80px'; // Reset to default
+        }
+    };
     
-    // For Android, handle resize events to detect keyboard
-    if (!isIOS) {
-        const initialHeight = window.innerHeight;
-        window.addEventListener('resize', debounce(() => {
-            if (window.innerHeight < initialHeight * 0.75) {
-                document.body.classList.add('keyboard-visible');
-                
-                // Ensure input is visible
-                setTimeout(() => {
-                    messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
-                }, 100);
-            } else {
-                document.body.classList.remove('keyboard-visible');
-            }
-        }, 100));
+    // Function to scroll chat to bottom
+    const scrollChatToBottom = () => {
+        const chatMessages = document.getElementById('chat-messages');
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    };
+    
+    if (messageInput) {
+        messageInput.addEventListener('focus', handleFocus);
+        messageInput.addEventListener('blur', handleBlur);
+        
+        // Listen for visual viewport changes (handles keyboard better than resize)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                if (document.activeElement === messageInput) {
+                    adjustLayoutForKeyboard();
+                }
+            });
+        }
     }
 }
