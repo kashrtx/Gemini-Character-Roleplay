@@ -1,15 +1,16 @@
-# Google Gemini Flash Character RolePlay
+# Google Gemini Custom Character RolePlay
 
 <div align="center">
   <img src="https://img.shields.io/badge/status-active-success.svg" alt="Status">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
 </div>
 
-## 🌟 [Try it now: GeminiCharacterRolePlay](https://geminicharacterroleplay.netlify.app/)
+## 🌟 [Try it now: Gemini Custom Character RolePlay](https://geminicharacterroleplay.netlify.app/)
 
 An interactive web application that allows users to create AI-powered characters and chat with them using Google's Gemini API. Leveraging Gemini's impressive 1 million token context window, this application provides a superior character roleplay experience with responsive interactions and consistent character behavior.
 
-![Character Roleplay Demo](https://via.placeholder.com/800x400?text=Character+Roleplay+Demo)
+![Character Roleplay Demo](https://github.com/user-attachments/assets/b955fc74-d3bf-4041-bc70-ac8f9cc0bd3b)
+
 
 ## ✨ Features
 
