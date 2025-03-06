@@ -1095,7 +1095,40 @@ button[id^="delete-msg-"] {
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* Always show delete buttons on mobile */
+/* Message editing styles */
+.message-bubble.editing {
+    padding: 8px;
+}
+
+.edit-message-textarea {
+    background-color: white;
+    color: #333;
+    font-family: inherit;
+    border-color: #d1d5db;
+    border-width: 1px;
+    transition: border-color 0.2s ease;
+}
+
+.edit-message-textarea:focus {
+    outline: none;
+    border-color: #4F46E5;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.edit-message-textarea.border-red-500 {
+    border-color: #ef4444;
+}
+
+.edit-msg-btn {
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.edit-msg-btn:hover {
+    opacity: 1;
+}
+
+/* Always show edit/delete buttons on mobile */
 @media (max-width: 768px) {
     /* Make delete buttons visible on mobile without requiring hover */
     button[id^="delete-msg-"] {
@@ -1110,6 +1143,11 @@ button[id^="delete-msg-"] {
     /* Slightly increase the size of the X icon for better tap target */
     button[id^="delete-msg-"] .fa-times {
         font-size: 0.8rem;
+    }
+    
+    /* Make edit buttons more visible on mobile */
+    .edit-msg-btn {
+        opacity: 1;
     }
 }
 

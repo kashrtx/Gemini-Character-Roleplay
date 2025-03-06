@@ -1515,6 +1515,9 @@ function createMessageHTML(message) {
     
     const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
+    // Add edited indicator if applicable
+    const editedIndicator = message.edited ? '<span class="text-xs italic ml-1">(edited)</span>' : '';
+    
     // Process markdown and sanitize HTML
     const processContent = (content) => {
         // Configure marked options for enhanced markdown support
@@ -1549,6 +1552,7 @@ function createMessageHTML(message) {
                 class="flex justify-end w-full"
                 onmouseenter="showMessageActions('${message.id}')"
                 onmouseleave="hideMessageActions('${message.id}')"
+                data-message-id="${message.id}"
             >
                 <div class="message-container-user">
                     <div class="message-bubble user-message">
@@ -1563,8 +1567,16 @@ function createMessageHTML(message) {
                         </button>
                     </div>
                     
-                    <div class="text-xs text-gray-500 mt-1 text-right mr-2">
-                        ${time}
+                    <div class="text-xs text-gray-500 mt-1 text-right mr-2 flex items-center justify-end">
+                        ${editedIndicator}
+                        <span>${time}</span>
+                        <button
+                            onclick="editMessage('${message.id}')"
+                            class="edit-msg-btn ml-2 text-gray-500 hover:text-primary"
+                            title="Edit message"
+                        >
+                            <i class="fas fa-pencil-alt text-xs"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1591,6 +1603,7 @@ function createMessageHTML(message) {
             class="flex justify-start w-full"
             onmouseenter="showMessageActions('${message.id}')"
             onmouseleave="hideMessageActions('${message.id}')"
+            data-message-id="${message.id}"
         >
             <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 ${character.profilePicture ? 'has-image' : ''}">
                 ${character.profilePicture ? 
@@ -1615,9 +1628,18 @@ function createMessageHTML(message) {
                 </div>
                 
                 <div class="flex items-center">
-                    <div class="text-xs text-gray-500 mt-1 ml-2">
-                        ${time}
+                    <div class="text-xs text-gray-500 mt-1 ml-2 flex items-center">
+                        <span>${time}</span>
+                        ${editedIndicator}
+                        <button
+                            onclick="editMessage('${message.id}')"
+                            class="edit-msg-btn ml-2 text-gray-500 hover:text-primary"
+                            title="Edit message"
+                        >
+                            <i class="fas fa-pencil-alt text-xs"></i>
+                        </button>
                     </div>
+                    
                     ${isLastCharacterMessage ? `
                     <button
                         onclick="regenerateMessage('${message.characterId}')"
@@ -1640,6 +1662,15 @@ function showMessageActions(messageId) {
         if (deleteButton) {
             deleteButton.classList.remove('hidden');
         }
+        
+        // Also show edit button with higher opacity
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const editButton = messageElement.querySelector('.edit-msg-btn');
+            if (editButton) {
+                editButton.style.opacity = '1';
+            }
+        }
     }
 }
 
@@ -1649,6 +1680,15 @@ function hideMessageActions(messageId) {
         const deleteButton = document.getElementById(`delete-msg-${messageId}`);
         if (deleteButton) {
             deleteButton.classList.add('hidden');
+        }
+        
+        // Reduce opacity of edit button
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const editButton = messageElement.querySelector('.edit-msg-btn');
+            if (editButton) {
+                editButton.style.opacity = '0.7';
+            }
         }
     }
 }
@@ -1666,6 +1706,128 @@ function deleteMessage(messageId) {
         
         // Update UI
         updateChatMessages();
+    }
+}
+
+// Start message editing mode
+function editMessage(messageId) {
+    if (!state.activeChat) return;
+    
+    const messages = state.chats[state.activeChat];
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    
+    if (messageIndex === -1) return;
+    
+    const message = messages[messageIndex];
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    
+    if (!messageElement) return;
+    
+    // Find the message content container
+    const contentContainer = messageElement.querySelector('.message-bubble');
+    if (!contentContainer) return;
+    
+    // Store original content in case user cancels
+    contentContainer.setAttribute('data-original-content', contentContainer.innerHTML);
+    
+    // Create and set up the textarea
+    const textarea = document.createElement('textarea');
+    textarea.className = 'edit-message-textarea w-full p-2 border rounded resize-y';
+    textarea.style.minHeight = '80px';
+    textarea.value = message.content; // Raw content for editing
+    
+    // Create save button
+    const saveButton = document.createElement('button');
+    saveButton.className = 'edit-save-btn bg-primary text-white px-3 py-1 rounded mt-2 text-sm';
+    saveButton.innerHTML = '<i class="fas fa-check mr-1"></i> Save';
+    saveButton.onclick = () => saveEditedMessage(messageId, textarea.value);
+    
+    // Create cancel button
+    const cancelButton = document.createElement('button');
+    cancelButton.className = 'edit-cancel-btn bg-gray-400 text-white px-3 py-1 rounded mt-2 ml-2 text-sm';
+    cancelButton.innerHTML = '<i class="fas fa-times mr-1"></i> Cancel';
+    cancelButton.onclick = () => cancelEditMessage(messageId);
+    
+    // Create button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'edit-buttons flex justify-end mt-2';
+    buttonContainer.appendChild(saveButton);
+    buttonContainer.appendChild(cancelButton);
+    
+    // Clear the content container and add the editing elements
+    contentContainer.innerHTML = '';
+    contentContainer.appendChild(textarea);
+    contentContainer.appendChild(buttonContainer);
+    
+    // Focus the textarea and place cursor at the end
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    
+    // Add editing class for styling
+    contentContainer.classList.add('editing');
+}
+
+// Cancel message editing
+function cancelEditMessage(messageId) {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    
+    if (!messageElement) return;
+    
+    const contentContainer = messageElement.querySelector('.message-bubble');
+    if (!contentContainer) return;
+    
+    // Restore original content from attribute
+    const originalContent = contentContainer.getAttribute('data-original-content');
+    if (originalContent) {
+        contentContainer.innerHTML = originalContent;
+    }
+    
+    // Remove editing class
+    contentContainer.classList.remove('editing');
+}
+
+// Save edited message
+function saveEditedMessage(messageId, newContent) {
+    if (!state.activeChat) return;
+    
+    // Trim content but keep internal whitespace
+    newContent = newContent.trim();
+    
+    // If content is empty, don't save
+    if (!newContent) {
+        // Show a quick error message
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const textarea = messageElement.querySelector('textarea');
+            if (textarea) {
+                textarea.classList.add('border-red-500');
+                setTimeout(() => {
+                    textarea.classList.remove('border-red-500');
+                }, 1500);
+            }
+        }
+        return;
+    }
+    
+    const messages = state.chats[state.activeChat];
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    
+    if (messageIndex !== -1) {
+        // Update message content
+        messages[messageIndex].content = newContent;
+        
+        // Add edited flag and timestamp
+        messages[messageIndex].edited = true;
+        messages[messageIndex].editedAt = new Date().toISOString();
+        
+        // Save to storage
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+        
+        // Update UI
+        updateChatMessages();
+        
+        // Show success message
+        showSuccess("Message updated", 1500);
     }
 }
 
