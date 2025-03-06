@@ -1643,7 +1643,7 @@ function createMessageHTML(message) {
                     ${isLastCharacterMessage ? `
                     <button
                         onclick="regenerateMessage('${message.characterId}')"
-                        class="ml-6 mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center"
+                        class="ml-2 mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center"
                     >
                         <i class="fas fa-redo-alt mr-1 text-xs"></i> Regenerate
                     </button>
@@ -1732,28 +1732,25 @@ function editMessage(messageId) {
     
     // Create and set up the textarea
     const textarea = document.createElement('textarea');
-    textarea.className = 'edit-message-textarea w-full p-3 border rounded resize-y';
-    textarea.style.minHeight = '100px';
-    textarea.style.width = '100%';
-    textarea.style.maxWidth = '600px'; // Set a maximum width
-    textarea.style.fontSize = '1rem';   // Increase font size
+    textarea.className = 'edit-message-textarea w-full p-2 border rounded resize-y';
+    textarea.style.minHeight = '80px';
     textarea.value = message.content; // Raw content for editing
     
     // Create save button
     const saveButton = document.createElement('button');
-    saveButton.className = 'edit-save-btn bg-primary text-white px-4 py-2 rounded mt-2 text-sm';
+    saveButton.className = 'edit-save-btn bg-primary text-white px-3 py-1 rounded mt-2 text-sm';
     saveButton.innerHTML = '<i class="fas fa-check mr-1"></i> Save';
     saveButton.onclick = () => saveEditedMessage(messageId, textarea.value);
     
     // Create cancel button
     const cancelButton = document.createElement('button');
-    cancelButton.className = 'edit-cancel-btn bg-gray-400 text-white px-4 py-2 rounded mt-2 ml-3 text-sm';
+    cancelButton.className = 'edit-cancel-btn bg-gray-400 text-white px-3 py-1 rounded mt-2 ml-2 text-sm';
     cancelButton.innerHTML = '<i class="fas fa-times mr-1"></i> Cancel';
     cancelButton.onclick = () => cancelEditMessage(messageId);
     
     // Create button container
     const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'edit-buttons flex justify-end mt-3';
+    buttonContainer.className = 'edit-buttons flex justify-end mt-2';
     buttonContainer.appendChild(saveButton);
     buttonContainer.appendChild(cancelButton);
     
