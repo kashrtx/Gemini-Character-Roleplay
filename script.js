@@ -27,6 +27,17 @@ function setupMobileViewportFix() {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     // Detect if we're on a mobile browser
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    // Detect non-Safari iOS browsers
+    const isNonSafariIOS = isIOS && !/Safari/.test(navigator.userAgent) || (isIOS && /CriOS|FxiOS|OPiOS|mercury|Instagram/.test(navigator.userAgent));
+    // Detect if we're on Safari
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    
+    // Add browser-specific classes to the body
+    if (isSafari) {
+        document.body.classList.add('safari');
+    } else {
+        document.body.classList.add('not-safari');
+    }
     
     if (messageInput) {
         // Handle focus events for keyboard visibility
@@ -39,17 +50,33 @@ function setupMobileViewportFix() {
                 messageContainer.style.zIndex = '1000';
             }
             
-            // For iOS browsers, we need to handle viewport height differently
-            if (isIOS) {
+            // For iOS or non-Safari browsers on iOS, we need to handle viewport height differently
+            if (isIOS || isNonSafariIOS) {
                 setTimeout(() => {
                     // Scroll to the input field
                     messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
+                    
+                    // Adjust height for non-Safari iOS browsers which have different height behavior
+                    if (isNonSafariIOS) {
+                        const chatMessages = document.getElementById('chat-messages');
+                        if (chatMessages) {
+                            chatMessages.style.maxHeight = 'calc(100vh - 180px)';
+                        }
+                    }
                 }, 300);
             }
         });
         
         messageInput.addEventListener('blur', () => {
             body.classList.remove('keyboard-visible');
+            
+            // Reset any custom styles for non-Safari iOS browsers
+            if (isNonSafariIOS) {
+                const chatMessages = document.getElementById('chat-messages');
+                if (chatMessages) {
+                    chatMessages.style.maxHeight = '';
+                }
+            }
         });
     }
     
