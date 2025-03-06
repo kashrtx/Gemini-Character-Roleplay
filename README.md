@@ -35,6 +35,12 @@ An interactive web application that allows users to create AI-powered characters
 
 - [Getting Started](#-getting-started)
 - [How to Use](#-how-to-use)
+  - [Setting Up Your API Key](#setting-up-your-api-key)
+  - [Creating Characters](#creating-characters)
+  - [Chatting with Characters](#chatting-with-characters)
+  - [Message Formatting Tips](#message-formatting-tips)
+  - [Managing Conversations](#managing-conversations)
+  - [Data Management](#data-management)
 - [Contributing](#-contributing)
 - [Browser Compatibility](#-browser-compatibility)
 - [Privacy and Security](#-privacy-and-security)
@@ -90,6 +96,17 @@ The easiest way to use the application is through the hosted version at:
 3. Click "Start Chat"
 4. Type your message in the input field and press Enter or click the send button
 5. Watch as your characters respond in real-time!
+
+### Message Formatting Tips
+
+- **Newlines**: Press Enter in the message box for a newline, then use the send button to send the message
+- **Markdown for roleplaying**:
+  - Use `*actions*` for describing physical actions (e.g., *walks into the room*)
+  - Use `__text__` for **bold emphasis**
+  - Use `## Scene` for scene descriptions or transitions
+  - Use `(p.s.)` for out-of-character notes or asides
+- **AI continuation**: Send an empty message to signal the AI to continue roleplaying autonomously until you speak again
+- **Edit message history**: Click on your previous messages to edit them, which updates the AI's memory of what was said before
 
 ### Managing Conversations
 
