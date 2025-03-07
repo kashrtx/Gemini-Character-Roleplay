@@ -1737,10 +1737,9 @@ function editMessage(messageId) {
     
     // Create and set up the textarea
     const textarea = document.createElement('textarea');
-    textarea.className = 'edit-message-textarea w-full p-3 border rounded resize-y';
-    textarea.style.minHeight = '100px';
+    textarea.className = 'edit-message-textarea p-3 border rounded resize min-w-[300px] min-h-[250px]'; // old 'edit-message-textarea w-full p-3 border rounded resize-y'
     textarea.style.width = '100%';
-    textarea.style.maxWidth = '600px'; // Set a maximum width
+    textarea.style.maxWidth = '900px'; // Set a maximum width
     textarea.style.fontSize = '1rem';   // Increase font size
     textarea.value = message.content; // Raw content for editing
     
