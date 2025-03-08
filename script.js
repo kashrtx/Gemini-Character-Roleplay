@@ -133,6 +133,7 @@ let state = {
         context: ""
     },
     lastActiveChats: {}, // Map character IDs to their last active chat IDs
+    isResponseInProgress: false, // Track if AI is currently responding
 };
 
 // Add Gemini AI SDK
@@ -550,9 +551,10 @@ function setupEventListeners() {
     const messageInput = document.getElementById('message-input');
 
     if (chatForm && messageInput) {
-        // Handle form submission
+        // Handle form submission - updated to include button state update
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
+            // Call sendMessage which will update the button state
             sendMessage();
         });
 
@@ -657,7 +659,7 @@ function setupEventListeners() {
     // Setup profile picture handlers
     setupProfilePictureHandlers();
     
-    // Setup mobile-specific focus handling
+    // Setup focus handling for mobile
     setupFocusHandling();
 }
 
@@ -1361,6 +1363,22 @@ function startChat() {
     });
     setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
     
+    // Create a welcome message for the chat if it's empty
+    if (state.chats[chatId].length === 0) {
+        const welcomeMsg = {
+            id: generateUniqueId(),
+            content: `New conversation started with ${state.activeCharacters.map(c => c.name).join(', ')}`,
+            isUser: false,
+            isSystem: true,
+            timestamp: new Date().toISOString(),
+            isDeleted: false
+        };
+        
+        // Add welcome message to the chat
+        state.chats[chatId].push(welcomeMsg);
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+    }
+    
     // Update UI - Make sure to switch to chat view first
     changeView('chat');
     updateChatUI();
@@ -1490,40 +1508,33 @@ function updateChatMessages() {
 
 function createMessageHTML(message) {
     if (message.isTyping) {
-        // Find the character for the typing indicator
-        const character = state.characters.find(c => c.id === message.characterId) || { name: 'Character' };
-        
-        // Determine how to display the character avatar
-        let avatarHTML = '';
-        if (character.profilePicture) {
-            avatarHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
-        } else {
-            avatarHTML = character.name.charAt(0).toUpperCase();
-        }
+        // Typing indicator message - always character (not user)
+        const character = state.characters.find(c => c.id === message.characterId) || { name: 'Unknown', profilePicture: null };
         
         return `
-            <div class="flex w-full mb-4">
-                <div class="character-avatar bg-primary/20 text-primary mr-3 ${character.profilePicture ? 'has-image' : ''}">
-                    ${avatarHTML}
+            <div class="flex justify-start w-full">
+                <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 ${character.profilePicture ? 'has-image' : ''}">
+                    ${character.profilePicture ? 
+                        `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">` : 
+                        character.name.charAt(0).toUpperCase()
+                    }
                 </div>
+                
+                <div class="message-container-character">
+                    <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
+                    <div class="message-bubble character-message">
                 <div class="typing-indicator">
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
     }
     
-    const character = message.isUser ? null : 
-        state.characters.find(c => c.id === message.characterId) || { name: 'Character' };
-    
-    const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    // Add edited indicator if applicable
-    const editedIndicator = message.edited ? '<span class="text-xs italic ml-1">(edited)</span>' : '';
-    
-    // Process markdown and sanitize HTML
+    // Process content with markdown
     const processContent = (content) => {
         // Configure marked options for enhanced markdown support
         marked.setOptions({
@@ -1551,7 +1562,21 @@ function createMessageHTML(message) {
     };
     
     if (message.isUser) {
+        // Check if this is the last user message
+        const isLastUserMessage = (() => {
+            if (!state.activeChat) return false;
+            const messages = state.chats[state.activeChat] || [];
+            const userMessages = messages.filter(m => 
+                m.isUser && 
+                !m.isDeleted && 
+                !m.isContinue
+            );
+            return userMessages.length > 0 && 
+                   userMessages[userMessages.length - 1].id === message.id;
+        })();
+        
         // User message - right aligned
+        // Process message content - safe to check for markdown
         return `
             <div 
                 class="flex justify-end w-full"
@@ -1572,21 +1597,43 @@ function createMessageHTML(message) {
                         </button>
                     </div>
                     
-                    <div class="text-xs text-gray-500 mt-1 text-right mr-2 flex items-center justify-end">
-                        ${editedIndicator}
-                        <span>${time}</span>
+                    <div class="flex items-center justify-end">
+                        <div class="text-xs text-gray-500 mt-1 mr-2 flex items-center">
+                            <span>
+                                ${message.edited ? 
+                                    `<span class="text-xs italic mr-1">edited</span>` : 
+                                    ''}
+                                ${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </span>
+                            
                         <button
                             onclick="editMessage('${message.id}')"
-                            class="edit-msg-btn ml-2 text-gray-500 hover:text-primary"
+                                class="ml-2 text-primary hover:text-primary/70 edit-msg-btn"
                             title="Edit message"
+                                ${!isLastUserMessage ? 'style="display: none;"' : ''}
                         >
                             <i class="fas fa-pencil-alt text-xs"></i>
                         </button>
+                        </div>
                     </div>
                 </div>
             </div>
         `;
     }
+    
+    if (message.isSystem) {
+        // System message - centered
+        return `
+            <div class="flex justify-center my-4">
+                <div class="bg-gray-100 text-gray-600 px-4 py-2 rounded-full text-sm">
+                    ${message.content}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Character message
+    const character = state.characters.find(c => c.id === message.characterId) || { name: 'Unknown', profilePicture: null };
     
     // Check if this is the last message from this character
     const isLastCharacterMessage = (() => {
@@ -1601,6 +1648,31 @@ function createMessageHTML(message) {
         return characterMessages.length > 0 && 
                characterMessages[characterMessages.length - 1].id === message.id;
     })();
+    
+    // Find the nearest user message before this one
+    const followsUserMessage = (() => {
+        if (!state.activeChat) return false;
+        const messages = state.chats[state.activeChat] || [];
+        const messageIndex = messages.findIndex(m => m.id === message.id);
+        
+        // Go backwards looking for a user message
+        for (let i = messageIndex - 1; i >= 0; i--) {
+            // If we hit another message from the same character, this doesn't follow a user message
+            if (!messages[i].isUser && messages[i].characterId === message.characterId && !messages[i].isDeleted) {
+                return false;
+            }
+            
+            // If we find a user message, this follows it
+            if (messages[i].isUser && !messages[i].isDeleted && !messages[i].isContinue) {
+                return true;
+            }
+        }
+        
+        return false;
+    })();
+    
+    // Only show regenerate on messages that follow user messages
+    const showRegenerateButton = isLastCharacterMessage && followsUserMessage;
     
     // Character message - left aligned
     return `
@@ -1634,25 +1706,32 @@ function createMessageHTML(message) {
                 
                 <div class="flex items-center">
                     <div class="text-xs text-gray-500 mt-1 ml-2 flex items-center">
-                        <span>${time}</span>
-                        ${editedIndicator}
+                        <span>
+                            ${message.edited ? 
+                                `<span class="text-xs italic mr-1">edited</span>` : 
+                                ''}
+                            ${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                        
+                        ${showRegenerateButton ? 
+                            `<button
+                                onclick="regenerateMessage('${message.characterId}')"
+                                class="ml-4 text-primary hover:text-primary/70 edit-msg-btn"
+                                title="Regenerate response"
+                            >
+                                <i class="fas fa-redo-alt text-xs"></i> <span class="text-xs">Regenerate</span>
+                            </button>` 
+                            : ''}
+                        
                         <button
                             onclick="editMessage('${message.id}')"
-                            class="edit-msg-btn ml-2 text-gray-500 hover:text-primary"
+                            class="ml-4 text-primary hover:text-primary/70 edit-msg-btn"
                             title="Edit message"
+                            ${!isLastCharacterMessage ? 'style="display: none;"' : ''}
                         >
-                            <i class="fas fa-pencil-alt text-xs"></i>
+                            <i class="fas fa-pencil-alt text-xs"></i> <span class="text-xs">Edit</span>
                         </button>
                     </div>
-                    
-                    ${isLastCharacterMessage ? `
-                    <button
-                        onclick="regenerateMessage('${message.characterId}')"
-                        class="ml-6 mt-1 text-xs text-blue-500 hover:text-blue-700 flex items-center"
-                    >
-                        <i class="fas fa-redo-alt mr-1 text-xs"></i> Regenerate
-                    </button>
-                    ` : ''}
                 </div>
             </div>
         </div>
@@ -1718,6 +1797,7 @@ function deleteMessage(messageId) {
 function editMessage(messageId) {
     if (!state.activeChat) return;
     
+    // Get message element and validate ID
     const messages = state.chats[state.activeChat];
     const messageIndex = messages.findIndex(m => m.id === messageId);
     
@@ -1725,8 +1805,35 @@ function editMessage(messageId) {
     
     const message = messages[messageIndex];
     const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-    
     if (!messageElement) return;
+    
+    // Check if this is a user message - if so, only allow editing the most recent user message
+    if (message.isUser) {
+        const userMessages = messages.filter(m => m.isUser && !m.isDeleted && !m.isContinue);
+        const isLastUserMessage = userMessages.length > 0 && 
+                               userMessages[userMessages.length - 1].id === messageId;
+                               
+        if (!isLastUserMessage) {
+            showError("You can only edit your most recent message");
+            return;
+        }
+    } else {
+        // For character messages, only allow editing the most recent message from that character
+        const characterMessages = messages.filter(m => 
+            !m.isUser && 
+            m.characterId === message.characterId && 
+            !m.isDeleted && 
+            !m.isTyping
+        );
+        
+        const isLastCharacterMessage = characterMessages.length > 0 && 
+                                    characterMessages[characterMessages.length - 1].id === messageId;
+                                    
+        if (!isLastCharacterMessage) {
+            showError("You can only edit the most recent message from this character");
+            return;
+        }
+    }
     
     // Find the message content container
     const contentContainer = messageElement.querySelector('.message-bubble');
@@ -1737,10 +1844,10 @@ function editMessage(messageId) {
     
     // Create and set up the textarea
     const textarea = document.createElement('textarea');
-    textarea.className = 'edit-message-textarea p-3 border rounded resize min-w-[300px] min-h-[250px]'; // old 'edit-message-textarea w-full p-3 border rounded resize-y'
+    textarea.className = 'edit-message-textarea p-3 border rounded resize min-w-[300px] min-h-[150px]';
     textarea.style.width = '100%';
-    textarea.style.maxWidth = '900px'; // Set a maximum width
-    textarea.style.fontSize = '1rem';   // Increase font size
+    textarea.style.maxWidth = '600px'; // Maximum width
+    textarea.style.fontSize = '1rem';   
     textarea.value = message.content; // Raw content for editing
     
     // Create save button
@@ -1777,7 +1884,6 @@ function editMessage(messageId) {
 // Cancel message editing
 function cancelEditMessage(messageId) {
     const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-    
     if (!messageElement) return;
     
     const contentContainer = messageElement.querySelector('.message-bubble');
@@ -2246,58 +2352,107 @@ async function sendMessage() {
         return;
     }
     
+    // If a response is already in progress, prevent sending another message
+    if (state.isResponseInProgress) {
+        console.log("Response is already in progress, ignoring send request");
+        return;
+    }
+    
     const messageInput = document.getElementById('message-input');
     const userMessage = messageInput.value.trim();
     
     // Clear input regardless of content
     messageInput.value = '';
     
-    // Check if we have an empty message
-    if (!userMessage) {
-        // For empty messages, we'll just trigger the AI to continue
-        // Get response from each character using async/await and Promise.all for concurrency
-        await Promise.all(state.activeCharacters.map(async (character) => {
-            // Find the last message in the chat
-            const messages = state.chats[state.activeChat] || [];
-            const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
-            
-            // Create a special "continue" message that won't be displayed
-            const continueMsg = {
+    // Set UI to show that a response is in progress
+    state.isResponseInProgress = true;
+    updateSendButtonState();
+    
+    try {
+        // Check if we have an empty message
+        if (!userMessage) {
+            // For empty messages, we'll just trigger the AI to continue
+            // Get response from each character using async/await and Promise.all for concurrency
+            await Promise.all(state.activeCharacters.map(async (character) => {
+                // Create a special "continue" message that won't be displayed
+                const continueMsg = {
+                    id: generateUniqueId(),
+                    content: "", // Empty content, just internal signal to continue
+                    isUser: true,
+                    timestamp: new Date().toISOString(),
+                    isDeleted: true, // Mark as deleted so it won't show in the UI
+                    isContinue: true // Special flag to mark this as a continue message
+                };
+                
+                // Generate a response without adding the continue message to the visible chat history
+                await getCharacterResponse(character, continueMsg);
+            }));
+        } else {
+            // Add user message
+            const userMsg = {
                 id: generateUniqueId(),
-                content: "[Continue]", // This is just for internal use
+                content: userMessage,
                 isUser: true,
                 timestamp: new Date().toISOString(),
-                isDeleted: true, // Mark as deleted so it won't show in the UI
+                isDeleted: false,
             };
             
-            // Add the hidden message to the chat history
-            if (!state.chats[state.activeChat]) {
-                state.chats[state.activeChat] = [];
-            }
-            state.chats[state.activeChat].push(continueMsg);
-            setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+            addMessage(userMsg);
             
-            // Generate a response
-            await getCharacterResponse(character, continueMsg);
-        }));
-        return;
+            // Get response from each character using async/await and Promise.all for concurrency.
+            await Promise.all(state.activeCharacters.map(async (character) => {
+                await getCharacterResponse(character, userMsg);
+            }));
+        }
+    } catch (error) {
+        console.error("Error sending message:", error);
+        showError("Failed to send message: " + error.message);
+    } finally {
+        // Always reset the response in progress state no matter what happens
+        state.isResponseInProgress = false;
+        updateSendButtonState();
+        console.log("Message send completed and UI state reset");
     }
-    
-    // Add user message
-    const userMsg = {
-        id: generateUniqueId(),
-        content: userMessage,
-        isUser: true,
-        timestamp: new Date().toISOString(),
-        isDeleted: false,
-    };
-    
-    addMessage(userMsg);
-    
-    // Get response from each character using async/await and Promise.all for concurrency.
-    await Promise.all(state.activeCharacters.map(async (character) => {
-        await getCharacterResponse(character, userMsg);
-    }));
+}
+
+// Function to update the send button state
+function updateSendButtonState() {
+    const sendButton = document.getElementById('send-message-btn');
+    if (sendButton) {
+        if (state.isResponseInProgress) {
+            // Disable the button
+            sendButton.disabled = true;
+            sendButton.classList.add('disabled');
+            sendButton.classList.add('opacity-50');
+            sendButton.classList.add('cursor-not-allowed');
+            sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            // Also disable the message input
+            const messageInput = document.getElementById('message-input');
+            if (messageInput) {
+                messageInput.disabled = true;
+                messageInput.classList.add('opacity-50');
+                messageInput.classList.add('cursor-not-allowed');
+                messageInput.placeholder = "Please wait for response...";
+            }
+        } else {
+            // Re-enable the button
+            sendButton.disabled = false;
+            sendButton.classList.remove('disabled');
+            sendButton.classList.remove('opacity-50');
+            sendButton.classList.remove('cursor-not-allowed');
+            sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+            
+            // Re-enable the message input
+            const messageInput = document.getElementById('message-input');
+            if (messageInput) {
+                messageInput.disabled = false;
+                messageInput.classList.remove('opacity-50');
+                messageInput.classList.remove('cursor-not-allowed');
+                messageInput.placeholder = "Type your message... (Enter for new line)";
+            }
+        }
+    }
 }
 
 function addMessage(message) {
@@ -2342,95 +2497,217 @@ async function getCharacterResponse(character, userMsg) {
     addMessage(typingMsg);
     
     try {
-        // Prepare context with roleplay instructions
-        const context = prepareContextForAPI(
-            character,
-            [...(state.chats[state.activeChat] || [])],
-            state.activeCharacters
-        );
-        
-        // Get the history but ensure we have at least one user message first
+        // Get the current chat history
         const chatHistory = state.chats[state.activeChat] || [];
-        const userMessages = chatHistory.filter(m => m.isUser && !m.isDeleted);
+        const visibleMessages = chatHistory.filter(m => !m.isDeleted || (m.isContinue && m === userMsg));
         
         // Check if this is a continue message
-        const isContinue = userMsg.content === "[Continue]" && userMsg.isDeleted;
+        const isContinue = userMsg.isContinue === true;
         
-        // Add special instructions for continue messages
-        let promptContext = context;
-        if (isContinue) {
-            promptContext = `${context}\n\nThe user pressed send without typing any message, which means they want you to continue the roleplay on your own. As ${character.name}, continue the conversation by advancing the scene or narrative. You should act as if the user wants you to keep roleplaying autonomously for a while. Continue from your last message and build upon the current scene naturally. Do not ask questions or wait for user input - keep the roleplay flowing by taking action or continuing dialog until the user responds with their own message.`;
-        }
+        // Check if this is the first message in the conversation
+        const userMessages = visibleMessages.filter(m => m.isUser && !m.isDeleted);
+        const isFirstMessage = userMessages.length === 0 || (userMessages.length === 1 && userMessages[0] === userMsg);
         
-        if (userMessages.length === 0 && !isContinue) {
-            console.log("No user messages yet, using a simplified approach");
-            // For the first message, we'll use a simpler approach
-            const result = await callGeminiAPI(promptContext);
+        let promptContext;
+        
+        if (isFirstMessage && !isContinue) {
+            // For the first message, we include the full character context
+            console.log("First message in conversation, using full character context");
+            promptContext = prepareContextForAPI(
+                character,
+                visibleMessages,
+                state.activeCharacters
+            );
             
-            // Remove typing indicator
-            removeTypingIndicator(typingMsg.id);
-            
-            // Add the response as a message
-            addMessage({
-                id: generateUniqueId(),
-                content: result,
-                isUser: false,
-                characterId: character.id,
-                timestamp: new Date().toISOString(),
-                isDeleted: false,
-            });
+            try {
+                // Use a simpler approach for the first message
+                const result = await callGeminiAPI(promptContext);
+                
+                // Remove typing indicator
+                removeTypingIndicator(typingMsg.id);
+                
+                // Add the response as a message
+                addMessage({
+                    id: generateUniqueId(),
+                    content: result,
+                    isUser: false,
+                    characterId: character.id,
+                    timestamp: new Date().toISOString(),
+                    isDeleted: false,
+                });
+            } catch (error) {
+                // Make sure to remove typing indicator even on error
+                removeTypingIndicator(typingMsg.id);
+                throw error; // Re-throw to be caught by outer try-catch
+            }
             
             return;
         }
         
-        // We have user messages, use the chat history approach
+        // For subsequent messages, use the conversation history approach with Gemini Chat
         console.log("Using chat history approach for response");
-        const history = convertHistoryForGemini(chatHistory, character);
         
-        // Create a chat with the history
-        const chat = state.geminiModel.startChat({
-            history: history,
-            generationConfig: {
-                temperature: appSettings.temperature,
-                maxOutputTokens: parseInt(appSettings.conversationTokens || appSettings.maxTokens), // Use conversationTokens with fallback
-                topK: appSettings.topK,
-                topP: appSettings.topP,
+        // Convert visible history for Gemini API
+        const history = convertHistoryForGemini(visibleMessages, character);
+        
+        // Log the history for debugging
+        console.log("History being sent to API:", JSON.stringify(history));
+        
+        // Check if history is valid
+        if (history.length === 0) {
+            console.warn("Empty history after conversion, falling back to basic prompt");
+            // Remove typing indicator
+            removeTypingIndicator(typingMsg.id);
+            
+            // Create a basic prompt instead
+            promptContext = prepareContextForAPI(
+                character,
+                visibleMessages,
+                state.activeCharacters
+            );
+            
+            try {
+                // Use a simpler approach as fallback
+                const result = await callGeminiAPI(promptContext);
+                
+                // Add the response as a message
+                addMessage({
+                    id: generateUniqueId(),
+                    content: result,
+                    isUser: false,
+                    characterId: character.id,
+                    timestamp: new Date().toISOString(),
+                    isDeleted: false,
+                });
+                return;
+            } catch (error) {
+                throw new Error("Failed to get response with fallback method: " + error.message);
             }
-        });
-        
-        // Remove typing indicator
-        removeTypingIndicator(typingMsg.id);
-        
-        // Prepare for the new response
-        let fullResponse = "";
-        const responseMsg = {
-            id: generateUniqueId(),
-            content: "",
-            isUser: false,
-            characterId: character.id,
-            timestamp: new Date().toISOString(),
-            isDeleted: false,
-        };
-        
-        // Add the initial empty message
-        addMessage(responseMsg);
-        
-        // Send the message and stream the response
-        const result = await chat.sendMessageStream(promptContext);
-        
-        for await (const chunk of result.stream) {
-            const chunkText = chunk.text();
-            fullResponse += chunkText; // Accumulate the response
-
-            // Update the message with the latest chunk
-            updateMessageContent(responseMsg.id, fullResponse);
         }
         
-        console.log("Full response complete, length:", fullResponse.length);
+        // Get character-specific instructions without sending the full context again
+        let instructions = "";
+        
+        if (isContinue) {
+            // Special instructions for continue messages
+            instructions = `The user pressed send without typing any message, which means they want you to continue the roleplay on your own. 
+As ${character.name}, continue the conversation by advancing the scene or narrative naturally. 
+Keep roleplaying autonomously, continuing from your last message. 
+Do not acknowledge this as a command or mention that the user sent an empty message.`;
+        } else {
+            // Regular instructions - just a reminder about the character
+            instructions = `Remember that you are roleplaying as ${character.name}. 
+Stay in character and respond naturally to the user's message.`;
+        }
+        
+        try {
+            // Create a chat with the history
+            const chat = state.geminiModel.startChat({
+                history: history,
+                generationConfig: {
+                    temperature: appSettings.temperature,
+                    maxOutputTokens: parseInt(appSettings.conversationTokens || appSettings.maxTokens), // Use conversationTokens with fallback
+                    topK: appSettings.topK,
+                    topP: appSettings.topP,
+                }
+            });
+            
+            // Important: First remove the typing indicator before adding the empty message
+            removeTypingIndicator(typingMsg.id);
+            
+            // Prepare for the new response
+            let fullResponse = "";
+            const responseMsg = {
+                id: generateUniqueId(),
+                content: "",
+                isUser: false,
+                characterId: character.id,
+                timestamp: new Date().toISOString(),
+                isDeleted: false,
+            };
+            
+            // Add the initial empty message
+            addMessage(responseMsg);
+            
+            // If this is a continue message, don't add the user's empty message to the history
+            if (isContinue) {
+                // For continue, we don't need to send the empty message content
+                const result = await chat.sendMessageStream(instructions);
+                
+                for await (const chunk of result.stream) {
+                    const chunkText = chunk.text();
+                    fullResponse += chunkText;
+                    updateMessageContent(responseMsg.id, fullResponse);
+                }
+            } else {
+                // For regular messages, send both the context reminder and the user's message
+                const result = await chat.sendMessageStream(instructions);
+                
+                for await (const chunk of result.stream) {
+                    const chunkText = chunk.text();
+                    fullResponse += chunkText;
+                    updateMessageContent(responseMsg.id, fullResponse);
+                }
+            }
+            
+            console.log("Full response complete, length:", fullResponse.length);
+        } catch (error) {
+            // Handle specific API errors
+            if (error.message && error.message.includes('First content should be with role')) {
+                console.error("History format error:", error.message);
+                
+                // Try a simplified approach
+                removeTypingIndicator(typingMsg.id);
+                
+                try {
+                    // Fallback to a simple prompt
+                    const simplePrompt = `${prepareContextForAPI(character, [], state.activeCharacters)}
+                    
+Recent conversation summary: 
+The user most recently said: "${userMsg.content}"
+
+Please respond as ${character.name} to this message.`;
+                    
+                    const result = await callGeminiAPI(simplePrompt);
+                    
+                    // Add the response as a message
+                    addMessage({
+                        id: generateUniqueId(),
+                        content: result,
+                        isUser: false,
+                        characterId: character.id,
+                        timestamp: new Date().toISOString(),
+                        isDeleted: false,
+                    });
+                    return;
+                } catch (fallbackError) {
+                    throw new Error("History format error. Even fallback approach failed: " + fallbackError.message);
+                }
+            }
+            
+            // Remove typing indicator even on error
+            removeTypingIndicator(typingMsg.id);
+            throw error; // Re-throw to be caught by outer try-catch
+        }
     } catch (error) {
         console.error("Error getting character response:", error);
-        showError(`Failed to get response: ${error.message}`);
+        let errorMessage = error.message;
+        
+        // Provide more user-friendly error message for common issues
+        if (errorMessage.includes('First content should be with role')) {
+            errorMessage = "Message history format error. Try starting a new conversation.";
+        } else if (errorMessage.includes('API key')) {
+            errorMessage = "API key error. Please check your API key in settings.";
+        }
+        
+        showError(`Failed to get response: ${errorMessage}`);
+        
+        // Make sure to remove the typing indicator even if there's an error
         removeTypingIndicator(typingMsg.id);
+        
+        // Ensure the button is re-enabled even when there's an error
+        state.isResponseInProgress = false;
+        updateSendButtonState();
     }
 }
         
@@ -2490,9 +2767,9 @@ ROLEPLAY INSTRUCTIONS:
 - Engage with the user's personality and context in a way that feels natural to your character.
 - When the user sends an empty message, it means they want you to continue roleplaying autonomously - advance the scene, take action, or continue dialog without waiting for user input.
 - Always read and reference your previous messages to maintain continuity when self-roleplaying after empty user messages.
-- You can use markdown formatting: *italics* for emphasis or actions, and  __bold__ for strong emphasis or important statements. ## For stating setting or time.
-- Note that **bold** does not work since it gets confused with italitcs, so just use __bold__
-- IMPORTANT: Keep your responses to approximately ${wordLimit} words or fewer to fit within the token limit of ${appSettings.conversationTokens} tokens.`;
+- Use markdown formatting: *italics* for emphasis or actions, and __bold__ for strong emphasis or important statements. ## For stating setting or time.
+- Note that **bold** does not work since it gets confused with italics, so just use __bold__
+- Keep your responses concise but immersive, aiming for 1-3 paragraphs.`;
 
     // Add group chat context if needed
     if (activeCharacters.length > 1) {
@@ -2523,8 +2800,8 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
 
     // First, check if there's at least one user message in the history
     for (const msg of chatHistory) {
-        // Count both regular user messages and [Continue] messages
-        if (msg.isUser && (!msg.isDeleted || msg.content === "[Continue]")) {
+        // Only count regular user messages, not continue messages
+        if (msg.isUser && !msg.isDeleted && !msg.isContinue) {
             hasUserMessage = true;
             break;
         }
@@ -2536,26 +2813,77 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
         return [];
     }
 
-    // Process each message
-    for (const msg of chatHistory) {
-        // Skip typing indicators and deleted messages that are not [Continue] messages
-        if (msg.isTyping || (msg.isDeleted && msg.content !== "[Continue]")) continue; 
+    // Filter relevant messages
+    const relevantMessages = chatHistory.filter(msg => {
+        // Skip typing indicators and deleted messages that are not continue messages
+        if (msg.isTyping || (msg.isDeleted && !msg.isContinue)) return false; 
+        
+        // Skip continue messages in the history - they're only for triggering responses
+        if (msg.isContinue) return false;
+        
+        // Only include user messages and messages from this character
+        return msg.isUser || msg.characterId === currentCharacter.id;
+    });
 
-        // Determine message role
-        let role = "";
-        if (msg.isUser) {
-            role = "user";
-        } else if (msg.characterId === currentCharacter.id) {
-            role = "model";
+    // Check if the first message would be from the model (not user)
+    // If so, we need to make sure a user message comes first
+    const firstMessageIsModel = relevantMessages.length > 0 && !relevantMessages[0].isUser;
+    
+    if (firstMessageIsModel) {
+        // Find the first user message
+        const firstUserMessage = relevantMessages.find(msg => msg.isUser);
+        if (firstUserMessage) {
+            // Start with a user message to avoid the API error
+            formattedHistory.push({
+                role: "user",
+                parts: [{ text: firstUserMessage.content }]
+            });
+            
+            // Now add all messages in order, skipping the user message we just added
+            for (const msg of relevantMessages) {
+                if (msg.id === firstUserMessage.id) continue; // Skip the one we already added
+                
+                if (msg.isUser) {
+                    formattedHistory.push({
+                        role: "user",
+                        parts: [{ text: msg.content }]
+                    });
+                } else if (msg.characterId === currentCharacter.id) {
+                    formattedHistory.push({
+                        role: "model",
+                        parts: [{ text: msg.content }]
+                    });
+                }
+            }
         } else {
-            console.log("Skipping message from other character:", msg);
-            continue; // Don't include messages from other characters in *this* character's history.
+            // This shouldn't happen since we checked hasUserMessage above, but just in case
+            console.warn("First message is from model but no user messages found");
+            return [];
         }
+    } else {
+        // Normal processing - messages are already in correct order
+        for (const msg of relevantMessages) {
+            if (msg.isUser) {
+                formattedHistory.push({
+                    role: "user",
+                    parts: [{ text: msg.content }]
+                });
+            } else if (msg.characterId === currentCharacter.id) {
+                formattedHistory.push({
+                    role: "model",
+                    parts: [{ text: msg.content }]
+                });
+            }
+        }
+    }
 
-        // Add to formatted history
+    // Make sure we end with a user message for proper API interaction
+    if (formattedHistory.length > 0 && formattedHistory[formattedHistory.length - 1].role === "model") {
+        console.log("Warning: History would end with a model message. Adding a placeholder user message.");
+        // Add a simple user acknowledgment message
         formattedHistory.push({
-            role: role,
-            parts: [{ text: msg.content }],
+            role: "user",
+            parts: [{ text: "..." }]
         });
     }
 
@@ -2742,18 +3070,12 @@ function testSendMessage() {
             // Create a special "continue" message that won't be displayed
             const continueMsg = {
                 id: generateUniqueId(),
-                content: "[Continue]", // This is just for internal use
+                content: "",
                 isUser: true,
                 timestamp: new Date().toISOString(),
                 isDeleted: true, // Mark as deleted so it won't show in the UI
+                isContinue: true // Special flag to mark this as a continue message
             };
-            
-            // Add the hidden message to the chat history
-            if (!state.chats[state.activeChat]) {
-                state.chats[state.activeChat] = [];
-            }
-            state.chats[state.activeChat].push(continueMsg);
-            setStoredItem(STORAGE_KEYS.CHATS, state.chats);
             
             // Add a delay to simulate thinking
             setTimeout(() => {
@@ -2822,8 +3144,7 @@ async function getTestCharacterResponse(character, customResponse = null) {
     
     // Check if this is a continue message
     const isContinue = userMessages.length > 0 && 
-                      userMessages[userMessages.length - 1]?.content === "[Continue]" &&
-                      userMessages[userMessages.length - 1]?.isDeleted;
+                       userMessages[userMessages.length - 1]?.isContinue === true;
     
     // If a custom response was provided, use that instead of generating one
     if (customResponse) {
@@ -3559,11 +3880,29 @@ async function regenerateMessage(characterId) {
     const character = state.characters.find(c => c.id === characterId);
     if (!character) return;
     
-    // Find the last user message for context
-    const userMessages = messages.filter(m => m.isUser && !m.isDeleted);
-    if (userMessages.length === 0) return;
+    // Find the message before this one to determine the user message that triggered it
+    const messageIndex = messages.findIndex(m => m.id === lastMessage.id);
     
-    const lastUserMsg = userMessages[userMessages.length - 1];
+    // Find the last user message that was sent before this AI message
+    let lastUserMsg = null;
+    for (let i = messageIndex - 1; i >= 0; i--) {
+        if (messages[i].isUser && !messages[i].isDeleted && !messages[i].isContinue) {
+            lastUserMsg = messages[i];
+            break;
+        }
+    }
+    
+    // If no user message was found, create a special "regenerate" message
+    if (!lastUserMsg) {
+        lastUserMsg = {
+            id: generateUniqueId(),
+            content: "", // Empty content for regeneration
+            isUser: true,
+            timestamp: new Date().toISOString(),
+            isDeleted: true, // Hidden from the UI
+            isContinue: true // Treat like a continue message for regeneration
+        };
+    }
     
     // Generate a new response
     await getCharacterResponse(character, lastUserMsg);
