@@ -2510,6 +2510,39 @@ async function getCharacterResponse(character, userMsg) {
         
         let promptContext;
         
+        if (isFirstMessage && !isContinue) {
+            // For the first message, we include the full character context
+            console.log("First message in conversation, using full character context");
+            promptContext = prepareContextForAPI(
+                character,
+                visibleMessages,
+                state.activeCharacters
+            );
+            
+            try {
+                // Use a simpler approach for the first message
+                const result = await callGeminiAPI(promptContext);
+                
+                // Remove typing indicator
+                removeTypingIndicator(typingMsg.id);
+                
+                // Add the response as a message
+                addMessage({
+                    id: generateUniqueId(),
+                    content: result,
+                    isUser: false,
+                    characterId: character.id,
+                    timestamp: new Date().toISOString(),
+                    isDeleted: false,
+                });
+            } catch (error) {
+                // Make sure to remove typing indicator even on error
+                removeTypingIndicator(typingMsg.id);
+                throw error; // Re-throw to be caught by outer try-catch
+            }
+            
+            return;
+        }
         
         // For subsequent messages, use the conversation history approach with Gemini Chat
         console.log("Using chat history approach for response");
