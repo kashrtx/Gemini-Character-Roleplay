@@ -1649,6 +1649,22 @@ function createMessageHTML(message) {
                characterMessages[characterMessages.length - 1].id === message.id;
     })();
     
+    // Check if there are any user messages after this one
+    const isFollowedByUserMessage = (() => {
+        if (!state.activeChat) return false;
+        const messages = state.chats[state.activeChat] || [];
+        const messageIndex = messages.findIndex(m => m.id === message.id);
+        
+        // Check if there are any user messages after this one
+        for (let i = messageIndex + 1; i < messages.length; i++) {
+            if (messages[i].isUser && !messages[i].isDeleted) {
+                return true;
+            }
+        }
+        
+        return false;
+    })();
+    
     // Find the nearest user message before this one
     const followsUserMessage = (() => {
         if (!state.activeChat) return false;
@@ -1662,8 +1678,8 @@ function createMessageHTML(message) {
                 return false;
             }
             
-            // If we find a user message, this follows it
-            if (messages[i].isUser && !messages[i].isDeleted && !messages[i].isContinue) {
+            // If we find a user message, this follows it - now we include continue messages (removing !messages[i].isContinue)
+            if (messages[i].isUser && !messages[i].isDeleted) {
                 return true;
             }
         }
@@ -1671,8 +1687,8 @@ function createMessageHTML(message) {
         return false;
     })();
     
-    // Only show regenerate on messages that follow user messages
-    const showRegenerateButton = isLastCharacterMessage && followsUserMessage;
+    // Show regenerate button only on the last character message AND if there are no user messages after it
+    const showRegenerateButton = isLastCharacterMessage && !isFollowedByUserMessage;
     
     // Character message - left aligned
     return `
@@ -3889,10 +3905,10 @@ async function regenerateMessage(characterId) {
     // Find the message before this one to determine the user message that triggered it
     const messageIndex = messages.findIndex(m => m.id === lastMessage.id);
     
-    // Find the last user message that was sent before this AI message
+    // Find the last user message that was sent before this AI message, including continue messages
     let lastUserMsg = null;
     for (let i = messageIndex - 1; i >= 0; i--) {
-        if (messages[i].isUser && !messages[i].isDeleted && !messages[i].isContinue) {
+        if (messages[i].isUser && !messages[i].isDeleted) {
             lastUserMsg = messages[i];
             break;
         }
