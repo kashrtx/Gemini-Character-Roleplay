@@ -2769,7 +2769,13 @@ ROLEPLAY INSTRUCTIONS:
 - Always read and reference your previous messages to maintain continuity when self-roleplaying after empty user messages.
 - Use markdown formatting: *italics* for emphasis or actions, and __bold__ for strong emphasis or important statements. ## For stating setting or time.
 - Note that **bold** does not work since it gets confused with italics, so just use __bold__
-- Keep your responses concise but immersive, aiming for 1-3 paragraphs.`;
+- Keep your responses concise but immersive, aiming for 1-3 paragraphs.
+- React to silence or (continue...) by:
+  • Continuing your previous thought
+  • Taking initiative in the conversation 
+  • Describing your actions or emotions
+  • Asking questions or changing topics
+  • Moving the scene forward naturally`;
 
     // Add group chat context if needed
     if (activeCharacters.length > 1) {
