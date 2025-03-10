@@ -420,6 +420,23 @@ main {
     word-break: break-word; /* Prevents text from going vertical */
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     display: inline-block; /* Ensures message stays inline */
+    opacity: 1;
+}
+
+/* Only animate new messages */
+.message-bubble.new-message {
+    animation: messageAppear 0.2s ease-out;
+}
+
+@keyframes messageAppear {
+    from {
+        opacity: 0;
+        transform: translateY(3px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Markdown styles in messages */
@@ -1537,4 +1554,90 @@ button[id^="delete-msg-"] {
         opacity: 0 !important;
         pointer-events: none !important;
     }
+}
+
+/* Roleplay-specific styling for natural character interactions */
+.roleplay-action {
+    color: #6b7280;
+    font-style: italic;
+    display: inline-block;
+}
+
+.scene-transition {
+    font-weight: 500;
+    color: #4b5563;
+    text-align: center;
+    border-top: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.5rem 0;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+    background-color: #f9fafb;
+}
+
+.ooc-comment {
+    opacity: 0.7;
+    font-size: 0.9em;
+    color: #6b7280;
+    font-style: italic;
+    display: inline-block;
+}
+
+/* Character typing indicator enhancements */
+.typing-indicator {
+    display: flex;
+    background-color: #f3f4f6;
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    margin-top: 0.25rem;
+    max-width: 5rem;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Improved continue indicator */
+.system-continue-indicator {
+    font-size: 0.8rem;
+    color: #6b7280;
+    text-align: center;
+    opacity: 0.7;
+    margin: 0.5rem 0;
+    animation: fadeInOut 1.5s ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; }
+    50% { opacity: 0.7; }
+    100% { opacity: 0; }
+}
+
+/* Enhance character and user message distinction */
+.user-message {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.character-message {
+    background-color: #f3f4f6;
+    color: #111827;
+}
+
+/* Improve natural conversation flow with message spacing */
+.message-container-character + .message-container-character,
+.message-container-user + .message-container-user {
+    margin-top: 0.25rem;
+}
+
+.message-container-character + .message-container-user,
+.message-container-user + .message-container-character {
+    margin-top: 1rem;
+}
+
+/* Character avatar enhancements */
+.character-avatar {
+    transition: transform 0.2s ease;
+}
+
+.character-avatar:hover {
+    transform: scale(1.05);
 }

@@ -1365,6 +1365,7 @@ function startChat() {
     
     // Create a welcome message for the chat if it's empty
     if (state.chats[chatId].length === 0) {
+        // Add greeting message to the chat
         const welcomeMsg = {
             id: generateUniqueId(),
             content: `New conversation started with ${state.activeCharacters.map(c => c.name).join(', ')}`,
@@ -1377,6 +1378,32 @@ function startChat() {
         // Add welcome message to the chat
         state.chats[chatId].push(welcomeMsg);
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+        
+        // For new conversations, let the character initialize with a greeting
+        // But only do this if we're connected to the API
+        if (state.isApiConnected && state.activeCharacters.length === 1) {
+            // Update UI first
+            changeView('chat');
+            updateChatUI();
+            
+            // Wait a moment for UI to update before triggering greeting
+            setTimeout(() => {
+                const character = state.activeCharacters[0];
+                
+                // Create a special init message that won't be displayed
+                const initMsg = {
+                    id: generateUniqueId(),
+                    content: "Hello",
+                    isUser: true,
+                    timestamp: new Date().toISOString(),
+                    isDeleted: true, // Won't be shown in UI
+                    isInitializing: true // Special flag for first-time greeting
+                };
+                
+                // Generate character's greeting (async)
+                getCharacterResponse(character, initMsg);
+            }, 500);
+        }
     }
     
     // Update UI - Make sure to switch to chat view first
@@ -1544,10 +1571,29 @@ function createMessageHTML(message) {
             mangle: false // Disable mangle for security
         });
 
-        // Convert *text* to italics for actions, but preserve other markdown
-        content = content.replace(/\*((?!\*)[^*]+)\*/g, '_$1_');
+        // Custom processing for roleplay-specific formats
         
-        // Parse markdown
+        // Handle *actions* formatting by converting to italics with special styling
+        content = content.replace(/\*((?!\*)[^*]+)\*/g, (match, action) => {
+            // Clean up nested asterisks if any
+            action = action.replace(/\*/g, '');
+            return `<em class="roleplay-action">${action}</em>`;
+        });
+        
+        // Handle ##Scene descriptions## for scene transitions
+        content = content.replace(/##\s*([^#]+)\s*##/g, (match, scene) => {
+            return `<div class="scene-transition">${scene}</div>`;
+        });
+        
+        // Handle (OOC: text) for out-of-character comments
+        content = content.replace(/\((?:OOC|ooc|p\.s\.):\s*([^)]+)\)/g, (match, ooc) => {
+            return `<span class="ooc-comment">(OOC: ${ooc})</span>`;
+        });
+        
+        // Handle __bold text__ for emphasis
+        content = content.replace(/__((?!\s)[^_]+)__/g, '<strong>$1</strong>');
+        
+        // Parse markdown with the custom replacements
         const rawHtml = marked.parse(content);
         
         // Sanitize HTML with expanded tag support
@@ -1555,9 +1601,10 @@ function createMessageHTML(message) {
             ALLOWED_TAGS: [
                 'em', 'strong', 'code', 'br', 'p', 'ul', 'ol', 'li', 
                 'blockquote', 'i', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                'pre', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td'
+                'pre', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                'div', 'span'
             ],
-            ALLOWED_ATTR: ['class']
+            ALLOWED_ATTR: ['class', 'style']
         });
     };
     
@@ -1622,7 +1669,18 @@ function createMessageHTML(message) {
     }
     
     if (message.isSystem) {
-        // System message - centered
+        // Special styling for continue indicator
+        if (message.content === "...") {
+            return `
+                <div class="flex justify-center my-2">
+                    <div class="system-continue-indicator">
+                        <i class="fas fa-ellipsis-h mr-1"></i> Continuing conversation...
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Regular system message
         return `
             <div class="flex justify-center my-4">
                 <div class="bg-gray-100 text-gray-600 px-4 py-2 rounded-full text-sm">
@@ -2387,7 +2445,49 @@ async function sendMessage() {
     try {
         // Check if we have an empty message
         if (!userMessage) {
-            // For empty messages, we'll just trigger the AI to continue
+            // Check if there's been at least one exchange (user and character) before allowing continue
+            const hasExchanges = (() => {
+                if (!state.activeChat) return false;
+                const messages = state.chats[state.activeChat] || [];
+                const userMsgs = messages.filter(m => m.isUser && !m.isDeleted && !m.isContinue);
+                const charMsgs = messages.filter(m => !m.isUser && !m.isDeleted && !m.isSystem);
+                
+                return userMsgs.length > 0 && charMsgs.length > 0;
+            })();
+            
+            if (!hasExchanges) {
+                showError("Please start the conversation before using the 'continue' feature");
+                state.isResponseInProgress = false;
+                updateSendButtonState();
+                return;
+            }
+            
+            // For empty messages, add a subtle system message indicating the continue action
+            const continueSystemMsg = {
+                id: generateUniqueId(),
+                content: "...",
+                isUser: false,
+                isSystem: true,
+                timestamp: new Date().toISOString(),
+                isDeleted: false
+            };
+            
+            // Add this subtle indicator to the UI but mark it for auto-removal
+            addMessage(continueSystemMsg);
+            
+            // Remove the system message after a short delay
+            setTimeout(() => {
+                if (state.activeChat) {
+                    const messages = state.chats[state.activeChat];
+                    const msgIndex = messages.findIndex(m => m.id === continueSystemMsg.id);
+                    if (msgIndex !== -1) {
+                        messages[msgIndex].isDeleted = true;
+                        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+                        updateChatMessages();
+                    }
+                }
+            }, 1500);
+            
             // Get response from each character using async/await and Promise.all for concurrency
             await Promise.all(state.activeCharacters.map(async (character) => {
                 // Create a special "continue" message that won't be displayed
@@ -2415,7 +2515,7 @@ async function sendMessage() {
             
             addMessage(userMsg);
             
-            // Get response from each character using async/await and Promise.all for concurrency.
+            // Get response from each character using async/await and Promise.all for concurrency
             await Promise.all(state.activeCharacters.map(async (character) => {
                 await getCharacterResponse(character, userMsg);
             }));
@@ -2497,32 +2597,51 @@ function addMessage(message) {
 }
 
 async function getCharacterResponse(character, userMsg) {
-    console.log("Getting response from character:", character.name);
-    
-    // Add typing indicator
-    const typingMsg = {
-        id: generateUniqueId(),
-        content: "typing...",
-        isUser: false,
-        characterId: character.id,
-        timestamp: new Date().toISOString(),
-        isTyping: true,
-        isDeleted: false,
-    };
-    
-    addMessage(typingMsg);
+    if (!state.activeChat) return;
     
     try {
-        // Get the current chat history
-        const chatHistory = state.chats[state.activeChat] || [];
-        const visibleMessages = chatHistory.filter(m => !m.isDeleted || (m.isContinue && m === userMsg));
-        
-        // Check if this is a continue message
-        const isContinue = userMsg.isContinue === true;
+        // Get visible messages for context (excluding any that are marked as deleted)
+        const visibleMessages = state.chats[state.activeChat].filter(m => !m.isDeleted);
         
         // Check if this is the first message in the conversation
-        const userMessages = visibleMessages.filter(m => m.isUser && !m.isDeleted);
-        const isFirstMessage = userMessages.length === 0 || (userMessages.length === 1 && userMessages[0] === userMsg);
+        const isFirstMessage = (() => {
+            const characterMessages = visibleMessages.filter(m => 
+                !m.isUser && 
+                m.characterId === character.id && 
+                !m.isSystem && 
+                !m.isTyping
+            );
+            return characterMessages.length === 0;
+        })();
+        
+        // Check if this is a continue message
+        const isContinue = userMsg && userMsg.isContinue === true;
+        
+        // Add typing indicator for better UX
+        const typingMsg = {
+            id: generateUniqueId(),
+            content: "",
+            isUser: false,
+            characterId: character.id,
+            timestamp: new Date().toISOString(),
+            isTyping: true,
+            isDeleted: false
+        };
+        
+        // Add the typing indicator
+        addMessage(typingMsg);
+        
+        // Simulate a minimal typing delay based on character and context
+        // This makes the interaction feel more natural
+        const minTypingDelay = 500; // base minimum delay
+        
+        // Calculate a more natural variable typing delay based on message complexity
+        // Consider character complexity, previous message length, and a bit of randomness
+        const baseDelay = Math.max(minTypingDelay, Math.min(2000, visibleMessages.length * 100));
+        const randomVariation = Math.floor(Math.random() * 800) - 400; // -400 to +400ms variation
+        const typingDelay = Math.max(minTypingDelay, baseDelay + randomVariation);
+        
+        await new Promise(resolve => setTimeout(resolve, typingDelay));
         
         let promptContext;
         
@@ -2601,10 +2720,16 @@ async function getCharacterResponse(character, userMsg) {
             }
         }
         
-        // Get character-specific instructions without sending the full context again
+        // Get character-specific instructions without sending the full context
         let instructions = "";
-        
-        if (isContinue) {
+
+        if (userMsg.isInitializing) {
+            // Special instructions for first-time greeting
+            instructions = `You are ${character.name}. This is the start of a new conversation with the user.
+Introduce yourself briefly in a way that's true to your character's personality and background.
+Keep it relatively short (1-2 paragraphs) and inviting to encourage the user to respond.
+Don't address the user by name unless they've already told you their name.`;
+        } else if (isContinue) {
             // Special instructions for continue messages
             instructions = `The user pressed send without typing any message, which means they want you to continue the roleplay on your own. 
 As ${character.name}, continue the conversation by advancing the scene or narrative naturally. 
@@ -2645,28 +2770,75 @@ Stay in character and respond naturally to the user's message.`;
             // Add the initial empty message
             addMessage(responseMsg);
             
-            // If this is a continue message, don't add the user's empty message to the history
-            if (isContinue) {
-                // For continue, we don't need to send the empty message content
-                const result = await chat.sendMessageStream(instructions);
-                
-                for await (const chunk of result.stream) {
-                    const chunkText = chunk.text();
-                    fullResponse += chunkText;
-                    updateMessageContent(responseMsg.id, fullResponse);
-                }
-            } else {
-                // For regular messages, send both the context reminder and the user's message
-                const result = await chat.sendMessageStream(instructions);
-                
-                for await (const chunk of result.stream) {
-                    const chunkText = chunk.text();
-                    fullResponse += chunkText;
-                    updateMessageContent(responseMsg.id, fullResponse);
-                }
-            }
+            // Determine typing speed based on character personality
+            // This makes characters with verbose personalities type slower than terse ones
+            const baseCharSpeed = character.enhancedContext ? 
+                (character.enhancedContext.includes("talkative") || 
+                 character.enhancedContext.includes("verbose") ? 30 : 50) : 40;
             
-            console.log("Full response complete, length:", fullResponse.length);
+            // Track the last update time for natural typing simulation
+            let lastUpdateTime = Date.now();
+            let accumulatedText = "";
+            
+            // Function to simulate natural typing behavior
+            const updateWithTypingEffect = (newText) => {
+                const now = Date.now();
+                const elapsed = now - lastUpdateTime;
+                accumulatedText += newText;
+                
+                // Only update the UI if enough time has passed or we have accumulated enough text
+                // This prevents too many rapid DOM updates
+                if (elapsed > 100 || accumulatedText.length >= 20) {
+                    fullResponse += accumulatedText;
+                    updateMessageContent(responseMsg.id, fullResponse);
+                    lastUpdateTime = now;
+                    accumulatedText = "";
+                }
+            };
+            
+            try {
+                // For continue or initial greeting, use the special instructions
+                if (isContinue || userMsg.isInitializing) {
+                    const result = await chat.sendMessageStream(instructions);
+                    
+                    for await (const chunk of result.stream) {
+                        const chunkText = chunk.text();
+                        updateWithTypingEffect(chunkText);
+                    }
+                } else {
+                    // For regular messages, send both the context reminder and the user's message
+                    const result = await chat.sendMessageStream(instructions);
+                    
+                    for await (const chunk of result.stream) {
+                        const chunkText = chunk.text();
+                        updateWithTypingEffect(chunkText);
+                    }
+                }
+                
+                // Make sure to flush any remaining accumulated text
+                if (accumulatedText) {
+                    fullResponse += accumulatedText;
+                    updateMessageContent(responseMsg.id, fullResponse);
+                }
+                
+                console.log("Full response complete, length:", fullResponse.length);
+            } catch (error) {
+                // If streaming fails, try to complete the message to avoid leaving it blank
+                console.error("Stream error:", error);
+                if (fullResponse.length < 10) {
+                    // If we've barely started, try to get at least something to display
+                    try {
+                        const emergencyResponse = await callGeminiAPI(
+                            `As ${character.name}, please respond to: "${userMsg.content || 'Continue the conversation'}" (Keep it brief and in character)`
+                        );
+                        updateMessageContent(responseMsg.id, emergencyResponse);
+                    } catch (fallbackError) {
+                        // If even that fails, add an apologetic message
+                        updateMessageContent(responseMsg.id, `*${character.name} seems unable to respond at the moment*`);
+                    }
+                }
+                throw error; // Still throw the error for the outer catch block
+            }
         } catch (error) {
             // Handle specific API errors
             if (error.message && error.message.includes('First content should be with role')) {
@@ -2677,10 +2849,11 @@ Stay in character and respond naturally to the user's message.`;
                 
                 try {
                     // Fallback to a simple prompt
-                    const simplePrompt = `${prepareContextForAPI(character, [], state.activeCharacters)}
-                    
+                    const simplePrompt = `You are roleplaying as ${character.name}. 
+${character.enhancedContext ? character.enhancedContext : character.userContext}
+
 Recent conversation summary: 
-The user most recently said: "${userMsg.content}"
+The user most recently said: "${userMsg.content || 'Please continue the conversation'}"
 
 Please respond as ${character.name} to this message.`;
                     
@@ -2714,6 +2887,10 @@ Please respond as ${character.name} to this message.`;
             errorMessage = "Message history format error. Try starting a new conversation.";
         } else if (errorMessage.includes('API key')) {
             errorMessage = "API key error. Please check your API key in settings.";
+        } else if (errorMessage.includes('quota')) {
+            errorMessage = "API quota exceeded. Please try again later or check your Gemini API usage limits.";
+        } else if (errorMessage.includes('safety') || errorMessage.includes('blocked')) {
+            errorMessage = "The response was blocked by content safety filters. Try rephrasing your message.";
         }
         
         showError(`Failed to get response: ${errorMessage}`);
@@ -2761,46 +2938,78 @@ function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
     const wordLimit = Math.floor(appSettings.conversationTokens * 0.75);
     
     // Base context with character information and roleplay instructions
-    let context = `You are now roleplaying as ${character.name}. This is NOT a simulation. You ARE ${character.name}. 
-Your responses should maintain the character's personality, speech patterns, and knowledge at all times. Do not mention or confirm that you are an AI at all!
-Do not start your response with something like "As ${character.name}," or "As an AI," or anything similar. Just start with the response and stay in character.
+    let context = `You are ${character.name}. You must maintain your character's personality and traits at all times.
 
 CHARACTER PROFILE:
-Name of character: ${character.name}
 ${character.enhancedContext 
-    ? `Enhanced Character Profile: ${character.enhancedContext}\n`
-    : `Character Description: ${character.userContext}\n`}
+    ? character.enhancedContext
+    : character.userContext}
 
-USER PROFILE (the user chatting with you):
-${state.personalContext.name ? `Name: ${state.personalContext.name}\n` : ''}
-${state.personalContext.personality ? `Personality: ${state.personalContext.personality}\n` : ''}
-${state.personalContext.context ? `Additional Context: ${state.personalContext.context}\n` : ''}
+${state.personalContext.name || state.personalContext.personality || state.personalContext.context ? `ABOUT THE PERSON YOU ARE TALKING TO:
+${state.personalContext.name ? `Their name is ${state.personalContext.name}. Always use their name when appropriate.` : ''}
+${state.personalContext.personality ? `\nTheir personality: ${state.personalContext.personality}` : ''}
+${state.personalContext.context ? `\nAdditional context about them: ${state.personalContext.context}` : ''}\n` : ''}
 
-ROLEPLAY INSTRUCTIONS:
-- Stay in character at all times, like don't fix glasses cause your character does not wear them. Though you can naturally change depending on how the story progresses.
-- Respond naturally as your character would in the source material to the user based on their personality and context.
-- Maintain consistent personality, knowledge, and speech patterns.
-- Engage with the user's personality and context in a way that feels natural to your character.
-- When the user sends an empty message, it means they want you to continue roleplaying autonomously - advance the scene, take action, or continue dialog without waiting for user input.
-- Always read and reference your previous messages to maintain continuity when self-roleplaying after empty user messages.
-- Use markdown formatting: *italics* for emphasis or actions, and __bold__ for strong emphasis or important statements. ## For stating setting or time.
-- Note that **bold** does not work since it gets confused with italics, so just use __bold__
-- Keep your responses concise but immersive, aiming for 1-3 paragraphs.
-- React to silence or (continue...) by:
-  • Continuing your previous thought
-  • Taking initiative in the conversation 
-  • Describing your actions or emotions
-  • Asking questions or changing topics
-  • Moving the scene forward naturally`;
+ROLEPLAY GUIDELINES:
+- Stay in character at all times - you ARE ${character.name}
+- Never break character or mention being an AI
+- Respond naturally based on your character's personality and the user's known traits
+- Use natural conversational language and emotional responses
+- If the user has shared their name or traits, incorporate these naturally into your responses
+- For empty messages (continue), advance the conversation naturally while staying in character
+- Maintain continuity with previous messages and scene
+- Use *italics* for actions/emotions and __bold__ for emphasis. Avoid using *italics* within *italics* or __bold__ within __bold__.
+- Use ## for scene descriptions when appropriate
+- Keep responses engaging and true to your character's personality`;
+
+    // Add conversation history with smart context management
+    if (chatHistory.length > 0) {
+        const relevantMessages = chatHistory.filter(msg => !msg.isDeleted && !msg.isTyping);
+        
+        if (relevantMessages.length > 0) {
+            // Always include the first exchange to maintain the conversation's origin
+            const firstExchange = relevantMessages.slice(0, 2);
+            
+            // Get the most recent messages
+            const recentMessages = relevantMessages.slice(-5);
+            
+            // If we have a long conversation, add a summary of key points
+            if (relevantMessages.length > 7) {
+                // Add first exchange
+                context += "\n\nCONVERSATION START:\n" + firstExchange.map(msg => {
+                    if (msg.isUser) {
+                        return `${state.personalContext.name ? state.personalContext.name : "User"}: ${msg.content}`;
+                    } else if (msg.characterId === character.id) {
+                        return `${character.name}: ${msg.content}`;
+                    }
+                }).join('\n');
+                
+                // Add a transition
+                context += "\n\n[Several messages exchanged, maintaining the conversation's flow and themes...]\n\n";
+            }
+            
+            // Add recent messages
+            context += "RECENT CONVERSATION:\n" + recentMessages.map(msg => {
+                if (msg.isUser) {
+                    return `${state.personalContext.name ? state.personalContext.name : "User"}: ${msg.content}`;
+                } else if (msg.characterId === character.id) {
+                    return `${character.name}: ${msg.content}`;
+                } else {
+                    const msgCharacter = state.characters.find(c => c.id === msg.characterId);
+                    return msgCharacter ? `${msgCharacter.name}: ${msg.content}` : `Unknown: ${msg.content}`;
+                }
+            }).join('\n');
+        }
+    }
 
     // Add group chat context if needed
     if (activeCharacters.length > 1) {
-        context += "\n\nCONVERSATION PARTICIPANTS:\nYou are in a conversation with:\n";
+        context += "\n\nOTHER CHARACTERS PRESENT:\n";
         activeCharacters.forEach(char => {
             if (char.id !== character.id) {
                 context += `- ${char.name}: ${char.enhancedContext 
-                    ? `${char.name} is ${summarizeContext(char.enhancedContext, 100)}`
-                    : `${char.userContext}`}\n`;
+                    ? summarizeContext(char.enhancedContext, 150)
+                    : char.userContext}\n`;
             }
         });
     }
@@ -2816,100 +3025,100 @@ function summarizeContext(context, maxLength = 100) {
 
 // Convert history to the format expected by Gemini API
 function convertHistoryForGemini(chatHistory, currentCharacter) {
-    console.log("Converting chat history for character:", currentCharacter.name);
     const formattedHistory = [];
     let hasUserMessage = false;
 
     // First, check if there's at least one user message in the history
     for (const msg of chatHistory) {
-        // Only count regular user messages, not continue messages
         if (msg.isUser && !msg.isDeleted && !msg.isContinue) {
             hasUserMessage = true;
             break;
         }
     }
 
-    // If no user messages, return an empty history
+    // If no user messages, create a natural conversation starter
     if (!hasUserMessage) {
-        console.log("No user messages found in history, returning empty history");
-        return [];
+        const greeting = state.personalContext.name 
+            ? `Hello ${state.personalContext.name}`
+            : "Hello";
+            
+        formattedHistory.push({
+            role: "user",
+            parts: [{ text: greeting }]
+        });
+        return formattedHistory;
     }
 
     // Filter relevant messages
     const relevantMessages = chatHistory.filter(msg => {
-        // Skip typing indicators and deleted messages that are not continue messages
-        if (msg.isTyping || (msg.isDeleted && !msg.isContinue)) return false; 
-        
-        // Skip continue messages in the history - they're only for triggering responses
+        if (msg.isTyping || (msg.isDeleted && !msg.isContinue)) return false;
         if (msg.isContinue) return false;
-        
-        // Only include user messages and messages from this character
-        return msg.isUser || msg.characterId === currentCharacter.id;
+        return msg.isUser || msg.characterId === currentCharacter.id || msg.characterId;
     });
-
-    // Check if the first message would be from the model (not user)
-    // If so, we need to make sure a user message comes first
-    const firstMessageIsModel = relevantMessages.length > 0 && !relevantMessages[0].isUser;
     
-    if (firstMessageIsModel) {
-        // Find the first user message
-        const firstUserMessage = relevantMessages.find(msg => msg.isUser);
-        if (firstUserMessage) {
-            // Start with a user message to avoid the API error
-            formattedHistory.push({
-                role: "user",
-                parts: [{ text: firstUserMessage.content }]
-            });
-            
-            // Now add all messages in order, skipping the user message we just added
-            for (const msg of relevantMessages) {
-                if (msg.id === firstUserMessage.id) continue; // Skip the one we already added
-                
-                if (msg.isUser) {
-                    formattedHistory.push({
-                        role: "user",
-                        parts: [{ text: msg.content }]
-                    });
-                } else if (msg.characterId === currentCharacter.id) {
-                    formattedHistory.push({
-                        role: "model",
-                        parts: [{ text: msg.content }]
-                    });
-                }
-            }
-        } else {
-            // This shouldn't happen since we checked hasUserMessage above, but just in case
-            console.warn("First message is from model but no user messages found");
-            return [];
-        }
-    } else {
-        // Normal processing - messages are already in correct order
-        for (const msg of relevantMessages) {
-            if (msg.isUser) {
+    // Process messages
+    let lastRole = null;
+    let combinedUserMessage = "";
+    
+    for (let i = 0; i < relevantMessages.length; i++) {
+        const msg = relevantMessages[i];
+        
+        if (msg.isUser) {
+            if (lastRole === "user" && combinedUserMessage) {
                 formattedHistory.push({
                     role: "user",
-                    parts: [{ text: msg.content }]
+                    parts: [{ text: combinedUserMessage }]
                 });
-            } else if (msg.characterId === currentCharacter.id) {
-                formattedHistory.push({
-                    role: "model",
-                    parts: [{ text: msg.content }]
-                });
+                combinedUserMessage = msg.content;
+            } else {
+                combinedUserMessage = msg.content;
+                lastRole = "user";
             }
+            
+            if (i === relevantMessages.length - 1 || !relevantMessages[i + 1].isUser) {
+                formattedHistory.push({
+                    role: "user",
+                    parts: [{ text: combinedUserMessage }]
+                });
+                combinedUserMessage = "";
+            }
+        } else if (msg.characterId === currentCharacter.id) {
+            formattedHistory.push({
+                role: "model",
+                parts: [{ text: msg.content }]
+            });
+            lastRole = "model";
+            combinedUserMessage = "";
+        } else if (msg.characterId) {
+            const otherCharacter = state.characters.find(c => c.id === msg.characterId);
+            const characterName = otherCharacter ? otherCharacter.name : "Another character";
+            formattedHistory.push({
+                role: "user",
+                parts: [{ text: `[${characterName}] ${msg.content}` }]
+            });
+            lastRole = "user";
+            combinedUserMessage = "";
         }
     }
 
-    // Make sure we end with a user message for proper API interaction
+    // Ensure history ends with user message if needed
     if (formattedHistory.length > 0 && formattedHistory[formattedHistory.length - 1].role === "model") {
-        console.log("Warning: History would end with a model message. Adding a placeholder user message.");
-        // Add a simple user acknowledgment message
         formattedHistory.push({
             role: "user",
-            parts: [{ text: "..." }]
+            parts: [{ text: state.personalContext.name 
+                ? `(${state.personalContext.name} continues listening)`
+                : "(continue the conversation)" }]
         });
     }
 
-    console.log("Formatted history:", formattedHistory);
+    // Prevent history from getting too long
+    const maxHistoryLength = 30;
+    if (formattedHistory.length > maxHistoryLength) {
+        const firstEntries = formattedHistory.slice(0, 2);
+        const lastEntries = formattedHistory.slice(-10);
+        formattedHistory = [...firstEntries, ...lastEntries];
+    }
+
     return formattedHistory;
 }
 
@@ -3813,16 +4022,26 @@ function savePersonalContext() {
     const personalityInput = document.getElementById('user-personality');
     const contextInput = document.getElementById('user-context');
     
+    // Update state with new values
     state.personalContext = {
         name: nameInput.value.trim(),
         personality: personalityInput.value.trim(),
         context: contextInput.value.trim()
     };
     
+    // Save to storage
     setStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, state.personalContext);
     
-    // Show success message
-    showSuccess("Personal context saved successfully", 2000);
+    // If there's an active chat, update the chat UI to reflect changes
+    if (state.activeChat && state.chats[state.activeChat]) {
+        // Save current chat to history to preserve context
+        saveCurrentChatToHistory();
+        
+        // Show success message
+        showSuccess("Personal context updated! Changes will be reflected in your next interactions.", 3000);
+    } else {
+        showSuccess("Personal context saved successfully!", 3000);
+    }
 }
 
 // Helper function to get last message timestamp for a chat
