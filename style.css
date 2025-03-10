@@ -1641,3 +1641,33 @@ button[id^="delete-msg-"] {
 .character-avatar:hover {
     transform: scale(1.05);
 }
+
+.typing-indicator-bubble {
+    position: relative;
+}
+
+.typing-indicator {
+    display: flex;
+    background-color: #f3f4f6;
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    margin-top: 0.25rem;
+    max-width: 5rem;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Mobile styling for typing indicator delete buttons */
+@media (max-width: 768px) {
+    .typing-indicator-bubble button[id^="delete-msg-"] {
+        display: flex !important;
+        top: -8px;
+        right: -8px;
+        z-index: 10;
+    }
+    
+    /* Enhanced mobile visibility for stuck typing indicators */
+    .typing-indicator-bubble {
+        padding-right: 8px;
+    }
+}

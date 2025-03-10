@@ -1539,7 +1539,12 @@ function createMessageHTML(message) {
         const character = state.characters.find(c => c.id === message.characterId) || { name: 'Unknown', profilePicture: null };
         
         return `
-            <div class="flex justify-start w-full">
+            <div 
+                class="flex justify-start w-full"
+                onmouseenter="showMessageActions('${message.id}')"
+                onmouseleave="hideMessageActions('${message.id}')"
+                data-message-id="${message.id}"
+            >
                 <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 ${character.profilePicture ? 'has-image' : ''}">
                     ${character.profilePicture ? 
                         `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">` : 
@@ -1549,12 +1554,21 @@ function createMessageHTML(message) {
                 
                 <div class="message-container-character">
                     <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
-                    <div class="message-bubble character-message">
-                <div class="typing-indicator">
+                    <div class="message-bubble character-message typing-indicator-bubble">
+                        <div class="typing-indicator">
                             <span class="typing-dot"></span>
                             <span class="typing-dot"></span>
                             <span class="typing-dot"></span>
                         </div>
+                        
+                        <button
+                            id="delete-msg-${message.id}"
+                            onclick="deleteMessage('${message.id}')"
+                            class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
+                            title="Remove stuck typing indicator"
+                        >
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1854,12 +1868,50 @@ function hideMessageActions(messageId) {
 function deleteMessage(messageId) {
     if (!state.activeChat) return;
     
-    // Mark message as deleted
+    // Get the messages array
     const messages = state.chats[state.activeChat];
     const messageIndex = messages.findIndex(m => m.id === messageId);
     
     if (messageIndex !== -1) {
-        messages[messageIndex].isDeleted = true;
+        const message = messages[messageIndex];
+        
+        // If it's a typing indicator, remove it completely instead of marking as deleted
+        if (message.isTyping) {
+            // First find and remove any related continue system messages
+            // These typically appear right before the typing indicator
+            let continueMessageIndex = -1;
+            
+            // Look for the continue system message that might be before this typing indicator
+            for (let i = messageIndex - 1; i >= 0; i--) {
+                const prevMsg = messages[i];
+                if (prevMsg.isSystem && prevMsg.content === "...") {
+                    continueMessageIndex = i;
+                    break;
+                }
+                // Stop looking if we hit a non-system message
+                if (!prevMsg.isSystem) {
+                    break;
+                }
+            }
+            
+            // Remove messages in reverse order to avoid index issues
+            if (continueMessageIndex !== -1) {
+                // Remove the continue system message first
+                messages.splice(continueMessageIndex, 1);
+                // Now remove the typing indicator (its index has shifted down by 1)
+                messages.splice(messageIndex - 1, 1);
+            } else {
+                // Just remove the typing indicator
+                messages.splice(messageIndex, 1);
+            }
+            
+            showSuccess("Typing indicator removed", 2000);
+        } else {
+            // Mark regular message as deleted
+            messages[messageIndex].isDeleted = true;
+        }
+        
+        // Save changes
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         
         // Update UI
@@ -2416,14 +2468,40 @@ function deleteChatHistory(chatId, historyKey) {
 }
 
 async function sendMessage() {
-    if (!state.apiKey) {
-        showError("Please set your Gemini API key in settings first");
+    // Ensure we have an active chat
+    if (!state.activeChat || !state.chats[state.activeChat]) {
+        showError("No active chat. Please select a character to chat with.");
         return;
     }
     
-    if (!state.activeChat || state.activeCharacters.length === 0) {
-        showError("Please select at least one character to chat with");
-        return;
+    // Ensure we have active characters
+    if (!state.activeCharacters || state.activeCharacters.length === 0) {
+        console.error("No active characters found");
+        state.activeCharacters = [];
+        
+        // Try to recover the active characters from the active chat ID
+        // The chat ID should contain the character IDs
+        const chatParts = state.activeChat.split('-');
+        const characterIds = chatParts.filter(part => part.length < 10);
+        
+        if (characterIds.length > 0) {
+            // Recover the characters from the IDs
+            console.log("Attempting to recover characters from chat ID:", characterIds);
+            state.activeCharacters = characterIds.map(id => 
+                state.characters.find(c => c.id === id)
+            ).filter(c => c); // Remove any undefined entries
+            
+            if (state.activeCharacters.length === 0) {
+                showError("Could not recover characters for this chat. Please start a new chat.");
+                return;
+            }
+            
+            console.log("Recovered characters:", state.activeCharacters);
+        } else {
+            // If we can't recover the characters, suggest creating a new chat
+            showError("No characters selected. Please start a new chat.");
+            return;
+        }
     }
     
     // If a response is already in progress, prevent sending another message
@@ -2475,34 +2553,46 @@ async function sendMessage() {
             // Add this subtle indicator to the UI but mark it for auto-removal
             addMessage(continueSystemMsg);
             
-            // Remove the system message after a short delay
-            setTimeout(() => {
+            // Track the system message ID so we can ensure it's removed in cleanup
+            let continueSystemMsgId = continueSystemMsg.id;
+            
+            // Remove the system message after a short delay or on error
+            const removeSystemMessage = () => {
                 if (state.activeChat) {
                     const messages = state.chats[state.activeChat];
-                    const msgIndex = messages.findIndex(m => m.id === continueSystemMsg.id);
+                    const msgIndex = messages.findIndex(m => m.id === continueSystemMsgId);
                     if (msgIndex !== -1) {
                         messages[msgIndex].isDeleted = true;
                         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
                         updateChatMessages();
                     }
                 }
-            }, 1500);
+            };
+            
+            // Set a timeout to remove the message regardless of what happens
+            setTimeout(removeSystemMessage, 1500);
             
             // Get response from each character using async/await and Promise.all for concurrency
-            await Promise.all(state.activeCharacters.map(async (character) => {
-                // Create a special "continue" message that won't be displayed
-                const continueMsg = {
-                    id: generateUniqueId(),
-                    content: "", // Empty content, just internal signal to continue
-                    isUser: true,
-                    timestamp: new Date().toISOString(),
-                    isDeleted: true, // Mark as deleted so it won't show in the UI
-                    isContinue: true // Special flag to mark this as a continue message
-                };
-                
-                // Generate a response without adding the continue message to the visible chat history
-                await getCharacterResponse(character, continueMsg);
-            }));
+            try {
+                await Promise.all(state.activeCharacters.map(async (character) => {
+                    // Create a special "continue" message that won't be displayed
+                    const continueMsg = {
+                        id: generateUniqueId(),
+                        content: "", // Empty content, just internal signal to continue
+                        isUser: true,
+                        timestamp: new Date().toISOString(),
+                        isDeleted: true, // Mark as deleted so it won't show in the UI
+                        isContinue: true // Special flag to mark this as a continue message
+                    };
+                    
+                    // Generate a response without adding the continue message to the visible chat history
+                    await getCharacterResponse(character, continueMsg);
+                }));
+            } catch (error) {
+                // Make sure the system message is cleaned up on error
+                removeSystemMessage();
+                throw error; // Re-throw to be caught by outer try-catch
+            }
         } else {
             // Add user message
             const userMsg = {
@@ -2513,21 +2603,20 @@ async function sendMessage() {
                 isDeleted: false,
             };
             
+            // Add the user message to the chat
             addMessage(userMsg);
             
-            // Get response from each character using async/await and Promise.all for concurrency
-            await Promise.all(state.activeCharacters.map(async (character) => {
-                await getCharacterResponse(character, userMsg);
-            }));
+            // Get response from each character using async/await and Promise.all
+            await Promise.all(state.activeCharacters.map(character => 
+                getCharacterResponse(character, userMsg)
+            ));
         }
     } catch (error) {
         console.error("Error sending message:", error);
-        showError("Failed to send message: " + error.message);
+        showError("Failed to get response. " + (error.message || "Please try again."));
     } finally {
-        // Always reset the response in progress state no matter what happens
         state.isResponseInProgress = false;
         updateSendButtonState();
-        console.log("Message send completed and UI state reset");
     }
 }
 
