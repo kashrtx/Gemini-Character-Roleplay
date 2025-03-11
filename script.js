@@ -3200,15 +3200,8 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
         });
     }
 
-    // Prevent history from getting too long
-    const maxHistoryLength = 30;
-    if (formattedHistory.length > maxHistoryLength) {
-        const firstEntries = formattedHistory.slice(0, 2);
-        const lastEntries = formattedHistory.slice(-10);
-        formattedHistory = [...firstEntries, ...lastEntries];
-    }
-
-    return formattedHistory;
+    return formattedHistory; // fixed bug: Error getting character response: TypeError: Assignment to constant variable. at convertHistoryForGemini
+    // Error sending message: ReferenceError: typingMsg is not defined at getCharacterResponse
 }
 
 // Quick test function to directly open chat window for testing
