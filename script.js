@@ -2688,6 +2688,9 @@ function addMessage(message) {
 async function getCharacterResponse(character, userMsg) {
     if (!state.activeChat) return;
     
+    // Declare typingMsg at the top level of the function so it's available throughout the scope
+    let typingMsg = null;
+    
     try {
         // Get visible messages for context (excluding any that are marked as deleted)
         const visibleMessages = state.chats[state.activeChat].filter(m => !m.isDeleted);
@@ -2707,7 +2710,7 @@ async function getCharacterResponse(character, userMsg) {
         const isContinue = userMsg && userMsg.isContinue === true;
         
         // Add typing indicator for better UX
-        const typingMsg = {
+        typingMsg = {
             id: generateUniqueId(),
             content: "",
             isUser: false,
@@ -2985,7 +2988,10 @@ Please respond as ${character.name} to this message.`;
         showError(`Failed to get response: ${errorMessage}`);
         
         // Make sure to remove the typing indicator even if there's an error
-        removeTypingIndicator(typingMsg.id);
+        // Only try to remove if typingMsg is defined
+        if (typingMsg && typingMsg.id) {
+            removeTypingIndicator(typingMsg.id);
+        }
         
         // Ensure the button is re-enabled even when there's an error
         state.isResponseInProgress = false;
@@ -3010,14 +3016,15 @@ function updateMessageContent(messageId, content) {
 // Helper function to find the typing indicator and remove it
 function removeTypingIndicator(typingMsgId) {
     if (!state.activeChat) return;
+    if (!typingMsgId) return; // Exit early if no message ID is provided
     
     const messages = state.chats[state.activeChat];
     const typingIndex = messages.findIndex(m => m.id === typingMsgId);
         
-        if (typingIndex !== -1) {
-            messages.splice(typingIndex, 1);
-            setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-            updateChatMessages();
+    if (typingIndex !== -1) {
+        messages.splice(typingIndex, 1);
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+        updateChatMessages();
     }
 }
 
@@ -3434,86 +3441,96 @@ function testSendMessage() {
 
 // Generate a test response without using the API
 async function getTestCharacterResponse(character, customResponse = null) {
-    // Add typing indicator
-    const typingMsg = {
-        id: generateUniqueId(),
-        content: "typing...",
-        isUser: false,
-        characterId: character.id,
-        timestamp: new Date().toISOString(),
-        isTyping: true,
-        isDeleted: false,
-    };
+    if (!state.activeChat) return;
     
-    addMessage(typingMsg);
+    // Declare typingMsg at the function scope
+    let typingMsg = null;
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Remove typing indicator
-    const messages = state.chats[state.activeChat];
-    const typingIndex = messages.findIndex(m => m.id === typingMsg.id);
-    
-    if (typingIndex !== -1) {
-        messages.splice(typingIndex, 1);
-    }
-    
-    // Get last user message for context
-    const userMessages = messages.filter(m => m.isUser && !m.isDeleted);
-    const lastUserMessage = userMessages[userMessages.length - 1]?.content || "Hello";
-    
-    // Check if this is a continue message
-    const isContinue = userMessages.length > 0 && 
-                       userMessages[userMessages.length - 1]?.isContinue === true;
-    
-    // If a custom response was provided, use that instead of generating one
-    if (customResponse) {
-        // Add the response as a message
+    try {
+        // Add typing indicator
+        typingMsg = {
+            id: generateUniqueId(),
+            content: "typing...",
+            isUser: false,
+            characterId: character.id,
+            timestamp: new Date().toISOString(),
+            isTyping: true,
+            isDeleted: false,
+        };
+        
+        addMessage(typingMsg);
+        
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Remove typing indicator using the helper function
+        removeTypingIndicator(typingMsg.id);
+        
+        // Get last user message for context
+        const messages = state.chats[state.activeChat];
+        const userMessages = messages.filter(m => m.isUser && !m.isDeleted);
+        const lastUserMessage = userMessages[userMessages.length - 1]?.content || "Hello";
+        
+        // Check if this is a continue message
+        const isContinue = userMessages.length > 0 && 
+                        userMessages[userMessages.length - 1]?.isContinue === true;
+        
+        // If a custom response was provided, use that instead of generating one
+        if (customResponse) {
+            // Add the response as a message
+            addMessage({
+                id: generateUniqueId(),
+                content: customResponse,
+                isUser: false,
+                characterId: character.id,
+                timestamp: new Date().toISOString(),
+                isDeleted: false,
+            });
+            return;
+        }
+        
+        // Generate fake response based on character when API is not connected
+        let fakeResponse;
+        
+        if (isContinue) {
+            // For continue messages, generate a response that continues the story
+            const continueFakeResponses = [
+                `*continues the story* As ${character.name}, I think we should explore this further...`,
+                `Let me elaborate on that. I believe that...`,
+                `*nods thoughtfully* I understand. Let me add to what I was saying earlier...`,
+                `Actually, there's something else I wanted to mention about this topic...`,
+                `*pauses for a moment* On second thought, I should clarify what I meant earlier...`
+            ];
+            fakeResponse = continueFakeResponses[Math.floor(Math.random() * continueFakeResponses.length)];
+        } else {
+            // Regular responses for normal user messages
+            const fakeResponses = [
+                `As ${character.name}, I find your message "${lastUserMessage}" quite interesting. But the API is not connected. Add your Gemini API key in settings for real responses!`,
+                `Hmm, let me think about "${lastUserMessage}" for a moment...lol the API is not connected. Add your Gemini API key in settings for real responses!`,
+                `That's an excellent point about "${lastUserMessage}". I would add that...but the API is not connected. Add your Gemini API key in settings for real responses!`,
+                `I disagree with your assessment of "${lastUserMessage}", because... but the API is not connected. Add your Gemini API key in settings for real responses!`,
+                `You said "${lastUserMessage}?" I've never thought about it that way before. And btw the API is not connected! Add your Gemini API key in settings for real responses!`
+            ];
+            fakeResponse = fakeResponses[Math.floor(Math.random() * fakeResponses.length)];
+        }
+        
+        // Add actual response
         addMessage({
             id: generateUniqueId(),
-            content: customResponse,
+            content: fakeResponse,
             isUser: false,
             characterId: character.id,
             timestamp: new Date().toISOString(),
             isDeleted: false,
         });
-        return;
+    } catch (error) {
+        console.error("Error in test character response:", error);
+        
+        // Make sure to remove typing indicator even in case of error
+        if (typingMsg && typingMsg.id) {
+            removeTypingIndicator(typingMsg.id);
+        }
     }
-    
-    // Generate fake response based on character when API is not connected
-    let fakeResponse;
-    
-    if (isContinue) {
-        // For continue messages, generate a response that continues the story
-        const continueFakeResponses = [
-            `*continues the story* As ${character.name}, I think we should explore this further...`,
-            `Let me elaborate on that. I believe that...`,
-            `*nods thoughtfully* I understand. Let me add to what I was saying earlier...`,
-            `Actually, there's something else I wanted to mention about this topic...`,
-            `*pauses for a moment* On second thought, I should clarify what I meant earlier...`
-        ];
-        fakeResponse = continueFakeResponses[Math.floor(Math.random() * continueFakeResponses.length)];
-    } else {
-        // Regular responses for normal user messages
-        const fakeResponses = [
-            `As ${character.name}, I find your message "${lastUserMessage}" quite interesting. But the API is not connected. Add your Gemini API key in settings for real responses!`,
-            `Hmm, let me think about "${lastUserMessage}" for a moment...lol the API is not connected. Add your Gemini API key in settings for real responses!`,
-            `That's an excellent point about "${lastUserMessage}". I would add that...but the API is not connected. Add your Gemini API key in settings for real responses!`,
-            `I disagree with your assessment of "${lastUserMessage}", because... but the API is not connected. Add your Gemini API key in settings for real responses!`,
-            `You said "${lastUserMessage}?" I've never thought about it that way before. And btw the API is not connected! Add your Gemini API key in settings for real responses!`
-        ];
-        fakeResponse = fakeResponses[Math.floor(Math.random() * fakeResponses.length)];
-    }
-    
-    // Add actual response
-    addMessage({
-        id: generateUniqueId(),
-        content: fakeResponse,
-        isUser: false,
-        characterId: character.id,
-        timestamp: new Date().toISOString(),
-        isDeleted: false,
-    });
 }
 
 // API communication with the Gemini SDK
