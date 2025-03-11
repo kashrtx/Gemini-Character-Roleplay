@@ -3049,7 +3049,9 @@ ROLEPLAY GUIDELINES:
 - Maintain continuity with previous messages and scene
 - Use *italics* for actions/emotions and __bold__ for emphasis. Avoid using *italics* within *italics* or __bold__ within __bold__.
 - Use ## for scene descriptions when appropriate
-- Keep responses engaging and true to your character's personality`;
+- Keep responses engaging and true to your character's personality
+- You can read () for thoughts or context.
+- If the user wants to end the conversation/roleplay by saying e.g. "The End", you can say naturally to your character "Goodbye!" or "It was nice talking to you!" or "It was fun roleplaying with you!"`;
 
     // Add conversation history with smart context management
     if (chatHistory.length > 0) {
