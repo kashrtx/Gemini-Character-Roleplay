@@ -23,21 +23,8 @@ function setupMobileViewportFix() {
     const messageInput = document.getElementById('message-input');
     const body = document.body;
     
-    // Detect if we're on iOS
+    // Detect if we're on iOS, as Android resize logic is different
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    // Detect if we're on a mobile browser
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    // Detect non-Safari iOS browsers
-    const isNonSafariIOS = isIOS && !/Safari/.test(navigator.userAgent) || (isIOS && /CriOS|FxiOS|OPiOS|mercury|Instagram/.test(navigator.userAgent));
-    // Detect if we're on Safari
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    
-    // Add browser-specific classes to the body
-    if (isSafari) {
-        document.body.classList.add('safari');
-    } else {
-        document.body.classList.add('not-safari');
-    }
     
     if (messageInput) {
         // Handle focus events for keyboard visibility
@@ -50,37 +37,19 @@ function setupMobileViewportFix() {
                 messageContainer.style.zIndex = '1000';
             }
             
-            // For iOS or non-Safari browsers on iOS, we need to handle viewport height differently
-            if (isIOS || isNonSafariIOS) {
-                setTimeout(() => {
-                    // Scroll to the input field
-                    messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
-                    
-                    // Adjust height for non-Safari iOS browsers which have different height behavior
-                    if (isNonSafariIOS) {
-                        const chatMessages = document.getElementById('chat-messages');
-                        if (chatMessages) {
-                            chatMessages.style.maxHeight = 'calc(100vh - 180px)';
-                        }
-                    }
-                }, 300);
-            }
+            setTimeout(() => {
+                // Scroll to the input field
+                messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
+            }, 300);
         });
         
         messageInput.addEventListener('blur', () => {
             body.classList.remove('keyboard-visible');
-            
-            // Reset any custom styles for non-Safari iOS browsers
-            if (isNonSafariIOS) {
-                const chatMessages = document.getElementById('chat-messages');
-                if (chatMessages) {
-                    chatMessages.style.maxHeight = '';
-                }
-            }
         });
     }
     
     // Setup resize event listener for keyboard detection on Android
+    // We keep the !isIOS check here as this logic is specific to how Android handles resize for keyboard.
     if (!isIOS) {
         const initialHeight = window.innerHeight;
         window.addEventListener('resize', debounce(() => {
@@ -892,86 +861,37 @@ function createNewCharacter() {
     // Show success message
     showSuccess(`Character "${name}" created successfully!`);
 
-    // Instead of re-rendering the entire list, append the new element:
     const characterListContainer = document.getElementById('character-list');
     if (characterListContainer) {
         // Remove "no characters" message if present
-        const noChars = document.getElementById('no-characters');
-        if (noChars) { noChars.remove(); }
-        
-        // Create a new div element for the character
-        const newCharDiv = document.createElement('div');
-        newCharDiv.id = `character-item-${newCharacter.id}`;
-        newCharDiv.className = "border rounded-lg p-4 hover:shadow-md transition";
-        
-        // Determine how to display the character avatar
-        let avatarHTML = '';
-        if (newCharacter.profilePicture) {
-            avatarHTML = `<img src="${newCharacter.profilePicture}" alt="${newCharacter.name}" class="w-10 h-10 rounded-full object-cover mr-3">`;
-        } else {
-            avatarHTML = `<div class="character-avatar bg-primary/20 text-primary mr-3">${newCharacter.name.charAt(0).toUpperCase()}</div>`;
+        const noCharsMessage = document.getElementById('no-characters');
+        if (noCharsMessage) {
+            noCharsMessage.classList.add('hidden'); // Hide it instead of removing, can be reshown if all chars deleted
         }
-        
-        newCharDiv.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div class="flex items-center">
-                    ${avatarHTML}
-                    <h3 class="font-bold text-lg">${newCharacter.name}</h3>
-                </div>
-                <div class="flex space-x-2">
-                    <button id="edit-btn-${newCharacter.id}" class="text-blue-500 hover:text-blue-700" title="Edit character">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button id="delete-btn-${newCharacter.id}" class="text-red-500 hover:text-red-700" title="Delete character">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="mt-2">
-                <p class="text-sm text-gray-700 font-semibold">User-Provided Context:</p>
-                <div class="text-gray-600 text-sm mt-1 max-h-32 overflow-auto p-1 border rounded bg-gray-50">
-                    ${newCharacter.userContext}
-                </div>
-            </div>
-            
-            ${ newCharacter.enhancedContext ? `
-            <div class="mt-3 bg-gray-50 p-2 rounded enhanced-context" id="enhanced-context-${newCharacter.id}">
-                <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
-                <div class="text-gray-600 text-sm mt-1 max-h-60 overflow-auto p-1 border rounded bg-white">
-                    ${newCharacter.enhancedContext}
-                </div>
-            </div>
-            ` : '' }
-            
-            <div class="mt-3 flex justify-center">
-                <button id="enhance-btn-${newCharacter.id}" class="text-sm bg-secondary text-white px-3 py-1 rounded hover:bg-secondary/90 transition ${!state.apiKey ? 'disabled:bg-gray-400' : ''}" ${!state.apiKey ? 'disabled' : ''}>
-                    <i class="fas fa-magic mr-1"></i> ${ newCharacter.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context' }
-                </button>
-            </div>
-        `;
-        
-        // Append the new character element to the container
-        characterListContainer.appendChild(newCharDiv);
-        
-        // Set up event listeners for the new element:
-        const editBtn = newCharDiv.querySelector(`#edit-btn-${newCharacter.id}`);
+
+        // Create and append the new character element
+        const characterItemHTML = createCharacterItemHTML(newCharacter);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = characterItemHTML.trim();
+        const newCharacterElement = tempDiv.firstChild;
+        characterListContainer.appendChild(newCharacterElement);
+
+        // Attach event listeners to the new element's buttons
+        const editBtn = newCharacterElement.querySelector(`#edit-btn-${newCharacter.id}`);
         if (editBtn) {
             editBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 editCharacter(newCharacter.id);
             });
         }
-        
-        const deleteBtn = newCharDiv.querySelector(`#delete-btn-${newCharacter.id}`);
+        const deleteBtn = newCharacterElement.querySelector(`#delete-btn-${newCharacter.id}`);
         if (deleteBtn) {
             deleteBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 deleteCharacter(newCharacter.id);
             });
         }
-        
-        const enhanceBtn = newCharDiv.querySelector(`#enhance-btn-${newCharacter.id}`);
+        const enhanceBtn = newCharacterElement.querySelector(`#enhance-btn-${newCharacter.id}`);
         if (enhanceBtn) {
             enhanceBtn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -980,12 +900,15 @@ function createNewCharacter() {
         }
     }
 
-    // Also update the sidebar if needed
+    // Update the sidebar character list
     updateSidebarCharacters();
     
-    // Full UI update
-    updateCharacterLists();
-    window.scrollTo(0, document.body.scrollHeight); // scroll to bottom to see new character
+    // Scroll to bottom to see new character if on characters view
+    if (document.getElementById('characters-view').classList.contains('hidden')) {
+        // Not on characters view, so don't scroll
+    } else {
+        window.scrollTo(0, document.body.scrollHeight);
+    }
     
     // If the characters view is currently hidden, switch to it
     if (document.getElementById('characters-view').classList.contains('hidden')) {
@@ -1039,11 +962,10 @@ function setupCharacterItemListeners() {
     });
 }
 
-// Function to generate HTML for character list
-function generateCharacterListHTML() {
-    return state.characters.map(character => {
-        // Determine how to display the character avatar
-        let avatarHTML = '';
+// Function to generate HTML for a single character item
+function createCharacterItemHTML(character) {
+    // Determine how to display the character avatar
+    let avatarHTML = '';
         if (character.profilePicture) {
             avatarHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-10 h-10 rounded-full object-cover mr-3">`;
         } else {
@@ -1102,9 +1024,60 @@ function generateCharacterListHTML() {
                 </div>
             </div>
         `;
-    }).join('');
+    return `
+        <div class="border rounded-lg p-4 hover:shadow-md transition" id="character-item-${character.id}">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center">
+                        ${avatarHTML}
+                        <h3 class="font-bold text-lg">${character.name}</h3>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button
+                            id="edit-btn-${character.id}"
+                            class="text-blue-500 hover:text-blue-700"
+                            title="Edit character"
+                        >
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button
+                            id="delete-btn-${character.id}"
+                            class="text-red-500 hover:text-red-700"
+                            title="Delete character"
+                        >
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-2">
+                    <p class="text-sm text-gray-700 font-semibold">User-Provided Context:</p>
+                    <div class="text-gray-600 text-sm mt-1 max-h-32 overflow-auto p-1 border rounded bg-gray-50">
+                        ${character.userContext}
+                    </div>
+                </div>
+
+                ${character.enhancedContext ? `
+                <div class="mt-3 bg-gray-50 p-2 rounded enhanced-context" id="enhanced-context-${character.id}">
+                        <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
+                        <div class="text-gray-600 text-sm mt-1 max-h-60 overflow-auto p-1 border rounded bg-white">
+                            ${character.enhancedContext}
+                        </div>
+                    </div>
+                ` : ''}
+
+                <div class="mt-3 flex justify-center">
+                    <button
+                        id="enhance-btn-${character.id}"
+                        class="text-sm bg-secondary text-white px-3 py-1 rounded hover:bg-secondary/90 transition disabled:bg-gray-400"
+                    ${!state.apiKey ? 'disabled' : ''}
+                    >
+                    <i class="fas fa-magic mr-1"></i> ${character.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context'}
+                    </button>
+                </div>
+            </div>
+        `;
 }
-    
+
 // Function to update just the sidebar character list
 function updateSidebarCharacters() {
     console.log("Updating sidebar characters list");
@@ -1351,7 +1324,7 @@ function startChat() {
     // Ensure chat exists in state
     if (!state.chats[chatId]) {
         state.chats[chatId] = [];
-        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+        // setStoredItem(STORAGE_KEYS.CHATS, state.chats); // Removed: Redundant, saved after welcome msg
     }
     
     // Update active characters
@@ -1737,28 +1710,6 @@ function createMessageHTML(message) {
         return false;
     })();
     
-    // Find the nearest user message before this one
-    const followsUserMessage = (() => {
-        if (!state.activeChat) return false;
-        const messages = state.chats[state.activeChat] || [];
-        const messageIndex = messages.findIndex(m => m.id === message.id);
-        
-        // Go backwards looking for a user message
-        for (let i = messageIndex - 1; i >= 0; i--) {
-            // If we hit another message from the same character, this doesn't follow a user message
-            if (!messages[i].isUser && messages[i].characterId === message.characterId && !messages[i].isDeleted) {
-                return false;
-            }
-            
-            // If we find a user message, this follows it - now we include continue messages (removing !messages[i].isContinue)
-            if (messages[i].isUser && !messages[i].isDeleted) {
-                return true;
-            }
-        }
-        
-        return false;
-    })();
-    
     // Show regenerate button only on the last character message AND if there are no user messages after it
     const showRegenerateButton = isLastCharacterMessage && !isFollowedByUserMessage;
     
@@ -2121,7 +2072,7 @@ function createNewChat() {
     state.chats[newChatId] = [];
     
     // Save to storage
-    setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+    // setStoredItem(STORAGE_KEYS.CHATS, state.chats); // Removed: Redundant, saved after welcome msg
     
     // Update the last active chat for each character
     characterIds.forEach(characterId => {
@@ -2990,6 +2941,11 @@ Please respond as ${character.name} to this message.`;
         // Ensure the button is re-enabled even when there's an error
         state.isResponseInProgress = false;
         updateSendButtonState();
+    } finally {
+        // Ensure typing indicator is removed if it was added
+        if (typeof typingMsg !== 'undefined' && typingMsg && typingMsg.id) {
+            removeTypingIndicator(typingMsg.id);
+        }
     }
 }
         
@@ -3204,311 +3160,6 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
 
     return formattedHistory; // fixed bug: Error getting character response: TypeError: Assignment to constant variable. at convertHistoryForGemini
     // Error sending message: ReferenceError: typingMsg is not defined at getCharacterResponse
-}
-
-// Quick test function to directly open chat window for testing
-function forceOpenChat() {
-    console.log("Force opening chat window for testing");
-
-    // Create a test character if none exists
-    if (state.characters.length === 0) {
-        const testCharacter = {
-            id: "test-character",
-            name: "Test Character",
-            userContext: "This is a test character created automatically for testing the chat interface.",
-            enhancedContext: null,
-            createdAt: new Date().toISOString()
-        };
-        state.characters.push(testCharacter);
-        setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
-        updateCharacterLists();
-    }
-    
-    // Select the first character
-    state.selectedCharacters = [state.characters[0].id];
-    state.activeCharacters = [state.characters[0]];
-    
-    // Set active chat
-    const chatId = state.selectedCharacters[0];
-    state.activeChat = chatId;
-    
-    // Ensure chat exists in state
-    if (!state.chats[chatId]) {
-        state.chats[chatId] = [];
-        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-    }
-    
-    // Switch to chat view
-    changeView('chat');
-    
-    // Force UI update directly - don't rely on changeView
-    console.log("Directly updating chat UI");
-    
-    // Hide placeholder, show chat window
-    const placeholder = document.getElementById('chat-placeholder');
-    const chatWindow = document.getElementById('chat-window');
-    
-    if (placeholder) {
-        placeholder.classList.add('hidden');
-        console.log("Placeholder hidden");
-    } else {
-        console.warn("Chat placeholder not found");
-    }
-    
-    if (chatWindow) {
-        chatWindow.classList.remove('hidden');
-        console.log("Chat window shown");
-    } else {
-        console.warn("Chat window not found");
-    }
-    
-    // Update chat header
-    const headerTitle = document.getElementById('chat-header-title');
-    if (headerTitle) headerTitle.textContent = state.characters[0].name;
-    
-    const headerSubtitle = document.getElementById('chat-header-subtitle');
-    if (headerSubtitle) {
-        const apiStatus = state.isApiConnected ? "API connected" : "API not connected (test mode)";
-        headerSubtitle.textContent = `Test conversation - ${apiStatus}`;
-    }
-    
-    // Add a welcome message based on API status
-    let welcomeMessage = "";
-    
-    if (state.isApiConnected) {
-        welcomeMessage = "Welcome to the chat! The Gemini API is connected and ready. Your messages will receive AI-generated responses based on the character profile.";
-    } else {
-        welcomeMessage = "Welcome to the test chat! The Gemini API is not currently connected. Messages will receive simulated responses. To use the real API, please add your API key in Settings.";
-    }
-    
-    // Reset existing messages
-    state.chats[chatId] = [];
-    
-    const welcomeMsg = {
-        id: generateUniqueId(),
-        content: welcomeMessage,
-        isUser: false,
-        characterId: state.characters[0].id,
-        timestamp: new Date().toISOString(),
-        isDeleted: false,
-    };
-    
-    // Add message to chat
-    addMessage(welcomeMsg);
-    
-    // Try to connect API if key exists but connection failed
-    if (state.apiKey && !state.isApiConnected) {
-        initializeGeminiAPI().then(success => {
-            if (success) {
-                // Update header with new status
-                if (headerSubtitle) {
-                    headerSubtitle.textContent = "Test conversation - API connected";
-                }
-                
-                // Add a success message
-                addMessage({
-                    id: generateUniqueId(),
-                    content: "API connection successful! Your messages will now receive AI-generated responses.",
-                    isUser: false,
-                    characterId: state.characters[0].id,
-                    timestamp: new Date().toISOString(),
-                    isDeleted: false,
-                });
-            }
-        }).catch(error => {
-            console.error("Error connecting to API:", error);
-        });
-    }
-}
-
-// Override the normal setup to prioritize test chat
-document.addEventListener('DOMContentLoaded', function() {
-    // Normal initialization
-    loadStoredData();
-    setupEventListeners();
-    checkApiKey();
-    changeView('chat');
-    updateCharacterLists();
-    
-    // Load Gemini SDK
-    loadGeminiSDK().catch(error => {
-        console.error("Failed to load Gemini SDK:", error);
-        // Don't show error for SDK load failure to allow testing without API
-    });
-    
-    // Set up chat form with test mode
-    const chatForm = document.getElementById('chat-form');
-    if (chatForm) {
-        // Remove existing listeners
-        const clonedForm = chatForm.cloneNode(true);
-        chatForm.parentNode.replaceChild(clonedForm, chatForm);
-        
-        // Add our test listener
-        clonedForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            console.log("Chat form submitted");
-            
-            // Use test function for simplicity
-            testSendMessage();
-        });
-    }
-});
-
-// Function to test if a character can be enhanced or generate responses
-async function testModelCapabilities() {
-    if (!state.apiKey) {
-        showError("Please set your Gemini API key in settings first");
-        return false;
-    }
-    
-    try {
-        await initializeGeminiAPI();
-        return state.isApiConnected;
-    } catch (error) {
-        showError(`API test failed: ${error.message}`);
-        return false;
-    }
-}
-
-// Function for testing the chat without API
-function testSendMessage() {
-    const messageInput = document.getElementById('message-input');
-    const userMessage = messageInput.value.trim();
-    
-    // Clear input regardless of content
-    messageInput.value = '';
-    
-    // Check if we have an empty message
-    if (!userMessage) {
-        // For empty messages, we'll just trigger the AI to continue
-        state.activeCharacters.forEach(character => {
-            // Create a special "continue" message that won't be displayed
-            const continueMsg = {
-                id: generateUniqueId(),
-                content: "",
-                isUser: true,
-                timestamp: new Date().toISOString(),
-                isDeleted: true, // Mark as deleted so it won't show in the UI
-                isContinue: true // Special flag to mark this as a continue message
-            };
-            
-            // Add a delay to simulate thinking
-            setTimeout(() => {
-                // Generate a test response that demonstrates self-roleplay
-                const characterMessages = state.chats[state.activeChat].filter(
-                    m => !m.isUser && m.characterId === character.id && !m.isDeleted
-                );
-                const lastCharacterMessage = characterMessages.length > 0 ? 
-                    characterMessages[characterMessages.length - 1].content : "";
-                
-                // Generate a test response that builds on the last message for continuity
-                const testContinueResponse = `*continues the ongoing action based on previous messages*\n\n${character.name} is showing self-roleplaying behavior and continuing autonomously.`;
-                
-                getTestCharacterResponse(character, testContinueResponse);
-            }, 1000);
-        });
-        return;
-    }
-    
-    // Add user message
-    const userMsg = {
-        id: generateUniqueId(),
-        content: userMessage,
-        isUser: true,
-        timestamp: new Date().toISOString(),
-        isDeleted: false,
-    };
-    
-    addMessage(userMsg);
-    
-    // Get fake response from each character
-    state.activeCharacters.forEach(character => {
-        getTestCharacterResponse(character);
-    });
-}
-
-// Generate a test response without using the API
-async function getTestCharacterResponse(character, customResponse = null) {
-    // Add typing indicator
-    const typingMsg = {
-        id: generateUniqueId(),
-        content: "typing...",
-        isUser: false,
-        characterId: character.id,
-        timestamp: new Date().toISOString(),
-        isTyping: true,
-        isDeleted: false,
-    };
-    
-    addMessage(typingMsg);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Remove typing indicator
-    const messages = state.chats[state.activeChat];
-    const typingIndex = messages.findIndex(m => m.id === typingMsg.id);
-    
-    if (typingIndex !== -1) {
-        messages.splice(typingIndex, 1);
-    }
-    
-    // Get last user message for context
-    const userMessages = messages.filter(m => m.isUser && !m.isDeleted);
-    const lastUserMessage = userMessages[userMessages.length - 1]?.content || "Hello";
-    
-    // Check if this is a continue message
-    const isContinue = userMessages.length > 0 && 
-                       userMessages[userMessages.length - 1]?.isContinue === true;
-    
-    // If a custom response was provided, use that instead of generating one
-    if (customResponse) {
-        // Add the response as a message
-        addMessage({
-            id: generateUniqueId(),
-            content: customResponse,
-            isUser: false,
-            characterId: character.id,
-            timestamp: new Date().toISOString(),
-            isDeleted: false,
-        });
-        return;
-    }
-    
-    // Generate fake response based on character when API is not connected
-    let fakeResponse;
-    
-    if (isContinue) {
-        // For continue messages, generate a response that continues the story
-        const continueFakeResponses = [
-            `*continues the story* As ${character.name}, I think we should explore this further...`,
-            `Let me elaborate on that. I believe that...`,
-            `*nods thoughtfully* I understand. Let me add to what I was saying earlier...`,
-            `Actually, there's something else I wanted to mention about this topic...`,
-            `*pauses for a moment* On second thought, I should clarify what I meant earlier...`
-        ];
-        fakeResponse = continueFakeResponses[Math.floor(Math.random() * continueFakeResponses.length)];
-    } else {
-        // Regular responses for normal user messages
-        const fakeResponses = [
-            `As ${character.name}, I find your message "${lastUserMessage}" quite interesting. But the API is not connected. Add your Gemini API key in settings for real responses!`,
-            `Hmm, let me think about "${lastUserMessage}" for a moment...lol the API is not connected. Add your Gemini API key in settings for real responses!`,
-            `That's an excellent point about "${lastUserMessage}". I would add that...but the API is not connected. Add your Gemini API key in settings for real responses!`,
-            `I disagree with your assessment of "${lastUserMessage}", because... but the API is not connected. Add your Gemini API key in settings for real responses!`,
-            `You said "${lastUserMessage}?" I've never thought about it that way before. And btw the API is not connected! Add your Gemini API key in settings for real responses!`
-        ];
-        fakeResponse = fakeResponses[Math.floor(Math.random() * fakeResponses.length)];
-    }
-    
-    // Add actual response
-    addMessage({
-        id: generateUniqueId(),
-        content: fakeResponse,
-        isUser: false,
-        characterId: character.id,
-        timestamp: new Date().toISOString(),
-        isDeleted: false,
-    });
 }
 
 // API communication with the Gemini SDK
@@ -3764,8 +3415,15 @@ function deleteCharacter(characterId) {
     // Show success message
     showSuccess("Character deleted successfully");
     
-    // Comprehensive UI update
-    updateCharacterLists();
+    // If no characters are left, show the "no characters" message
+    if (state.characters.length === 0) {
+        const noCharsMessage = document.getElementById('no-characters');
+        if (noCharsMessage) {
+            noCharsMessage.classList.remove('hidden');
+        }
+    }
+    // Note: updateCharacterLists() was removed, direct DOM manipulation is above.
+    // updateSidebarCharacters() is still called which is correct.
     
     // Make sure we update the chat view too if needed
     if (state.activeChat && state.activeChat.includes(characterId)) {
@@ -3800,7 +3458,8 @@ function updateCharacterLists() {
                 characterListContainer.innerHTML = '';
             } else {
                 noCharactersEl.classList.add('hidden');
-                characterListContainer.innerHTML = generateCharacterListHTML();
+                // Regenerate the whole list for now; optimizations will be in create, edit, delete
+                characterListContainer.innerHTML = state.characters.map(char => createCharacterItemHTML(char)).join('');
                 // Set up event listeners for character items
                 setupCharacterItemListeners();
             }
@@ -4441,7 +4100,35 @@ function saveEditedCharacter() {
     }
     
     // Update UI
-    updateSidebarCharacters();
+    // Instead of full updateCharacterLists(), update the specific item
+    const characterElementToUpdate = document.getElementById(`character-item-${id}`);
+    if (characterElementToUpdate) {
+        const updatedCharacterHTML = createCharacterItemHTML(state.characters[characterIndex]);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = updatedCharacterHTML.trim();
+        const newCharacterElement = tempDiv.firstChild;
+
+        characterElementToUpdate.parentNode.replaceChild(newCharacterElement, characterElementToUpdate);
+
+        // Re-attach event listeners to the new element's buttons
+        const editBtn = newCharacterElement.querySelector(`#edit-btn-${id}`);
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => { e.preventDefault(); editCharacter(id); });
+        }
+        const deleteBtn = newCharacterElement.querySelector(`#delete-btn-${id}`);
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => { e.preventDefault(); deleteCharacter(id); });
+        }
+        const enhanceBtn = newCharacterElement.querySelector(`#enhance-btn-${id}`);
+        if (enhanceBtn) {
+            enhanceBtn.addEventListener('click', (e) => { e.preventDefault(); enhanceCharacterContext(id); });
+        }
+    } else {
+        // Fallback to full list update if the element wasn't found for some reason
+        updateCharacterLists();
+    }
+
+    updateSidebarCharacters(); // Keep sidebar updated
     
     // Close the modal
     const modal = document.getElementById('edit-character-modal');
