@@ -1363,6 +1363,7 @@ button[id^="delete-msg-"] {
     #edit-character-modal > div {
         max-height: 85vh;
         width: 95%;
+        overflow-y: auto; /* Enable vertical scrolling if content overflows */
     }
     
     /* Remove sidebar overlay on mobile devices */
