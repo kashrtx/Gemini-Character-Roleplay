@@ -128,6 +128,8 @@
                                         id="model-select" 
                                         class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
                                     >
+                                        <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash (Preview) - Price/Performance</option>
+                                        <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro (Preview) - Advanced Reasoning</option>
                                         <option value="gemini-2.0-flash">Gemini 2.0 Flash - Fast & Responsive</option>
                                         <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite - Lightweight</option>
                                         <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro Experimental - Advanced</option>
@@ -414,6 +416,33 @@
                         
                         <!-- Character List -->
                         <div class="bg-white rounded-lg shadow-lg p-6">
+                            <div class="mb-6 p-4 border rounded-lg bg-gray-50">
+                                <h3 class="text-lg font-semibold mb-3 text-gray-700">Filter & Sort Characters</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="search-characters-input" class="block text-sm font-medium text-gray-700 mb-1">Search:</label>
+                                        <input
+                                            type="search"
+                                            id="search-characters-input"
+                                            placeholder="Search by name or context..."
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label for="sort-characters-select" class="block text-sm font-medium text-gray-700 mb-1">Sort by:</label>
+                                        <select
+                                            id="sort-characters-select"
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                        >
+                                            <option value="createdAt_desc">Latest Created</option>
+                                            <option value="createdAt_asc">Oldest Created</option>
+                                            <option value="name_asc">Name (A-Z)</option>
+                                            <option value="name_desc">Name (Z-A)</option>
+                                            <option value="lastChat_desc">Last Chatted (Recent First)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
                             <h2 class="text-2xl font-bold mb-6 text-gray-800">Your Characters</h2>
                             
                             <div id="character-list" class="space-y-4">
