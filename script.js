@@ -3835,10 +3835,10 @@ function createCharacterItemHTML(character) {
 function filterCharacters(characters, searchTerm) {
     if (!searchTerm || searchTerm.trim() === "") {
         return characters;
-    }
+        }
     const lowerSearchTerm = searchTerm.toLowerCase();
     return characters.filter(character => {
-        const nameMatch = character.name.toLowerCase().includes(lowerSearchTerm);
+        const nameMatch = character.name ? character.name.toLowerCase().includes(lowerSearchTerm) : false;
         const userContextMatch = character.userContext.toLowerCase().includes(lowerSearchTerm);
         const enhancedContextMatch = character.enhancedContext ? character.enhancedContext.toLowerCase().includes(lowerSearchTerm) : false;
         return nameMatch || userContextMatch || enhancedContextMatch;
@@ -3876,20 +3876,24 @@ function sortCharacters(characters, sortOrder) {
 // --- Rendering Logic for Main Character List ---
 function displayCharactersInMainList(charactersToDisplay) {
     const characterListContainer = document.getElementById('character-list');
-    const noCharactersEl = document.getElementById('no-characters');
 
-    if (!characterListContainer) return;
+    if (!characterListContainer) {
+        console.error("Character list container not found!");
+        return;
+    }
 
     if (charactersToDisplay.length === 0) {
-        noCharactersEl.classList.remove('hidden');
-        characterListContainer.innerHTML = ''; // Clear list
+        let message = "No characters created yet. Create one to get started!";
         if (state.characterSearchTerm && state.characterSearchTerm.trim() !== "") {
-            noCharactersEl.textContent = "No characters match your search criteria.";
-        } else {
-            noCharactersEl.textContent = "No characters created yet. Create one to get started!";
+            message = "No characters match your search criteria.";
         }
+        // Set the innerHTML to the "no characters" message.
+        // Ensure the <p> tag has the id 'no-characters' if other parts of the code expect it,
+        // though with this direct management, the id might become less critical for this specific function.
+        characterListContainer.innerHTML = `<p id="no-characters" class="text-gray-500 italic">${message}</p>`;
     } else {
-        noCharactersEl.classList.add('hidden');
+        // Set the innerHTML to the list of characters.
+        // This implicitly removes the "no-characters" paragraph if it was there.
         characterListContainer.innerHTML = charactersToDisplay.map(character => createCharacterItemHTML(character)).join('');
 
         // Re-attach event listeners for the newly rendered items
@@ -3919,12 +3923,15 @@ function displayCharactersInMainList(charactersToDisplay) {
     }
 }
 
+
 function renderFilteredAndSortedCharacters() {
     // Only render if the characters view is active and visible
+    // Also render if the initial load is happening (DOM content loaded)
     const charactersView = document.getElementById('characters-view');
-    if (!charactersView || charactersView.classList.contains('hidden')) {
-        return;
-    }
+    // We need to render on initial load even if characters view is hidden
+    // because the initial view is often chat, but the character list
+    // needs to be populated for the filter/sort controls to work correctly
+    // if the user switches views later.
     let processedCharacters = [...state.characters];
     processedCharacters = filterCharacters(processedCharacters, state.characterSearchTerm);
     processedCharacters = sortCharacters(processedCharacters, state.characterSortOrder);
