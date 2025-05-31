@@ -14,7 +14,7 @@ const VERSION = "1.1.2"; // Fixed character context updates in active chats
 // App Settings
 let appSettings = {
     allowGroupChats: false,
-    modelVersion: "gemini-2.0-flash", // default is flash 2.0
+    modelVersion: "gemini-2.5-flash-preview-05-20", // default to a 2.5 model for testing
     temperature: 1.0, //  0.5 for a balance between randomness and coherence.
     enhancedContextTokens: 2000, // Controls token length for character context enhancement
     conversationTokens: 300, // Controls token length for AI responses in chat
@@ -86,8 +86,9 @@ async function initializeGeminiAPI() {
         const genAI = new GoogleGenerativeAI(state.apiKey);
 
         // Get model from settings and store it in state
+        console.log(`Initializing Gemini model with: ${appSettings.modelVersion}`); // Added logging
         state.geminiModel = genAI.getGenerativeModel({ 
-            model: appSettings.modelVersion || "gemini-2.0-flash" 
+            model: appSettings.modelVersion // Fallback was removed, direct use
         });
 
         // Test the API connection
@@ -97,7 +98,7 @@ async function initializeGeminiAPI() {
         state.isApiConnected = true;
         return true;
     } catch (error) {
-        console.error("Failed to initialize Gemini API:", error);
+        console.error("Failed to initialize Gemini API (full error):", error); // Enhanced logging
         showError(`Failed to connect to Gemini API: ${error.message}`);
         state.isApiConnected = false;
         return false;
@@ -477,23 +478,15 @@ function setupEventListeners() {
 
         // Handle message input keydown
         messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                if (e.shiftKey) {
-                    // Shift+Enter: insert newline
-                    e.preventDefault();
-                    const start = messageInput.selectionStart;
-                    const end = messageInput.selectionEnd;
-                    const value = messageInput.value;
-                    messageInput.value = value.substring(0, start) + '\n' + value.substring(end);
-                    messageInput.selectionStart = messageInput.selectionEnd = start + 1;
-                } else {
-                    // Just Enter: submit if not empty
-                    if (messageInput.value.trim()) {
-                        e.preventDefault();
-                        sendMessage();
-                    }
+            if (e.key === 'Enter' && !e.shiftKey) {
+                // Enter key pressed without Shift
+                e.preventDefault(); // Prevent default action (newline)
+                if (messageInput.value.trim() !== "") {
+                    sendMessage();
                 }
             }
+            // If Shift + Enter is pressed, we do nothing here,
+            // allowing the default behavior (inserting a newline) to occur.
         });
 
         // Auto-resize input height based on content
@@ -2711,6 +2704,7 @@ async function getCharacterResponse(character, userMsg) {
                     isDeleted: false,
                 });
             } catch (error) {
+                console.error("Error in getCharacterResponse (first message callGeminiAPI):", error); // Enhanced logging
                 // Make sure to remove typing indicator even on error
                 removeTypingIndicator(typingMsg.id);
                 throw error; // Re-throw to be caught by outer try-catch
@@ -2877,9 +2871,11 @@ Stay in character and respond naturally to the user's message.`;
                         updateMessageContent(responseMsg.id, `*${character.name} seems unable to respond at the moment*`);
                     }
                 }
+                console.error("Error during sendMessageStream in getCharacterResponse:", error); // Enhanced logging
                 throw error; // Still throw the error for the outer catch block
             }
         } catch (error) {
+            console.error("Error in getCharacterResponse (main try block):", error); // Enhanced logging
             // Handle specific API errors
             if (error.message && error.message.includes('First content should be with role')) {
                 console.error("History format error:", error.message);
@@ -2910,6 +2906,7 @@ Please respond as ${character.name} to this message.`;
                     });
                     return;
                 } catch (fallbackError) {
+                    console.error("Error in getCharacterResponse (fallback simplePrompt):", fallbackError); // Enhanced logging
                     throw new Error("History format error. Even fallback approach failed: " + fallbackError.message);
                 }
             }
@@ -2919,7 +2916,7 @@ Please respond as ${character.name} to this message.`;
             throw error; // Re-throw to be caught by outer try-catch
         }
     } catch (error) {
-        console.error("Error getting character response:", error);
+        console.error("Error getting character response (outer catch):", error); // Enhanced logging
         let errorMessage = error.message;
         
         // Provide more user-friendly error message for common issues
@@ -3486,8 +3483,8 @@ async function callGeminiAPI(prompt) {
         
         return result.response.text();
     } catch (error) {
-        console.error("Gemini API call failed:", error);
-        if (error.message.includes("API key")) {
+        console.error("Gemini API call failed (full error):", error); // Enhanced logging
+        if (error.message && error.message.includes("API key")) { // Check error.message exists
             state.isApiConnected = false;
             checkApiKey();
         }
@@ -3582,6 +3579,10 @@ async function enhanceCharacterContext(characterId) {
         }
     } catch (error) {
         console.error("Error enhancing character:", error);
+        showError(`Failed to enhance character: ${error.message}`);
+        resetEnhanceButton(enhanceButton);
+    } catch (error) {
+        console.error("Error enhancing character (full error):", error); // Enhanced logging
         showError(`Failed to enhance character: ${error.message}`);
         resetEnhanceButton(enhanceButton);
     }
@@ -4109,7 +4110,8 @@ async function testModelConfiguration() {
             conversationTokens: appSettings.conversationTokens,
             maxTokens: appSettings.maxTokens, // For backward compatibility
             topK: appSettings.topK,
-            topP: appSettings.topP
+            topK: appSettings.topK,
+            topP: appSettings.topP,
         });
 
         // Try to initialize with the selected model
@@ -4117,6 +4119,7 @@ async function testModelConfiguration() {
         const genAI = new GoogleGenerativeAI(state.apiKey);
         
         // Get model with current settings
+        console.log(`Testing model configuration for: ${appSettings.modelVersion}`); // Added logging
         const model = genAI.getGenerativeModel({ 
             model: appSettings.modelVersion
         });
@@ -4160,7 +4163,7 @@ async function testModelConfiguration() {
         testResult.classList.add('bg-red-100');
         testStatus.textContent = 'Configuration test failed';
         testDetails.textContent = `Error: ${error.message}`;
-        console.error('Model test failed:', error);
+        console.error('Model test failed (full error):', error); // Enhanced logging
     } finally {
         testBtn.disabled = false;
     }
