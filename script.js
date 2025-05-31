@@ -1288,82 +1288,77 @@ function toggleCharacterSelection(characterId) {
 
 // Chat functionality
 function startChat() {
-    console.log("Start chat clicked", state.selectedCharacters);
+    console.log("Start chat clicked", state.selectedCharacters); // Debug log
 
     if (state.selectedCharacters.length === 0) {
-        showError("Please select at least one character to chat with.");
+        showError("Please select at least one character to chat with");
         return;
     }
-
-    // Update active characters based on selection
-    state.activeCharacters = state.characters.filter(c => state.selectedCharacters.includes(c.id));
-
-    let chatId;
-    let isGroupChat = state.activeCharacters.length > 1;
-
-    if (isGroupChat) {
-        // For group chats, generate ID by sorting and joining selected character IDs
-        chatId = state.selectedCharacters.sort().join('-');
-    } else {
-        // For single chats, use the character's ID as the chat ID (existing behavior)
-        chatId = state.selectedCharacters[0];
-    }
     
+    // Generate chat ID
+    const chatId = state.selectedCharacters.sort().join('-');
     state.activeChat = chatId;
-
+    
     // Ensure chat exists in state
     if (!state.chats[chatId]) {
         state.chats[chatId] = [];
-        // Note: setStoredItem for chats will happen after adding welcome message
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     }
     
-    // Save the active chat ID for each selected character (applies to both single and group)
+    // Update active characters
+    state.activeCharacters = state.characters.filter(c => state.selectedCharacters.includes(c.id));
+    
+    // Save the active chat ID for each selected character
     state.selectedCharacters.forEach(characterId => {
         state.lastActiveChats[characterId] = chatId;
     });
     setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
     
-    // Create a welcome message for the chat if it's new (empty)
+    // Create a welcome message for the chat if it's empty
     if (state.chats[chatId].length === 0) {
-        const welcomeMsgContent = isGroupChat
-            ? `New group conversation started with ${state.activeCharacters.map(c => c.name).join(', ')}.`
-            : `New conversation started with ${state.activeCharacters[0].name}.`;
-
+        // Add greeting message to the chat
         const welcomeMsg = {
             id: generateUniqueId(),
-            content: welcomeMsgContent,
+            content: `New conversation started with ${state.activeCharacters.map(c => c.name).join(', ')}`,
             isUser: false,
             isSystem: true,
             timestamp: new Date().toISOString(),
             isDeleted: false
         };
         
+        // Add welcome message to the chat
         state.chats[chatId].push(welcomeMsg);
-        setStoredItem(STORAGE_KEYS.CHATS, state.chats); // Save chats after adding welcome message
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         
-        // For new single character conversations, let the character initialize with a greeting if API is connected
-        if (!isGroupChat && state.isApiConnected && state.activeCharacters.length === 1) {
-            // Update UI first to show the welcome message
+        // For new conversations, let the character initialize with a greeting
+        // But only do this if we're connected to the API
+        if (state.isApiConnected && state.activeCharacters.length === 1) {
+            // Update UI first
             changeView('chat');
             updateChatUI();
             
+            // Wait a moment for UI to update before triggering greeting
             setTimeout(() => {
                 const character = state.activeCharacters[0];
+                
+                // Create a special init message that won't be displayed
                 const initMsg = {
                     id: generateUniqueId(),
-                    content: "Hello", // This content is not actually sent but signals initialization
+                    content: "Hello",
                     isUser: true,
                     timestamp: new Date().toISOString(),
-                    isDeleted: true,
-                    isInitializing: true
+                    isDeleted: true, // Won't be shown in UI
+                    isInitializing: true // Special flag for first-time greeting
                 };
+                
+                // Generate character's greeting (async)
                 getCharacterResponse(character, initMsg);
             }, 500);
         }
     }
     
     // Update UI - Make sure to switch to chat view first
-    changeView('chat'); // This should be called to ensure the view is correct
+    changeView('chat');
     updateChatUI();
     
     // Update sidebar to show the most recent characters at the top
@@ -1418,46 +1413,30 @@ function updateChatUI() {
     if (chatWindow) chatWindow.classList.remove('hidden');
     
     // Update chat header
+    const characterNames = state.activeCharacters.map(c => c.name).join(', ');
     const headerTitle = document.getElementById('chat-header-title');
+    if (headerTitle) headerTitle.textContent = characterNames;
+    
+    // Update chat header with profile pictures
     const chatHeaderAvatars = document.getElementById('chat-header-avatars');
-    const headerSubtitle = document.getElementById('chat-header-subtitle'); // Get subtitle element
-
-    if (headerTitle) {
-        headerTitle.textContent = state.activeCharacters.map(c => c.name).join(', ');
-    }
-
     if (chatHeaderAvatars) {
-        chatHeaderAvatars.innerHTML = ''; // Clear existing avatars
-        let zIndex = state.activeCharacters.length; // For overlapping effect
-        state.activeCharacters.forEach((character, index) => {
+        // Clear existing avatars
+        chatHeaderAvatars.innerHTML = '';
+        
+        // Add avatars for each active character
+        state.activeCharacters.forEach(character => {
             const avatarElement = document.createElement('div');
-            // Apply Tailwind classes for styling, including negative margin for overlap
-            avatarElement.className = `character-avatar bg-primary/20 text-primary rounded-full w-8 h-8 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm ${index > 0 ? '-ml-3' : ''}`;
-            avatarElement.style.zIndex = zIndex--;
-
-
+            avatarElement.className = 'character-avatar bg-primary/20 text-primary mr-2';
+            
             if (character.profilePicture) {
                 avatarElement.innerHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
                 avatarElement.classList.add('has-image');
             } else {
                 avatarElement.textContent = character.name.charAt(0).toUpperCase();
-                // Basic text styling if no image
-                avatarElement.classList.add('text-sm', 'font-semibold');
             }
+            
             chatHeaderAvatars.appendChild(avatarElement);
         });
-    }
-
-    if (headerSubtitle) {
-        if (state.activeCharacters.length > 1) {
-            headerSubtitle.textContent = "Group conversation";
-        } else if (state.activeCharacters.length === 1) {
-            // Potentially show API status or other relevant info for single chat
-            const apiStatus = state.isApiConnected ? "Online" : "Offline (Test Mode)";
-            headerSubtitle.textContent = `Status: ${apiStatus}`;
-        } else {
-            headerSubtitle.textContent = ""; // Clear if no active chat
-        }
     }
     
     // Update messages
@@ -1517,15 +1496,15 @@ function createMessageHTML(message) {
                 onmouseleave="hideMessageActions('${message.id}')"
                 data-message-id="${message.id}"
             >
-                <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 shrink-0 ${character.profilePicture ? 'has-image' : ''}">
+                <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 ${character.profilePicture ? 'has-image' : ''}">
                     ${character.profilePicture ? 
                         `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">` : 
                         character.name.charAt(0).toUpperCase()
                     }
                 </div>
                 
-                <div class="message-container-character ml-2"> {/* Added ml-2 for spacing from avatar */}
-                    <div class="text-sm font-medium text-gray-800 mb-0.5">${character.name}</div> {/* Enhanced name display */}
+                <div class="message-container-character">
+                    <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
                     <div class="message-bubble character-message typing-indicator-bubble">
                         <div class="typing-indicator">
                             <span class="typing-dot"></span>
@@ -1678,11 +1657,6 @@ function createMessageHTML(message) {
     
     // Character message
     const character = state.characters.find(c => c.id === message.characterId) || { name: 'Unknown', profilePicture: null };
-    if (!character) { // Should not happen if data is consistent
-        console.error("Character not found for message:", message);
-        // Fallback or skip rendering this message
-        return `<div class="text-red-500">Error: Character for message not found.</div>`;
-    }
     
     // Check if this is the last message from this character
     const isLastCharacterMessage = (() => {
@@ -1747,15 +1721,15 @@ function createMessageHTML(message) {
             onmouseleave="hideMessageActions('${message.id}')"
             data-message-id="${message.id}"
         >
-            <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 shrink-0 ${character.profilePicture ? 'has-image' : ''}">
+            <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 ${character.profilePicture ? 'has-image' : ''}">
                 ${character.profilePicture ? 
                     `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">` : 
-                    (character.name ? character.name.charAt(0).toUpperCase() : '?') // Fallback for name
+                    character.name.charAt(0).toUpperCase()
                 }
             </div>
             
-            <div class="message-container-character ml-2"> {/* Added ml-2 for spacing from avatar */}
-                <div class="text-sm font-medium text-gray-800 mb-0.5">${character.name || 'Unknown Character'}</div> {/* Enhanced name display */}
+            <div class="message-container-character">
+                <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
             
                 <div class="message-bubble character-message">
                     ${processContent(message.content)}
