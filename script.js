@@ -3836,7 +3836,7 @@ function filterCharacters(characters, searchTerm) {
     if (!searchTerm || searchTerm.trim() === "") {
         return characters;
         }
-    const lowerSearchTerm = searchTerm.toLowerCase();
+    const lowerSearchTerm = searchTerm.trim().toLowerCase(); // Trim before converting to lowercase
     return characters.filter(character => {
         const nameMatch = character.name ? character.name.toLowerCase().includes(lowerSearchTerm) : false;
         const userContextMatch = character.userContext.toLowerCase().includes(lowerSearchTerm);
