@@ -1489,3 +1489,53 @@ button[id^="delete-msg-"] {
         padding-right: 8px;
     }
 }
+
+/* --- Mobile Button Layout for Edit/Regenerate --- */
+@media (max-width: 768px) {
+    .message-container-user .text-xs.text-gray-500.mt-1,
+    .message-container-character .text-xs.text-gray-500.mt-1 {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start; /* Align items to the start of the container */
+        flex-wrap: nowrap; 
+    }
+
+    /* Ensure the timestamp text itself doesn't push buttons too far */
+    .message-container-user .text-xs.text-gray-500.mt-1 > span:first-child,
+    .message-container-character .text-xs.text-gray-500.mt-1 > span:first-child {
+        margin-right: 0.5rem; /* Space between time and first button */
+        white-space: nowrap;
+        flex-shrink: 0; /* Prevent time from shrinking too much */
+    }
+
+    /* Styling for the buttons themselves on mobile for better side-by-side layout */
+    .message-container-user .text-xs.text-gray-500.mt-1 .edit-msg-btn,
+    .message-container-character .text-xs.text-gray-500.mt-1 .edit-msg-btn {
+        margin-left: 0.35rem; /* Consistent small margin between buttons */
+        padding: 0.2rem 0.3rem; 
+        font-size: 0.65rem; /* Smaller font for button text like 'Edit' or 'Regenerate' */
+        line-height: 1;
+        display: inline-flex; /* Ensure they behave well in a flex row */
+        align-items: center;
+    }
+
+    /* Adjust icon size and spacing within buttons */
+    .message-container-user .text-xs.text-gray-500.mt-1 .edit-msg-btn .fas,
+    .message-container-character .text-xs.text-gray-500.mt-1 .edit-msg-btn .fas {
+        font-size: 0.7rem; 
+        margin-right: 0.15rem; /* Space between icon and text, if text exists */
+    }
+
+    /* If only icon (common for user message edit button) */
+    .message-container-user .text-xs.text-gray-500.mt-1 .edit-msg-btn .fas:only-child {
+        margin-right: 0; 
+    }
+
+    /* Text within buttons (like "Regenerate", "Edit") */
+    .message-container-character .text-xs.text-gray-500.mt-1 .edit-msg-btn .text-xs {
+        font-size: 0.65rem; /* Match button font size */
+        display: inline; /* Ensure it stays inline with icon */
+    }
+}
+/* --- End Mobile Button Layout --- */
