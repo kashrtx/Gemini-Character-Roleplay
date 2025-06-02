@@ -599,46 +599,60 @@
         
         // Ensure the sidebar position is adjusted when the DOM content is loaded
         document.addEventListener('DOMContentLoaded', () => {
-            // This will be called after the main script is loaded and run
-            setTimeout(() => {
+            const adjustLayout = () => {
                 const sidebar = document.getElementById('character-sidebar');
                 const header = document.querySelector('header');
                 const main = document.querySelector('main');
-                
-                if (sidebar && header && window.innerWidth < 1024) {
+
+                if (sidebar && header && main && window.innerWidth < 1024) {
+                    // Perform reads first
                     const headerHeight = header.offsetHeight;
-                    
-                    // Ensure fixed positioning
+
+                    // Perform writes
                     header.style.position = 'fixed';
                     header.style.top = '0';
                     header.style.left = '0';
                     header.style.right = '0';
                     header.style.width = '100%';
-                    header.style.zIndex = '51';
-                    
-                    // Position sidebar below header
+                    header.style.zIndex = '51'; // Ensure this is appropriate
+
                     sidebar.style.top = `${headerHeight}px`;
-                    sidebar.style.height = `calc(100vh - ${headerHeight}px)`;
-                    sidebar.style.maxHeight = `calc(100vh - ${headerHeight}px)`;
-                    
-                    // Add padding to main content to offset the fixed header
-                    if (main) {
-                        main.style.paddingTop = `${headerHeight}px`;
+                    const sidebarHeightCalc = `calc(100vh - ${headerHeight}px)`;
+                    sidebar.style.height = sidebarHeightCalc;
+                    sidebar.style.maxHeight = sidebarHeightCalc;
+
+                    main.style.paddingTop = `${headerHeight}px`;
+                } else if (main) {
+                    // Reset styles if condition not met (e.g., on wider screens)
+                    main.style.paddingTop = '';
+                    if (header) {
+                        header.style.position = ''; // Or original value
+                        // Reset other header styles if necessary
                     }
-                    
-                    // Force a small delay and reapply to ensure calculations are correct
-                    setTimeout(() => {
-                        const updatedHeaderHeight = header.offsetHeight;
-                        sidebar.style.top = `${updatedHeaderHeight}px`;
-                        sidebar.style.height = `calc(100vh - ${updatedHeaderHeight}px)`;
-                        sidebar.style.maxHeight = `calc(100vh - ${updatedHeaderHeight}px)`;
-                        
-                        if (main) {
-                            main.style.paddingTop = `${updatedHeaderHeight}px`;
-                        }
-                    }, 200);
+                    if (sidebar) {
+                        sidebar.style.top = '';
+                        sidebar.style.height = '';
+                        sidebar.style.maxHeight = '';
+                    }
                 }
-            }, 100);
+            };
+
+            // Initial adjustment
+            requestAnimationFrame(adjustLayout);
+
+            // Re-adjust on resize
+            window.addEventListener('resize', () => {
+                requestAnimationFrame(adjustLayout);
+            });
+
+            // The original script also had a nested setTimeout(..., 200)
+            // to re-apply calculations. This was likely to handle cases where
+            // headerHeight might change after initial render (e.g., images loading in header).
+            // A more robust way is to call adjustLayout after a delay or on window.load
+            // if initial header height is unstable. For now, let's remove the nested setTimeout
+            // and rely on the initial call and resize listener.
+            // If header height instability is an issue, a single delayed call might be added:
+            setTimeout(() => requestAnimationFrame(adjustLayout), 300); // One delayed call
         });
     </script>
     

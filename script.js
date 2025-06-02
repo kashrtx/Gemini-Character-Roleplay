@@ -499,8 +499,11 @@ function setupEventListeners() {
 
         // Auto-resize input height based on content
         messageInput.addEventListener('input', () => {
-            messageInput.style.height = 'auto';
-            messageInput.style.height = (messageInput.scrollHeight) + 'px';
+            requestAnimationFrame(() => {
+                messageInput.style.height = 'auto';
+                const newScrollHeight = messageInput.scrollHeight; // Read
+                messageInput.style.height = newScrollHeight + 'px'; // Write
+            });
         });
     }
 
@@ -1517,12 +1520,13 @@ function updateChatUI() {
     }
     
     // Update messages
-    updateChatMessages();
-    
-    // Scroll to bottom
+    updateChatMessages(); // This function populates the messages
+
     const messagesContainer = document.getElementById('chat-messages');
     if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        requestAnimationFrame(() => { // Defer scroll to next frame
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        });
     }
 }
 
@@ -1551,7 +1555,14 @@ function updateChatMessages() {
         if (chatWindow) chatWindow.classList.remove('hidden');
         if (placeholder) placeholder.classList.add('hidden');
     } else {
-        messagesContainer.innerHTML = visibleMessages.map(message => createMessageHTML(message)).join('');
+        // Clear the container before adding new elements
+        messagesContainer.innerHTML = ''; 
+        visibleMessages.forEach(message => {
+            const messageElement = createMessageHTML(message);
+            if (messageElement) { // Ensure messageElement is not null
+                messagesContainer.appendChild(messageElement);
+            }
+        });
     }
     
     // Scroll to bottom
@@ -1562,296 +1573,182 @@ function updateChatMessages() {
 }
 
 function createMessageHTML(message) {
-    if (message.isTyping) {
-        // Typing indicator message - always character (not user)
-        const character = state.characters.find(c => c.id === message.characterId) || { name: 'Unknown', profilePicture: null };
-        
-        return `
-            <div 
-                class="flex justify-start w-full"
-                onmouseenter="showMessageActions('${message.id}')"
-                onmouseleave="hideMessageActions('${message.id}')"
-                data-message-id="${message.id}"
-            >
-                <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 ${character.profilePicture ? 'has-image' : ''}">
-                    ${character.profilePicture ? 
-                        `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">` : 
-                        character.name.charAt(0).toUpperCase()
-                    }
-                </div>
-                
-                <div class="message-container-character">
-                    <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
-                    <div class="message-bubble character-message typing-indicator-bubble">
-                        <div class="typing-indicator">
-                            <span class="typing-dot"></span>
-                            <span class="typing-dot"></span>
-                            <span class="typing-dot"></span>
-                        </div>
-                        
-                        <button
-                            id="delete-msg-${message.id}"
-                            onclick="deleteMessage('${message.id}')"
-                            class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
-                            title="Remove stuck typing indicator"
-                        >
-                            <i class="fas fa-times text-xs"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    // Process content with markdown
-    const processContent = (content) => {
-        // Configure marked options for enhanced markdown support
-        marked.setOptions({
-            breaks: true, // Enable line breaks
-            gfm: true, // Enable GitHub Flavored Markdown
-            headerIds: false, // Disable header IDs for security
-            mangle: false // Disable mangle for security
-        });
+    const mainDiv = document.createElement('div');
+    mainDiv.setAttribute('data-message-id', message.id);
+    mainDiv.onmouseenter = () => showMessageActions(message.id);
+    mainDiv.onmouseleave = () => hideMessageActions(message.id);
 
-        // Custom processing for roleplay-specific formats
-        
-        // Handle *actions* formatting by converting to italics with special styling
-        content = content.replace(/\*((?!\*)[^*]+)\*/g, (match, action) => {
-            // Clean up nested asterisks if any
-            action = action.replace(/\*/g, '');
-            return `<em class="roleplay-action">${action}</em>`;
-        });
-        
-        // Handle ##Scene descriptions## for scene transitions
-        content = content.replace(/##\s*([^#]+)\s*##/g, (match, scene) => {
-            return `<div class="scene-transition">${scene}</div>`;
-        });
-        
-        // Handle (OOC: text) for out-of-character comments
-        content = content.replace(/\((?:OOC|ooc|p\.s\.):\s*([^)]+)\)/g, (match, ooc) => {
-            return `<span class="ooc-comment">(OOC: ${ooc})</span>`;
-        });
-        
-        // Handle __bold text__ for emphasis
-        content = content.replace(/__((?!\s)[^_]+)__/g, '<strong>$1</strong>');
-        
-        // Parse markdown with the custom replacements
-        const rawHtml = marked.parse(content);
-        
-        // Sanitize HTML with expanded tag support
-        return DOMPurify.sanitize(rawHtml, {
-            ALLOWED_TAGS: [
-                'em', 'strong', 'code', 'br', 'p', 'ul', 'ol', 'li', 
-                'blockquote', 'i', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                'pre', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                'div', 'span'
-            ],
-            ALLOWED_ATTR: ['class', 'style']
-        });
+    // Helper to create elements with classes
+    const createElement = (tag, classes = [], attributes = {}) => {
+        const el = document.createElement(tag);
+        if (classes.length > 0) el.className = classes.join(' ');
+        for (const attr in attributes) {
+            el.setAttribute(attr, attributes[attr]);
+        }
+        return el;
     };
-    
+
+    // processContent function is now defined outside createMessageHTML
+
+    if (message.isTyping) {
+        const character = state.characters.find(c => c.id === message.characterId) || { name: 'Unknown', profilePicture: null };
+        mainDiv.className = 'flex justify-start w-full';
+
+        const avatarDiv = createElement('div', ['character-avatar', 'bg-primary/20', 'text-primary', 'self-end', 'mb-1', 'mr-1']);
+        if (character.profilePicture) {
+            avatarDiv.classList.add('has-image');
+            const img = createElement('img', ['w-full', 'h-full', 'object-cover'], { src: character.profilePicture, alt: character.name });
+            avatarDiv.appendChild(img);
+        } else {
+            avatarDiv.textContent = character.name.charAt(0).toUpperCase();
+        }
+        mainDiv.appendChild(avatarDiv);
+
+        const messageContainer = createElement('div', ['message-container-character']);
+        const charNameDiv = createElement('div', ['text-xs', 'text-gray-600', 'ml-2', 'mb-1']);
+        charNameDiv.textContent = character.name;
+        messageContainer.appendChild(charNameDiv);
+
+        const bubbleDiv = createElement('div', ['message-bubble', 'character-message', 'typing-indicator-bubble']);
+        const typingIndicator = createElement('div', ['typing-indicator']);
+        typingIndicator.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+        bubbleDiv.appendChild(typingIndicator);
+
+        const deleteButton = createElement('button', ['absolute', '-top-3', '-right-3', 'bg-red-500', 'text-white', 'rounded-full', 'w-6', 'h-6', 'flex', 'items-center', 'justify-center', 'shadow', 'hover:bg-red-600', 'transition', 'hidden'], { id: `delete-msg-${message.id}`, title: "Remove stuck typing indicator" });
+        deleteButton.innerHTML = '<i class="fas fa-times text-xs"></i>';
+        deleteButton.onclick = () => deleteMessage(message.id);
+        bubbleDiv.appendChild(deleteButton);
+
+        messageContainer.appendChild(bubbleDiv);
+        mainDiv.appendChild(messageContainer);
+        return mainDiv;
+    }
+
+    if (message.isSystem) {
+        mainDiv.className = 'flex justify-center my-4';
+        if (message.content === "...") {
+            mainDiv.classList.remove('my-4');
+            mainDiv.classList.add('my-2');
+            const indicatorDiv = createElement('div', ['system-continue-indicator']);
+            indicatorDiv.innerHTML = '<i class="fas fa-ellipsis-h mr-1"></i> Continuing conversation...';
+            mainDiv.appendChild(indicatorDiv);
+        } else {
+            const systemBubble = createElement('div', ['bg-gray-100', 'text-gray-600', 'px-4', 'py-2', 'rounded-full', 'text-sm']);
+            systemBubble.textContent = message.content; // System messages are plain text
+            mainDiv.appendChild(systemBubble);
+        }
+        return mainDiv;
+    }
+
+    const messageContainerOuter = createElement('div'); // This will be mainDiv for user/char messages
+    const messageContainerInner = createElement('div'); // For bubble and timestamp/buttons
+
+    const bubbleDiv = createElement('div', ['message-bubble']);
+    // Create a specific element for the textual content
+    const textContentDiv = createElement('div', ['message-text-content']); 
+    textContentDiv.innerHTML = processContent(message.content); // Processed content goes into textContentDiv
+    bubbleDiv.appendChild(textContentDiv); 
+
+    const deleteButton = createElement('button', ['absolute', '-top-3', '-right-3', 'bg-red-500', 'text-white', 'rounded-full', 'w-6', 'h-6', 'flex', 'items-center', 'justify-center', 'shadow', 'hover:bg-red-600', 'transition', 'hidden'], { id: `delete-msg-${message.id}` });
+    deleteButton.innerHTML = '<i class="fas fa-times text-xs"></i>';
+    deleteButton.onclick = () => deleteMessage(message.id);
+    bubbleDiv.appendChild(deleteButton); // Delete button is a sibling of textContentDiv
+    messageContainerInner.appendChild(bubbleDiv);
+
+    const controlsDiv = createElement('div', ['flex', 'items-center']);
+    const timestampDiv = createElement('div', ['text-xs', 'text-gray-500', 'mt-1']);
+    const timestampSpan = createElement('span');
+    if (message.edited) {
+        const editedSpan = createElement('span', ['text-xs', 'italic', 'mr-1']);
+        editedSpan.textContent = 'edited';
+        timestampSpan.appendChild(editedSpan);
+    }
+    timestampSpan.appendChild(document.createTextNode(new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
+    timestampDiv.appendChild(timestampSpan);
+
+
     if (message.isUser) {
-        // Check if this is the last user message
+        mainDiv.className = 'flex justify-end w-full';
+        messageContainerInner.classList.add('message-container-user');
+        bubbleDiv.classList.add('user-message');
+        controlsDiv.classList.add('justify-end');
+        timestampDiv.classList.add('mr-2');
+
         const isLastUserMessage = (() => {
             if (!state.activeChat) return false;
             const messages = state.chats[state.activeChat] || [];
-            const userMessages = messages.filter(m => 
-                m.isUser && 
-                !m.isDeleted && 
-                !m.isContinue
-            );
-            return userMessages.length > 0 && 
-                   userMessages[userMessages.length - 1].id === message.id;
+            const userMessages = messages.filter(m => m.isUser && !m.isDeleted && !m.isContinue);
+            return userMessages.length > 0 && userMessages[userMessages.length - 1].id === message.id;
+        })();
+
+        if (isLastUserMessage) {
+            const editButton = createElement('button', ['ml-2', 'text-primary', 'hover:text-primary/70', 'edit-msg-btn'], { title: "Edit message" });
+            editButton.innerHTML = '<i class="fas fa-pencil-alt text-xs"></i>';
+            editButton.onclick = () => editMessage(message.id);
+            timestampDiv.appendChild(editButton);
+        }
+    } else { // Character message
+        const character = state.characters.find(c => c.id === message.characterId) || { name: 'Unknown', profilePicture: null };
+        mainDiv.className = 'flex justify-start w-full';
+
+        const avatarDiv = createElement('div', ['character-avatar', 'bg-primary/20', 'text-primary', 'self-end', 'mb-1', 'mr-1']);
+        if (character.profilePicture) {
+            avatarDiv.classList.add('has-image');
+            const img = createElement('img', ['w-full', 'h-full', 'object-cover'], { src: character.profilePicture, alt: character.name });
+            avatarDiv.appendChild(img);
+        } else {
+            avatarDiv.textContent = character.name.charAt(0).toUpperCase();
+        }
+        mainDiv.appendChild(avatarDiv);
+
+        messageContainerInner.classList.add('message-container-character');
+        const charNameDiv = createElement('div', ['text-xs', 'text-gray-600', 'ml-2', 'mb-1']);
+        charNameDiv.textContent = character.name;
+        messageContainerInner.insertBefore(charNameDiv, bubbleDiv); // Insert name before bubble
+
+        bubbleDiv.classList.add('character-message');
+        timestampDiv.classList.add('ml-2');
+
+
+        const isLastCharacterMessage = (() => {
+            if (!state.activeChat) return false;
+            const messages = state.chats[state.activeChat] || [];
+            const characterMessages = messages.filter(m => !m.isUser && m.characterId === message.characterId && !m.isDeleted && !m.isTyping);
+            return characterMessages.length > 0 && characterMessages[characterMessages.length - 1].id === message.id;
         })();
         
-        // User message - right aligned
-        // Process message content - safe to check for markdown
-        return `
-            <div 
-                class="flex justify-end w-full"
-                onmouseenter="showMessageActions('${message.id}')"
-                onmouseleave="hideMessageActions('${message.id}')"
-                data-message-id="${message.id}"
-            >
-                <div class="message-container-user">
-                    <div class="message-bubble user-message">
-                        ${processContent(message.content)}
-                        
-                        <button
-                            id="delete-msg-${message.id}"
-                            onclick="deleteMessage('${message.id}')"
-                            class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
-                        >
-                            <i class="fas fa-times text-xs"></i>
-                        </button>
-                    </div>
-                    
-                    <div class="flex items-center justify-end">
-                        <div class="text-xs text-gray-500 mt-1 mr-2 flex items-center">
-                            <span>
-                                ${message.edited ? 
-                                    `<span class="text-xs italic mr-1">edited</span>` : 
-                                    ''}
-                                ${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            </span>
-                            
-                        <button
-                            onclick="editMessage('${message.id}')"
-                                class="ml-2 text-primary hover:text-primary/70 edit-msg-btn"
-                            title="Edit message"
-                                ${!isLastUserMessage ? 'style="display: none;"' : ''}
-                        >
-                            <i class="fas fa-pencil-alt text-xs"></i>
-                        </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+        const isFollowedByUserMessage = (() => {
+            if (!state.activeChat) return false;
+            const messages = state.chats[state.activeChat] || [];
+            const messageIndex = messages.findIndex(m => m.id === message.id);
+            for (let i = messageIndex + 1; i < messages.length; i++) {
+                if (messages[i].isUser && !messages[i].isDeleted) return true;
+            }
+            return false;
+        })();
+
+        const showRegenerateButton = isLastCharacterMessage && !isFollowedByUserMessage;
+
+        if (showRegenerateButton) {
+            const regenerateButton = createElement('button', ['ml-4', 'text-primary', 'hover:text-primary/70', 'edit-msg-btn'], { title: "Regenerate response" });
+            regenerateButton.innerHTML = '<i class="fas fa-redo-alt text-xs"></i> <span class="text-xs">Regenerate</span>';
+            regenerateButton.onclick = () => regenerateMessage(message.characterId);
+            timestampDiv.appendChild(regenerateButton);
+        }
+
+        if (isLastCharacterMessage) {
+            const editButton = createElement('button', ['ml-4', 'text-primary', 'hover:text-primary/70', 'edit-msg-btn'], { title: "Edit message" });
+            editButton.innerHTML = '<i class="fas fa-pencil-alt text-xs"></i> <span class="text-xs">Edit</span>';
+            editButton.onclick = () => editMessage(message.id);
+            timestampDiv.appendChild(editButton);
+        }
     }
-    
-    if (message.isSystem) {
-        // Special styling for continue indicator
-        if (message.content === "...") {
-            return `
-                <div class="flex justify-center my-2">
-                    <div class="system-continue-indicator">
-                        <i class="fas fa-ellipsis-h mr-1"></i> Continuing conversation...
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Regular system message
-        return `
-            <div class="flex justify-center my-4">
-                <div class="bg-gray-100 text-gray-600 px-4 py-2 rounded-full text-sm">
-                    ${message.content}
-                </div>
-            </div>
-        `;
-    }
-    
-    // Character message
-    const character = state.characters.find(c => c.id === message.characterId) || { name: 'Unknown', profilePicture: null };
-    
-    // Check if this is the last message from this character
-    const isLastCharacterMessage = (() => {
-        if (!state.activeChat) return false;
-        const messages = state.chats[state.activeChat] || [];
-        const characterMessages = messages.filter(m => 
-            !m.isUser && 
-            m.characterId === message.characterId && 
-            !m.isDeleted && 
-            !m.isTyping
-        );
-        return characterMessages.length > 0 && 
-               characterMessages[characterMessages.length - 1].id === message.id;
-    })();
-    
-    // Check if there are any user messages after this one
-    const isFollowedByUserMessage = (() => {
-        if (!state.activeChat) return false;
-        const messages = state.chats[state.activeChat] || [];
-        const messageIndex = messages.findIndex(m => m.id === message.id);
-        
-        // Check if there are any user messages after this one
-        for (let i = messageIndex + 1; i < messages.length; i++) {
-            if (messages[i].isUser && !messages[i].isDeleted) {
-                return true;
-            }
-        }
-        
-        return false;
-    })();
-    
-    // Find the nearest user message before this one
-    const followsUserMessage = (() => {
-        if (!state.activeChat) return false;
-        const messages = state.chats[state.activeChat] || [];
-        const messageIndex = messages.findIndex(m => m.id === message.id);
 
-        // Go backwards looking for a user message
-        for (let i = messageIndex - 1; i >= 0; i--) {
-            // If we hit another message from the same character, this doesn't follow a user message
-            if (!messages[i].isUser && messages[i].characterId === message.characterId && !messages[i].isDeleted) {
-                return false;
-            }
+    controlsDiv.appendChild(timestampDiv);
+    messageContainerInner.appendChild(controlsDiv);
+    mainDiv.appendChild(messageContainerInner);
 
-            // If we find a user message, this follows it - now we include continue messages (removing !messages[i].isContinue)
-            if (messages[i].isUser && !messages[i].isDeleted) {
-                return true;
-            }
-        }
-
-        return false;
-    })();
-
-    // Show regenerate button only on the last character message AND if there are no user messages after it
-    const showRegenerateButton = isLastCharacterMessage && !isFollowedByUserMessage;
-    
-    // Character message - left aligned
-    return `
-        <div 
-            class="flex justify-start w-full"
-            onmouseenter="showMessageActions('${message.id}')"
-            onmouseleave="hideMessageActions('${message.id}')"
-            data-message-id="${message.id}"
-        >
-            <div class="character-avatar bg-primary/20 text-primary self-end mb-1 mr-1 ${character.profilePicture ? 'has-image' : ''}">
-                ${character.profilePicture ? 
-                    `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">` : 
-                    character.name.charAt(0).toUpperCase()
-                }
-            </div>
-            
-            <div class="message-container-character">
-                <div class="text-xs text-gray-600 ml-2 mb-1">${character.name}</div>
-            
-                <div class="message-bubble character-message">
-                    ${processContent(message.content)}
-                    
-                    <button
-                        id="delete-msg-${message.id}"
-                        onclick="deleteMessage('${message.id}')"
-                        class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-600 transition hidden"
-                    >
-                        <i class="fas fa-times text-xs"></i>
-                    </button>
-                </div>
-                
-                <div class="flex items-center">
-                    <div class="text-xs text-gray-500 mt-1 ml-2 flex items-center">
-                        <span>
-                            ${message.edited ? 
-                                `<span class="text-xs italic mr-1">edited</span>` : 
-                                ''}
-                            ${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </span>
-                        
-                        ${showRegenerateButton ? 
-                            `<button
-                                onclick="regenerateMessage('${message.characterId}')"
-                                class="ml-4 text-primary hover:text-primary/70 edit-msg-btn"
-                                title="Regenerate response"
-                            >
-                                <i class="fas fa-redo-alt text-xs"></i> <span class="text-xs">Regenerate</span>
-                            </button>` 
-                            : ''}
-                        
-                        <button
-                            onclick="editMessage('${message.id}')"
-                            class="ml-4 text-primary hover:text-primary/70 edit-msg-btn"
-                            title="Edit message"
-                            ${!isLastCharacterMessage ? 'style="display: none;"' : ''}
-                        >
-                            <i class="fas fa-pencil-alt text-xs"></i> <span class="text-xs">Edit</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+    return mainDiv;
 }
 
 // Message action buttons
@@ -2090,8 +1987,50 @@ function saveEditedMessage(messageId, newContent) {
         // Save to storage
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         
-        // Update UI
-        updateChatMessages();
+        // Update UI directly instead of full re-render
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const bubble = messageElement.querySelector('.message-bubble');
+            if (bubble) {
+                const deleteBtn = bubble.querySelector('button[id^="delete-msg-"]');
+                bubble.innerHTML = processContent(newContent); // Update content
+                if (deleteBtn) {
+                    bubble.appendChild(deleteBtn); // Re-append delete button
+                }
+            }
+            
+            // Update timestamp and add/update "edited" badge
+            const timestampDiv = messageElement.querySelector('.text-xs.text-gray-500.mt-1');
+            if (timestampDiv) {
+                // Clear existing content except edit/regenerate buttons
+                const buttons = [];
+                timestampDiv.querySelectorAll('.edit-msg-btn, button[onclick*="regenerateMessage"]').forEach(btn => {
+                    buttons.push(btn.cloneNode(true)); // Clone to re-append later
+                });
+
+                let newTimestampHtml = `<span>`;
+                if (!timestampDiv.querySelector('.text-xs.italic.mr-1')) { // Add edited span if not present
+                    newTimestampHtml += `<span class="text-xs italic mr-1">edited</span>`;
+                } else { // If present, ensure it's there
+                     newTimestampHtml += messages[messageIndex].edited ? `<span class="text-xs italic mr-1">edited</span>` : '';
+                }
+                newTimestampHtml += `${new Date(messages[messageIndex].timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+                
+                timestampDiv.innerHTML = newTimestampHtml; // Set new timestamp and edited text
+                buttons.forEach(btn => timestampDiv.appendChild(btn)); // Re-append buttons
+            }
+             // Cancel editing mode styling
+            const contentContainer = messageElement.querySelector('.message-bubble.editing');
+            if (contentContainer) {
+                contentContainer.classList.remove('editing');
+                 // The textarea and edit buttons are inside contentContainer, 
+                 // which we just overwrote with bubble.innerHTML.
+                 // So, the visual change to remove textarea and buttons is implicitly handled.
+            }
+
+        } else {
+            updateChatMessages(); // Fallback if element not found
+        }
         
         // Show success message
         showSuccess("Message updated", 1500);
@@ -2765,8 +2704,33 @@ function addMessage(message) {
     state.chats[state.activeChat].push(message);
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     
-    // Update UI
-    updateChatMessages();
+    // Create the DOM element for the new message
+    const messageElement = createMessageHTML(message);
+    const messagesContainer = document.getElementById('chat-messages');
+
+    if (messagesContainer && messageElement) {
+        // Remove "no messages" placeholder if it exists
+        const noMessagesPlaceholder = messagesContainer.querySelector('.text-center.text-gray-500');
+        if (noMessagesPlaceholder) {
+            noMessagesPlaceholder.remove();
+        }
+        // Append the new message element
+        messagesContainer.appendChild(messageElement);
+        // Scroll to the new message
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    } else if (messagesContainer && !messageElement && (state.chats[state.activeChat]?.length || 0) === 0) {
+        // If messageElement is null (e.g. a system message we don't want to render yet)
+        // and the chat is empty, ensure the placeholder is shown.
+        messagesContainer.innerHTML = `
+            <div class="text-center text-gray-500 mt-8">
+                <p>No messages yet. Start the conversation!</p>
+            </div>
+        `;
+    } else if (messagesContainer && !messageElement) {
+        // If messageElement is null but there are other messages,
+        // it might be a non-renderable message, do nothing to the DOM here.
+        // updateChatMessages() would be too broad.
+    }
     
     // Update sidebar to reflect new message timestamp
     if (!message.isTyping) {
@@ -2976,71 +2940,42 @@ Stay in character and respond naturally to the user's message.`;
             
             // Track the last update time for natural typing simulation
             let lastUpdateTime = Date.now();
-            let accumulatedText = "";
+            // let accumulatedText = ""; // Replaced by accumulatedRawResponse for clarity
+            let accumulatedRawResponse = ""; // Accumulates raw text for final state update & processing
             
-            // Function to simulate natural typing behavior
-            const updateWithTypingEffect = (newText) => {
-                const now = Date.now();
-                const elapsed = now - lastUpdateTime;
-                accumulatedText += newText;
-                
-                // Make sure this character's response is still relevant for the tracked chat
-                if (!state.pendingResponses[character.id] || 
-                    state.pendingResponses[character.id].chatId !== chatId) {
-                    return false; // Signal to stop processing
-                }
-                
-                // Only update the UI if enough time has passed or we have accumulated enough text
-                // This prevents too many rapid DOM updates
-                if (elapsed > 100 || accumulatedText.length >= 20) {
-                    fullResponse += accumulatedText;
-                    updateMessageContent(responseMsg.id, fullResponse);
-                    lastUpdateTime = now;
-                    accumulatedText = "";
-                }
-                
-                return true; // Signal to continue processing
-            };
-            
-            try {
-                // For continue or initial greeting, use the special instructions
-                if (isContinue || userMsg.isInitializing) {
-                    const result = await chat.sendMessageStream(instructions);
-                    
-                    for await (const chunk of result.stream) {
-                        const chunkText = chunk.text();
-                        // If updateWithTypingEffect returns false, it means we need to stop processing
-                        if (!updateWithTypingEffect(chunkText)) {
-                            break;
-                        }
-                    }
-                } else {
-                    // For regular messages, send both the context reminder and the user's message
-                    const result = await chat.sendMessageStream(instructions);
-                    
-                    for await (const chunk of result.stream) {
-                        const chunkText = chunk.text();
-                        // If updateWithTypingEffect returns false, it means we need to stop processing
-                        if (!updateWithTypingEffect(chunkText)) {
-                            break;
-                        }
-                    }
-                }
-                
-                // Make sure to flush any remaining accumulated text
-                if (accumulatedText && 
-                    state.pendingResponses[character.id] && 
-                    state.pendingResponses[character.id].chatId === chatId) {
-                    fullResponse += accumulatedText;
-                    updateMessageContent(responseMsg.id, fullResponse);
-                }
-                
-                console.log("Full response complete, length:", fullResponse.length);
-            } catch (error) {
-                // If streaming fails, try to complete the message to avoid leaving it blank
-                console.error("Stream error:", error);
+            // Function to simulate natural typing behavior - RETHINKING THIS
+            // The main streaming loop will call updateMessageContent directly.
+            // We don't strictly need updateWithTypingEffect anymore if logic is in the main loop.
 
-                // Only try to recover if this response is still relevant
+            try {
+                const streamSource = (isContinue || userMsg.isInitializing) ? instructions : instructions; // Simplified, actual message is sent via chat.sendMessageStream
+                const result = await chat.sendMessageStream(streamSource);
+
+                for await (const chunk of result.stream) {
+                    const chunkText = chunk.text();
+                    if (!state.pendingResponses[character.id] || state.pendingResponses[character.id].chatId !== chatId) {
+                        break; // Stop processing if chat context changed or response cancelled
+                    }
+                    
+                    updateMessageContent(responseMsg.id, chunkText, false); // Stream update (isFinalUpdate = false)
+                    accumulatedRawResponse += chunkText; // Accumulate raw text
+                }
+                
+                // Final update after loop: Process content and save final raw state
+                if (state.pendingResponses[character.id] && state.pendingResponses[character.id].chatId === chatId) {
+                    const finalMessageInState = state.chats[chatId].find(m => m.id === responseMsg.id);
+                    if (finalMessageInState) {
+                        finalMessageInState.content = accumulatedRawResponse; // Store the raw, complete text
+                        setStoredItem(STORAGE_KEYS.CHATS, state.chats); // Save state with final raw content
+                    }
+                    // Call updateMessageContent with isFinalUpdate = true to apply processContent
+                    updateMessageContent(responseMsg.id, accumulatedRawResponse, true); 
+                }
+                
+                console.log("Full response complete, length:", accumulatedRawResponse.length);
+            } catch (error) {
+                console.error("Stream error:", error);
+                // If streaming fails, try to process and display what was received, or an error message.
                 if (state.pendingResponses[character.id] && 
                     state.pendingResponses[character.id].chatId === chatId) {
                     
@@ -3160,43 +3095,82 @@ Stay in character and respond naturally to the user's message.`;
     }
 }
         
+// Process content with markdown - moved to a higher scope
+const processContent = (content) => {
+    marked.setOptions({
+        breaks: true, gfm: true, headerIds: false, mangle: false,
+    });
+    content = content.replace(/\*((?!\*)[^*]+)\*/g, (match, action) => `<em class="roleplay-action">${action.replace(/\*/g, '')}</em>`);
+    content = content.replace(/##\s*([^#]+)\s*##/g, (match, scene) => `<div class="scene-transition">${scene}</div>`);
+    content = content.replace(/\((?:OOC|ooc|p\.s\.):\s*([^)]+)\)/g, (match, ooc) => `<span class="ooc-comment">(OOC: ${ooc})</span>`);
+    content = content.replace(/__((?!\s)[^_]+)__/g, '<strong>$1</strong>');
+    const rawHtml = marked.parse(content);
+    return DOMPurify.sanitize(rawHtml, {
+        ALLOWED_TAGS: ['em', 'strong', 'code', 'br', 'p', 'ul', 'ol', 'li', 'blockquote', 'i', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'span'],
+        ALLOWED_ATTR: ['class', 'style'],
+    });
+};
+
 // Helper function to update message content
-function updateMessageContent(messageId, content) {
-    // Check if this is a pending response for a character that's not in the active chat
-    for (const characterId in state.pendingResponses) {
-        const pendingData = state.pendingResponses[characterId];
-        const chatId = pendingData.chatId;
-        
-        if (chatId && state.chats[chatId]) {
-            const messages = state.chats[chatId];
-            const messageIndex = messages.findIndex(m => m.id === messageId);
-            
-            if (messageIndex !== -1) {
-                messages[messageIndex].content = content;
-                setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-                
-                // Only update UI if this is for the active chat
-                if (chatId === state.activeChat) {
-                    updateChatMessages();
+function updateMessageContent(messageId, newContent, isFinalUpdate = false) {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    const messagesContainer = document.getElementById('chat-messages');
+
+    if (messageElement) {
+        const textContentElement = messageElement.querySelector('.message-text-content');
+        if (textContentElement) {
+            if (!isFinalUpdate) { // Streaming intermediate chunks
+                textContentElement.textContent += newContent; // Append raw text chunk
+                if (messagesContainer) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll down
                 }
-                
-                return;
+            } else { // Final update, streaming complete
+                textContentElement.innerHTML = processContent(newContent); // Process full raw content
+                // Ensure other elements like delete button are preserved if they were outside .message-text-content
+                // This relies on createMessageHTML structuring .message-text-content to only contain the text.
+            }
+        } else {
+            console.warn(`.message-text-content not found for messageId: ${messageId}`);
+        }
+    } else {
+        // If the message element doesn't exist yet (e.g., initial addMessage call for a streaming response)
+        // this function might be called. addMessage should handle creating the initial element.
+        // This specific call to updateMessageContent might be for a message not yet in DOM or for background.
+        console.warn(`Message element with ID ${messageId} not found in DOM for content update.`);
+    }
+
+    // Update message content in state.
+    // For streaming, newContent is a chunk. For final, it's the full raw response.
+    // The state should always store the raw, unprocessed content.
+    let messageUpdatedInState = false;
+    for (const chatId in state.chats) {
+        if (state.chats[chatId]) {
+            const messageIndex = state.chats[chatId].findIndex(m => m.id === messageId);
+            if (messageIndex !== -1) {
+                if (!isFinalUpdate) {
+                    // If it's the first chunk for a message that was previously empty
+                    if (state.chats[chatId][messageIndex].content === "") {
+                         state.chats[chatId][messageIndex].content = newContent;
+                    } else {
+                         state.chats[chatId][messageIndex].content += newContent;
+                    }
+                } else {
+                    state.chats[chatId][messageIndex].content = newContent; // Set the final raw content
+                }
+                // Save to localStorage only on final update to avoid frequent writes during streaming.
+                if (isFinalUpdate) {
+                    setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+                }
+                messageUpdatedInState = true;
+                break;
             }
         }
     }
-    
-    // Normal flow for active chat
-    if (!state.activeChat) return;
-    
-    const messages = state.chats[state.activeChat];
-    const messageIndex = messages.findIndex(m => m.id === messageId);
-    
-    if (messageIndex !== -1) {
-        messages[messageIndex].content = content;
-        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-        updateChatMessages();
+    if (!messageUpdatedInState) {
+        console.warn(`Message with ID ${messageId} not found in state for content update.`);
     }
 }
+
 
 // Helper function to find the typing indicator and remove it
 function removeTypingIndicator(typingMsgId) {
