@@ -1327,9 +1327,8 @@ function startChat() {
         };
         
         // Add welcome message to the chat
-        addMessage(welcomeMsg, chatId); // Use addMessage to handle UI update and storage
-        // state.chats[chatId].push(welcomeMsg); // Original line
-        // setStoredItem(STORAGE_KEYS.CHATS, state.chats); // Original line
+        state.chats[chatId].push(welcomeMsg);
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         
         // For new conversations, let the character initialize with a greeting
         // But only do this if we're connected to the API
@@ -1353,7 +1352,7 @@ function startChat() {
                 };
                 
                 // Generate character's greeting (async)
-                getCharacterResponse(character, initMsg, chatId); // Pass chatId
+                getCharacterResponse(character, initMsg);
             }, 500);
         }
     }
@@ -1441,7 +1440,7 @@ function updateChatUI() {
     }
     
     // Update messages
-    updateChatMessages(state.activeChat); // Pass state.activeChat
+    updateChatMessages();
     
     // Scroll to bottom
     const messagesContainer = document.getElementById('chat-messages');
@@ -1450,28 +1449,13 @@ function updateChatUI() {
     }
 }
 
-function updateChatMessages(chatId) { // Added chatId parameter
-    if (!chatId || !state.chats[chatId]) { // Use chatId and check if chat exists
-        console.warn("updateChatMessages: chatId is invalid or chat does not exist.", chatId);
-        // If called for the active chat and it's invalid, effectively no-op like before.
-        // If called for a background chat, this prevents errors.
-        return;
-    }
+function updateChatMessages() {
+    if (!state.activeChat) return;
     
     const messagesContainer = document.getElementById('chat-messages');
-    if (!messagesContainer) {
-        console.error("updateChatMessages: Messages container not found. Cannot update DOM for chatId:", chatId);
-        return;
-    }
+    if (!messagesContainer) return;
     
-    // Only update the DOM if the provided chatId is the currently active one.
-    // This function is for full re-renders, which should only happen for the visible chat.
-    if (chatId !== state.activeChat) {
-        console.log("updateChatMessages: Attempted to re-render a non-active chat. Skipping DOM update for chatId:", chatId);
-        return;
-    }
-
-    const messages = state.chats[chatId] || [];
+    const messages = state.chats[state.activeChat] || [];
     
     // Filter out deleted messages
     const visibleMessages = messages.filter(message => !message.isDeleted);
@@ -1498,53 +1482,6 @@ function updateChatMessages(chatId) { // Added chatId parameter
     
     // Initialize delete buttons based on device type
     initMessageDeleteButtons();
-}
-
-// Process content with markdown - Standalone function
-function processContent(content) {
-    // Configure marked options for enhanced markdown support
-    marked.setOptions({
-        breaks: true, // Enable line breaks
-        gfm: true, // Enable GitHub Flavored Markdown
-        headerIds: false, // Disable header IDs for security
-        mangle: false // Disable mangle for security
-    });
-
-    // Custom processing for roleplay-specific formats
-
-    // Handle *actions* formatting by converting to italics with special styling
-    content = content.replace(/\*((?!\*)[^*]+)\*/g, (match, action) => {
-        // Clean up nested asterisks if any
-        action = action.replace(/\*/g, '');
-        return `<em class="roleplay-action">${action}</em>`;
-    });
-
-    // Handle ##Scene descriptions## for scene transitions
-    content = content.replace(/##\s*([^#]+)\s*##/g, (match, scene) => {
-        return `<div class="scene-transition">${scene}</div>`;
-    });
-
-    // Handle (OOC: text) for out-of-character comments
-    content = content.replace(/\((?:OOC|ooc|p\.s\.):\s*([^)]+)\)/g, (match, ooc) => {
-        return `<span class="ooc-comment">(OOC: ${ooc})</span>`;
-    });
-
-    // Handle __bold text__ for emphasis
-    content = content.replace(/__((?!\s)[^_]+)__/g, '<strong>$1</strong>');
-
-    // Parse markdown with the custom replacements
-    const rawHtml = marked.parse(content);
-
-    // Sanitize HTML with expanded tag support
-    return DOMPurify.sanitize(rawHtml, {
-        ALLOWED_TAGS: [
-            'em', 'strong', 'code', 'br', 'p', 'ul', 'ol', 'li',
-            'blockquote', 'i', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'pre', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-            'div', 'span'
-        ],
-        ALLOWED_ATTR: ['class', 'style']
-    });
 }
 
 function createMessageHTML(message) {
@@ -1589,7 +1526,52 @@ function createMessageHTML(message) {
         `;
     }
     
-    // processContent was here, now moved to be a standalone function
+    // Process content with markdown
+    const processContent = (content) => {
+        // Configure marked options for enhanced markdown support
+        marked.setOptions({
+            breaks: true, // Enable line breaks
+            gfm: true, // Enable GitHub Flavored Markdown
+            headerIds: false, // Disable header IDs for security
+            mangle: false // Disable mangle for security
+        });
+
+        // Custom processing for roleplay-specific formats
+        
+        // Handle *actions* formatting by converting to italics with special styling
+        content = content.replace(/\*((?!\*)[^*]+)\*/g, (match, action) => {
+            // Clean up nested asterisks if any
+            action = action.replace(/\*/g, '');
+            return `<em class="roleplay-action">${action}</em>`;
+        });
+        
+        // Handle ##Scene descriptions## for scene transitions
+        content = content.replace(/##\s*([^#]+)\s*##/g, (match, scene) => {
+            return `<div class="scene-transition">${scene}</div>`;
+        });
+        
+        // Handle (OOC: text) for out-of-character comments
+        content = content.replace(/\((?:OOC|ooc|p\.s\.):\s*([^)]+)\)/g, (match, ooc) => {
+            return `<span class="ooc-comment">(OOC: ${ooc})</span>`;
+        });
+        
+        // Handle __bold text__ for emphasis
+        content = content.replace(/__((?!\s)[^_]+)__/g, '<strong>$1</strong>');
+        
+        // Parse markdown with the custom replacements
+        const rawHtml = marked.parse(content);
+        
+        // Sanitize HTML with expanded tag support
+        return DOMPurify.sanitize(rawHtml, {
+            ALLOWED_TAGS: [
+                'em', 'strong', 'code', 'br', 'p', 'ul', 'ol', 'li', 
+                'blockquote', 'i', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'pre', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                'div', 'span'
+            ],
+            ALLOWED_ATTR: ['class', 'style']
+        });
+    };
     
     if (message.isUser) {
         // Check if this is the last user message
@@ -1884,7 +1866,7 @@ function deleteMessage(messageId) {
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         
         // Update UI
-        updateChatMessages(state.activeChat); // Pass state.activeChat
+        updateChatMessages();
     }
 }
 
@@ -2032,7 +2014,7 @@ function saveEditedMessage(messageId, newContent) {
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         
         // Update UI
-        updateChatMessages(state.activeChat); // Pass state.activeChat
+        updateChatMessages();
         
         // Show success message
         showSuccess("Message updated", 1500);
@@ -2067,7 +2049,7 @@ function clearChatMessages() {
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     
     // Update UI
-    updateChatMessages(state.activeChat); // Pass state.activeChat
+    updateChatMessages();
     
     // Show success message
     showSuccess("Chat cleared");
@@ -2520,7 +2502,7 @@ async function sendMessage() {
             };
             
             // Add this subtle indicator to the UI but mark it for auto-removal
-            addMessage(continueSystemMsg, state.activeChat); // Pass state.activeChat as chatId
+            addMessage(continueSystemMsg);
             
             // Track the system message ID so we can ensure it's removed in cleanup
             let continueSystemMsgId = continueSystemMsg.id;
@@ -2555,7 +2537,7 @@ async function sendMessage() {
                     };
                     
                     // Generate a response without adding the continue message to the visible chat history
-                    await getCharacterResponse(character, continueMsg, state.activeChat); // Pass state.activeChat as chatId
+                    await getCharacterResponse(character, continueMsg);
                 }));
             } catch (error) {
                 // Make sure the system message is cleaned up on error
@@ -2573,11 +2555,11 @@ async function sendMessage() {
             };
             
             // Add the user message to the chat
-            addMessage(userMsg, state.activeChat); // Pass state.activeChat as chatId
+            addMessage(userMsg);
             
             // Get response from each character using async/await and Promise.all
             await Promise.all(state.activeCharacters.map(character => 
-                getCharacterResponse(character, userMsg, state.activeChat) // Pass state.activeChat as chatId
+                getCharacterResponse(character, userMsg)
             ));
         }
     } catch (error) {
@@ -2629,50 +2611,21 @@ function updateSendButtonState() {
     }
 }
 
-function addMessage(message, chatId) { // Added chatId parameter
-    if (!chatId || !state.chats[chatId]) { // Use chatId and check if chat exists
-        // If the chat doesn't exist yet (e.g. first message in a new chat started via startChat)
-        // we might need to initialize it here, or ensure startChat does it before calling addMessage.
-        // For now, let's assume chatId is valid and state.chats[chatId] exists or is created by the caller.
-        // If it's truly an error case:
-        if (!state.chats[chatId]) {
-            console.warn(`addMessage: Chat with id ${chatId} not found. Initializing.`);
-            state.chats[chatId] = []; // Initialize if it absolutely must be handled here.
-        } else { // Only return if chatId itself is invalid
-            console.error("addMessage: chatId is invalid.", chatId);
-            return;
-        }
+function addMessage(message) {
+    if (!state.activeChat) return;
+    
+    // Add message to chat
+    if (!state.chats[state.activeChat]) {
+        state.chats[state.activeChat] = [];
     }
     
-    // Add message to chat state
-    state.chats[chatId].push(message);
-    setStoredItem(STORAGE_KEYS.CHATS, state.chats); // Save the entire chats object
-
-    // DOM Manipulation
-    const messagesContainer = document.getElementById('chat-messages');
-    if (messagesContainer) {
-        // Check if the placeholder is visible
-        const placeholder = messagesContainer.querySelector('.text-center.text-gray-500');
-        if (placeholder && messagesContainer.children.length === 1 && messagesContainer.firstChild === placeholder.parentElement) {
-            messagesContainer.innerHTML = ''; // Clear placeholder
-        }
-
-        const messageHTML = createMessageHTML(message);
-        messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to bottom
-
-        // Initialize delete/edit buttons for the new message
-        // createMessageHTML uses inline onclick, but this is a good safety measure
-        initMessageDeleteButtons();
-    } else {
-        console.error("addMessage: Messages container not found.");
-        // Fallback to full update if container not found, though this indicates a bigger issue
-        if (chatId === state.activeChat) {
-            updateChatMessages(chatId); // Pass its own chatId parameter
-        }
-    }
+    state.chats[state.activeChat].push(message);
+    setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     
-    // Update sidebar to reflect new message timestamp (if not a typing indicator)
+    // Update UI
+    updateChatMessages();
+    
+    // Update sidebar to reflect new message timestamp
     if (!message.isTyping) {
         updateSidebarCharacters();
         
@@ -2683,22 +2636,12 @@ function addMessage(message, chatId) { // Added chatId parameter
     }
 }
 
-async function getCharacterResponse(character, userMsg, chatId) { // chatId added
-    if (!chatId) return; // Use chatId
+async function getCharacterResponse(character, userMsg) {
+    if (!state.activeChat) return;
     
-    const typingMsg = { // Defined typingMsg earlier to be accessible in finally
-        id: generateUniqueId(),
-        content: "",
-        isUser: false,
-        characterId: character.id, // Ensure characterId is from character object
-        timestamp: new Date().toISOString(),
-        isTyping: true,
-        isDeleted: false
-    };
-
     try {
         // Get visible messages for context (excluding any that are marked as deleted)
-        const visibleMessages = state.chats[chatId].filter(m => !m.isDeleted); // Use chatId
+        const visibleMessages = state.chats[state.activeChat].filter(m => !m.isDeleted);
         
         // Check if this is the first message in the conversation
         const isFirstMessage = (() => {
@@ -2714,8 +2657,19 @@ async function getCharacterResponse(character, userMsg, chatId) { // chatId adde
         // Check if this is a continue message
         const isContinue = userMsg && userMsg.isContinue === true;
         
+        // Add typing indicator for better UX
+        const typingMsg = {
+            id: generateUniqueId(),
+            content: "",
+            isUser: false,
+            characterId: character.id,
+            timestamp: new Date().toISOString(),
+            isTyping: true,
+            isDeleted: false
+        };
+        
         // Add the typing indicator
-        addMessage(typingMsg, chatId); // Pass chatId - uses the typingMsg defined at the start of the function
+        addMessage(typingMsg);
         
         // Simulate a minimal typing delay based on character and context
         // This makes the interaction feel more natural
@@ -2743,6 +2697,11 @@ async function getCharacterResponse(character, userMsg, chatId) { // chatId adde
             try {
                 // Use a simpler approach for the first message
                 const result = await callGeminiAPI(promptContext);
+                
+                // Remove typing indicator
+                removeTypingIndicator(typingMsg.id);
+                
+                // Add the response as a message
                 addMessage({
                     id: generateUniqueId(),
                     content: result,
@@ -2750,9 +2709,11 @@ async function getCharacterResponse(character, userMsg, chatId) { // chatId adde
                     characterId: character.id,
                     timestamp: new Date().toISOString(),
                     isDeleted: false,
-                }, chatId); // Pass chatId
-            } finally {
-                removeTypingIndicator(typingMsg.id, chatId); // Pass chatId
+                });
+            } catch (error) {
+                // Make sure to remove typing indicator even on error
+                removeTypingIndicator(typingMsg.id);
+                throw error; // Re-throw to be caught by outer try-catch
             }
             
             return;
@@ -2762,7 +2723,7 @@ async function getCharacterResponse(character, userMsg, chatId) { // chatId adde
         console.log("Using chat history approach for response");
         
         // Convert visible history for Gemini API
-        const history = convertHistoryForGemini(visibleMessages, character, chatId); // Pass chatId
+        const history = convertHistoryForGemini(visibleMessages, character);
         
         // Log the history for debugging
         console.log("History being sent to API:", JSON.stringify(history));
@@ -2770,10 +2731,11 @@ async function getCharacterResponse(character, userMsg, chatId) { // chatId adde
         // Check if history is valid
         if (history.length === 0) {
             console.warn("Empty history after conversion, falling back to basic prompt");
-            // removeTypingIndicator is handled in finally
+            // Remove typing indicator
+            removeTypingIndicator(typingMsg.id);
             
             // Create a basic prompt instead
-            promptContext = prepareContextForAPI( // prepareContextForAPI uses visibleMessages from chatId
+            promptContext = prepareContextForAPI(
                 character,
                 visibleMessages,
                 state.activeCharacters
@@ -2783,6 +2745,7 @@ async function getCharacterResponse(character, userMsg, chatId) { // chatId adde
                 // Use a simpler approach as fallback
                 const result = await callGeminiAPI(promptContext);
                 
+                // Add the response as a message
                 addMessage({
                     id: generateUniqueId(),
                     content: result,
@@ -2790,12 +2753,10 @@ async function getCharacterResponse(character, userMsg, chatId) { // chatId adde
                     characterId: character.id,
                     timestamp: new Date().toISOString(),
                     isDeleted: false,
-                }, chatId); // Pass chatId
+                });
                 return;
             } catch (error) {
                 throw new Error("Failed to get response with fallback method: " + error.message);
-            } finally {
-                removeTypingIndicator(typingMsg.id, chatId); // Ensure cleanup if fallback fails
             }
         }
         
@@ -2832,7 +2793,8 @@ Stay in character and respond naturally to the user's message.`;
                 }
             });
             
-            // removeTypingIndicator will be called in the finally block of this try-catch
+            // Important: First remove the typing indicator before adding the empty message
+            removeTypingIndicator(typingMsg.id);
             
             // Prepare for the new response
             let fullResponse = "";
@@ -2846,7 +2808,7 @@ Stay in character and respond naturally to the user's message.`;
             };
             
             // Add the initial empty message
-            addMessage(responseMsg, chatId); // Pass chatId
+            addMessage(responseMsg);
             
             // Determine typing speed based on character personality
             // This makes characters with verbose personalities type slower than terse ones
@@ -2868,7 +2830,7 @@ Stay in character and respond naturally to the user's message.`;
                 // This prevents too many rapid DOM updates
                 if (elapsed > 100 || accumulatedText.length >= 20) {
                     fullResponse += accumulatedText;
-                    updateMessageContent(responseMsg.id, fullResponse, chatId); // Pass chatId
+                    updateMessageContent(responseMsg.id, fullResponse);
                     lastUpdateTime = now;
                     accumulatedText = "";
                 }
@@ -2896,7 +2858,7 @@ Stay in character and respond naturally to the user's message.`;
                 // Make sure to flush any remaining accumulated text
                 if (accumulatedText) {
                     fullResponse += accumulatedText;
-                    updateMessageContent(responseMsg.id, fullResponse, chatId); // Pass chatId
+                    updateMessageContent(responseMsg.id, fullResponse);
                 }
                 
                 console.log("Full response complete, length:", fullResponse.length);
@@ -2909,22 +2871,58 @@ Stay in character and respond naturally to the user's message.`;
                         const emergencyResponse = await callGeminiAPI(
                             `As ${character.name}, please respond to: "${userMsg.content || 'Continue the conversation'}" (Keep it brief and in character)`
                         );
-                        updateMessageContent(responseMsg.id, emergencyResponse, chatId); // Pass chatId
+                        updateMessageContent(responseMsg.id, emergencyResponse);
                     } catch (fallbackError) {
                         // If even that fails, add an apologetic message
-                        updateMessageContent(responseMsg.id, `*${character.name} seems unable to respond at the moment*`, chatId); // Pass chatId
+                        updateMessageContent(responseMsg.id, `*${character.name} seems unable to respond at the moment*`);
                     }
                 }
-                throw error;
+                throw error; // Still throw the error for the outer catch block
             }
         } catch (error) {
-            console.error("Error during Gemini API interaction:", error);
-            throw error; // Re-throw to be caught by the main try-catch's finally block
+            // Handle specific API errors
+            if (error.message && error.message.includes('First content should be with role')) {
+                console.error("History format error:", error.message);
+                
+                // Try a simplified approach
+                removeTypingIndicator(typingMsg.id);
+                
+                try {
+                    // Fallback to a simple prompt
+                    const simplePrompt = `You are roleplaying as ${character.name}. 
+${character.enhancedContext ? character.enhancedContext : character.userContext}
+
+Recent conversation summary: 
+The user most recently said: "${userMsg.content || 'Please continue the conversation'}"
+
+Please respond as ${character.name} to this message.`;
+                    
+                    const result = await callGeminiAPI(simplePrompt);
+                    
+                    // Add the response as a message
+                    addMessage({
+                        id: generateUniqueId(),
+                        content: result,
+                        isUser: false,
+                        characterId: character.id,
+                        timestamp: new Date().toISOString(),
+                        isDeleted: false,
+                    });
+                    return;
+                } catch (fallbackError) {
+                    throw new Error("History format error. Even fallback approach failed: " + fallbackError.message);
+                }
+            }
+            
+            // Remove typing indicator even on error
+            removeTypingIndicator(typingMsg.id);
+            throw error; // Re-throw to be caught by outer try-catch
         }
     } catch (error) {
         console.error("Error getting character response:", error);
         let errorMessage = error.message;
         
+        // Provide more user-friendly error message for common issues
         if (errorMessage.includes('First content should be with role')) {
             errorMessage = "Message history format error. Try starting a new conversation.";
         } else if (errorMessage.includes('API key')) {
@@ -2936,65 +2934,41 @@ Stay in character and respond naturally to the user's message.`;
         }
         
         showError(`Failed to get response: ${errorMessage}`);
-    } finally {
-        removeTypingIndicator(typingMsg.id, chatId); // Pass chatId
-        // state.isResponseInProgress and updateSendButtonState() are handled by the caller (sendMessage)
+        
+        // Make sure to remove the typing indicator even if there's an error
+        removeTypingIndicator(typingMsg.id);
+        
+        // Ensure the button is re-enabled even when there's an error
+        state.isResponseInProgress = false;
+        updateSendButtonState();
     }
 }
         
 // Helper function to update message content
-function updateMessageContent(messageId, content, chatId) { // Added chatId parameter
-    if (!chatId || !state.chats[chatId]) { // Check chatId and if the chat exists
-        console.warn("updateMessageContent: chatId is invalid or chat does not exist.", chatId);
-        return;
-    }
+function updateMessageContent(messageId, content) {
+    if (!state.activeChat) return;
     
-    const messages = state.chats[chatId];
+        const messages = state.chats[state.activeChat];
     const messageIndex = messages.findIndex(m => m.id === messageId);
     
     if (messageIndex !== -1) {
-        // Update the content in the state
         messages[messageIndex].content = content;
-        setStoredItem(STORAGE_KEYS.CHATS, state.chats); // Save the entire chats object
-
-        // Update the DOM directly
-        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-        if (messageElement) {
-            const bubbleElement = messageElement.querySelector('.message-bubble');
-            if (bubbleElement) {
-                bubbleElement.innerHTML = processContent(content); // Use standalone processContent
-                // Scroll the specific message into view, smoothly, aligning to the end (bottom).
-                messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            } else {
-                console.warn("updateMessageContent: Message bubble not found for ID", messageId);
-            }
-        } else {
-            // If the element is not in the DOM, it might be a chat that's not currently active.
-            // In this case, relying on a full render when that chat becomes active is acceptable.
-            console.warn("updateMessageContent: Message element not found for ID (possibly inactive chat)", messageId);
-        }
-    } else {
-        console.warn("updateMessageContent: Message not found in state for ID", messageId, "in chat", chatId);
+        setStoredItem(STORAGE_KEYS.CHATS, state.chats);
+        updateChatMessages();
     }
 }
 
 // Helper function to find the typing indicator and remove it
-function removeTypingIndicator(typingMsgId, chatId) {
-    if (!chatId) return;
+function removeTypingIndicator(typingMsgId) {
+    if (!state.activeChat) return;
     
-    const messages = state.chats[chatId];
+    const messages = state.chats[state.activeChat];
     const typingIndex = messages.findIndex(m => m.id === typingMsgId);
         
         if (typingIndex !== -1) {
             messages.splice(typingIndex, 1);
             setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-            // updateChatMessages currently uses state.activeChat.
-            // A full refactor would involve passing chatId to updateChatMessages if the chat to update might not be the active one.
-            // For now, if the chatId of removed indicator is the activeChat, then updateChatMessages is fine.
-            // Otherwise, the next full render of that specific chat will pick up the change.
-            if (chatId === state.activeChat) {
-                updateChatMessages(chatId); // Pass the chatId
-            }
+            updateChatMessages();
     }
 }
 
@@ -3271,7 +3245,7 @@ function forceOpenChat() {
     };
 
     // Add message to chat
-    addMessage(welcomeMsg, chatId); // Pass chatId
+    addMessage(welcomeMsg);
 
     // Try to connect API if key exists but connection failed
     if (state.apiKey && !state.isApiConnected) {
@@ -3290,7 +3264,7 @@ function forceOpenChat() {
                     characterId: state.characters[0].id,
                     timestamp: new Date().toISOString(),
                     isDeleted: false,
-                }, chatId); // Pass chatId
+                });
             }
         }).catch(error => {
             console.error("Error connecting to API:", error);
@@ -3396,11 +3370,11 @@ function testSendMessage() {
         isDeleted: false,
     };
 
-    addMessage(userMsg, state.activeChat); // Pass state.activeChat as chatId
+    addMessage(userMsg);
 
     // Get fake response from each character
     state.activeCharacters.forEach(character => {
-        getTestCharacterResponse(character); // This will call addMessage, needs to be updated
+        getTestCharacterResponse(character);
     });
 }
 
@@ -3417,7 +3391,7 @@ async function getTestCharacterResponse(character, customResponse = null) {
         isDeleted: false,
     };
 
-    addMessage(typingMsg, state.activeChat); // Pass state.activeChat as chatId
+    addMessage(typingMsg);
 
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -3448,7 +3422,7 @@ async function getTestCharacterResponse(character, customResponse = null) {
             characterId: character.id,
             timestamp: new Date().toISOString(),
             isDeleted: false,
-        }, state.activeChat); // Pass state.activeChat as chatId
+        });
         return;
     }
 
@@ -3485,7 +3459,7 @@ async function getTestCharacterResponse(character, customResponse = null) {
         characterId: character.id,
         timestamp: new Date().toISOString(),
         isDeleted: false,
-    }, state.activeChat); // Pass state.activeChat as chatId
+    });
 }
 
 // API communication with the Gemini SDK
@@ -4360,7 +4334,7 @@ async function regenerateMessage(characterId) {
     }
     
     // Generate a new response
-    await getCharacterResponse(character, lastUserMsg, state.activeChat); // Pass state.activeChat as chatId
+    await getCharacterResponse(character, lastUserMsg);
 }
 
 // After the dismissError function
@@ -4597,7 +4571,7 @@ function saveEditedCharacter() {
             timestamp: new Date().toISOString(),
             isDeleted: false
         };
-        addMessage(systemMessage, state.activeChat); // Pass activeChat as chatId
+        addMessage(systemMessage);
     }
 
     // Show success message
