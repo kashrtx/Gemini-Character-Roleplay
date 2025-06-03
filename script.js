@@ -2002,30 +2002,86 @@ function saveEditedMessage(messageId, newContent) {
             // Update timestamp and add/update "edited" badge
             const timestampDiv = messageElement.querySelector('.text-xs.text-gray-500.mt-1');
             if (timestampDiv) {
-                // Clear existing content except edit/regenerate buttons
-                const buttons = [];
-                timestampDiv.querySelectorAll('.edit-msg-btn, button[onclick*="regenerateMessage"]').forEach(btn => {
-                    buttons.push(btn.cloneNode(true)); // Clone to re-append later
-                });
-
-                let newTimestampHtml = `<span>`;
-                if (!timestampDiv.querySelector('.text-xs.italic.mr-1')) { // Add edited span if not present
-                    newTimestampHtml += `<span class="text-xs italic mr-1">edited</span>`;
-                } else { // If present, ensure it's there
-                     newTimestampHtml += messages[messageIndex].edited ? `<span class="text-xs italic mr-1">edited</span>` : '';
-                }
-                newTimestampHtml += `${new Date(messages[messageIndex].timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+                // Get the message object to check if it's a user or character message
+                const message = messages[messageIndex];
+                const isUser = message.isUser;
+                const characterId = message.characterId;
                 
-                timestampDiv.innerHTML = newTimestampHtml; // Set new timestamp and edited text
-                buttons.forEach(btn => timestampDiv.appendChild(btn)); // Re-append buttons
+                // Create new timestamp HTML
+                let newTimestampHtml = `<span>`;
+                if (message.edited) {
+                    newTimestampHtml += `<span class="text-xs italic mr-1">edited</span>`;
+                }
+                newTimestampHtml += `${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+                
+                // Set the new timestamp HTML
+                timestampDiv.innerHTML = newTimestampHtml;
+                
+                // Re-create buttons with proper event handlers instead of cloning
+                if (isUser) {
+                    // For user messages, check if it's the last user message
+                    const userMessages = messages.filter(m => m.isUser && !m.isDeleted && !m.isContinue);
+                    const isLastUserMessage = userMessages.length > 0 && 
+                                           userMessages[userMessages.length - 1].id === messageId;
+                    
+                    if (isLastUserMessage) {
+                        // Create edit button with fresh event handler
+                        const editButton = document.createElement('button');
+                        editButton.className = 'ml-2 text-primary hover:text-primary/70 edit-msg-btn';
+                        editButton.title = "Edit message";
+                        editButton.innerHTML = '<i class="fas fa-pencil-alt text-xs"></i>';
+                        editButton.onclick = () => editMessage(messageId);
+                        timestampDiv.appendChild(editButton);
+                    }
+                } else {
+                    // For character messages
+                    const characterMessages = messages.filter(m => 
+                        !m.isUser && 
+                        m.characterId === characterId && 
+                        !m.isDeleted && 
+                        !m.isTyping
+                    );
+                    
+                    const isLastCharacterMessage = characterMessages.length > 0 && 
+                                                characterMessages[characterMessages.length - 1].id === messageId;
+                    
+                    // Check if this message is followed by a user message
+                    const isFollowedByUserMessage = (() => {
+                        const messageIndex = messages.findIndex(m => m.id === messageId);
+                        for (let i = messageIndex + 1; i < messages.length; i++) {
+                            if (messages[i].isUser && !messages[i].isDeleted) return true;
+                        }
+                        return false;
+                    })();
+                    
+                    const showRegenerateButton = isLastCharacterMessage && !isFollowedByUserMessage;
+                    
+                    // Add regenerate button if needed
+                    if (showRegenerateButton) {
+                        const regenerateButton = document.createElement('button');
+                        regenerateButton.className = 'ml-4 text-primary hover:text-primary/70 edit-msg-btn';
+                        regenerateButton.title = "Regenerate response";
+                        regenerateButton.innerHTML = '<i class="fas fa-redo-alt text-xs"></i> <span class="text-xs">Regenerate</span>';
+                        regenerateButton.onclick = () => regenerateMessage(characterId);
+                        timestampDiv.appendChild(regenerateButton);
+                    }
+                    
+                    // Add edit button if it's the last character message
+                    if (isLastCharacterMessage) {
+                        const editButton = document.createElement('button');
+                        editButton.className = 'ml-4 text-primary hover:text-primary/70 edit-msg-btn';
+                        editButton.title = "Edit message";
+                        editButton.innerHTML = '<i class="fas fa-pencil-alt text-xs"></i> <span class="text-xs">Edit</span>';
+                        editButton.onclick = () => editMessage(messageId);
+                        timestampDiv.appendChild(editButton);
+                    }
+                }
             }
-             // Cancel editing mode styling
+            
+            // Cancel editing mode styling
             const contentContainer = messageElement.querySelector('.message-bubble.editing');
             if (contentContainer) {
                 contentContainer.classList.remove('editing');
-                 // The textarea and edit buttons are inside contentContainer, 
-                 // which we just overwrote with bubble.innerHTML.
-                 // So, the visual change to remove textarea and buttons is implicitly handled.
             }
 
         } else {
