@@ -144,7 +144,7 @@ All PRs should be directed to the `test` branch for testing before being merged 
 ## 🌐 Browser Compatibility
 
 - Works well on: Chrome, Firefox, Edge, and most modern browsers
-- Known issues: Safari on mobile devices may experience some functionality problems
+- Known issues: Safari on mobile devices may experience some functionality problems. You need to hide Toolbar for better navigation and scrolling.
 - Tested and optimized for both desktop and mobile interfaces
 
 ## 🔒 Privacy and Security
