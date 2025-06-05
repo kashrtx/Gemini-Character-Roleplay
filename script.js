@@ -106,6 +106,19 @@ async function initializeGeminiAPI() {
 }
 
 // Helper functions
+const formatTimestampForAI = (isoTimestamp) => {
+    if (!isoTimestamp) return '';
+    const date = new Date(isoTimestamp);
+    return date.toLocaleString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+};
+
 const generateUniqueId = () => Math.random().toString(36).substring(2, 11);
 
 const getStoredItem = (key, defaultValue = null) => {
@@ -127,31 +140,6 @@ const setStoredItem = (key, value) => {
         return false;
     }
 };
-
-// Format timestamp for LLM
-function formatTimestampForLLM(timestamp) {
-    const date = new Date(timestamp);
-    const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const dayOfWeek = daysOfWeek[date.getDay()];
-    const hour = date.getHours();
-    let timeOfDay;
-
-    if (hour >= 5 && hour < 8) {
-        timeOfDay = "early morning";
-    } else if (hour >= 8 && hour < 12) {
-        timeOfDay = "morning";
-    } else if (hour >= 12 && hour < 17) {
-        timeOfDay = "afternoon";
-    } else if (hour >= 17 && hour < 21) {
-        timeOfDay = "evening";
-    } else if (hour >= 21 && hour < 24) {
-        timeOfDay = "night";
-    } else { // Covers 00:00 to 04:59
-        timeOfDay = "late at night";
-    }
-
-    return `It's currently ${dayOfWeek} ${timeOfDay}.`;
-}
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1688,7 +1676,7 @@ function createMessageHTML(message) {
         editedSpan.textContent = 'edited';
         timestampSpan.appendChild(editedSpan);
     }
-    timestampSpan.appendChild(document.createTextNode(new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
+    timestampSpan.appendChild(document.createTextNode(formatTimestampForAI(message.timestamp)));
     timestampDiv.appendChild(timestampSpan);
 
 
@@ -3295,27 +3283,9 @@ function removeTypingIndicator(typingMsgId) {
 function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
     // Calculate approximate word count based on token limit (0.75 tokens per word)
     const wordLimit = Math.floor(appSettings.conversationTokens * 0.75);
-    let timeString = "";
-
-    if (chatHistory && chatHistory.length > 0) {
-        // Iterate backwards to find the last non-system, non-typing message with a valid timestamp
-        for (let i = chatHistory.length - 1; i >= 0; i--) {
-            const lastMessage = chatHistory[i];
-            if (lastMessage && !lastMessage.isSystem && !lastMessage.isTyping && lastMessage.timestamp) {
-                try {
-                    timeString = formatTimestampForLLM(lastMessage.timestamp) + "\n\n";
-                    break;
-                } catch (e) {
-                    console.error("Error formatting timestamp:", e);
-                    // If error, proceed without timeString
-                    break;
-                }
-            }
-        }
-    }
     
     // Base context with character information and roleplay instructions
-    let context = `${timeString}You are ${character.name}. You must maintain your character's personality and traits at all times.
+    let context = `You are ${character.name}. You must maintain your character's personality and traits at all times.
 
 CHARACTER PROFILE:
 ${character.enhancedContext 
@@ -3336,6 +3306,7 @@ ROLEPLAY GUIDELINES:
 - For empty messages (continue), advance the conversation naturally while staying in character
 - Maintain continuity with previous messages and scene
 - Use *italics* for actions/emotions and __bold__ for emphasis. Avoid using *italics* within *italics* or __bold__ within __bold__.
+- Pay close attention to the timestamp (e.g., 'User (June 5 2025 8:00 AM): Good morning!') provided with each message. Let the date and time of day heavily influence your responses, actions, and the overall context of the conversation. For example, if it's morning, you could say 'Good morning!' or talk about breakfast. If it's late at night, you might talk about being tired or going to sleep soon.
 - Use ## for scene descriptions when appropriate
 - Keep responses engaging and true to your character's personality
 - You can read () for thoughts or context.
@@ -3356,10 +3327,11 @@ ROLEPLAY GUIDELINES:
             if (relevantMessages.length > 7) {
                 // Add first exchange
                 context += "\n\nCONVERSATION START:\n" + firstExchange.map(msg => {
+                const timestampStr = formatTimestampForAI(msg.timestamp);
                     if (msg.isUser) {
-                        return `${state.personalContext.name ? state.personalContext.name : "User"}: ${msg.content}`;
+                    return `${state.personalContext.name ? state.personalContext.name : "User"} (${timestampStr}): ${msg.content}`;
                     } else if (msg.characterId === character.id) {
-                        return `${character.name}: ${msg.content}`;
+                    return `${character.name} (${timestampStr}): ${msg.content}`;
                     }
                 }).join('\n');
                 
@@ -3369,13 +3341,14 @@ ROLEPLAY GUIDELINES:
             
             // Add recent messages
             context += "RECENT CONVERSATION:\n" + recentMessages.map(msg => {
+            const timestampStr = formatTimestampForAI(msg.timestamp);
                 if (msg.isUser) {
-                    return `${state.personalContext.name ? state.personalContext.name : "User"}: ${msg.content}`;
+                return `${state.personalContext.name ? state.personalContext.name : "User"} (${timestampStr}): ${msg.content}`;
                 } else if (msg.characterId === character.id) {
-                    return `${character.name}: ${msg.content}`;
+                return `${character.name} (${timestampStr}): ${msg.content}`;
                 } else {
                     const msgCharacter = state.characters.find(c => c.id === msg.characterId);
-                    return msgCharacter ? `${msgCharacter.name}: ${msg.content}` : `Unknown: ${msg.content}`;
+                return msgCharacter ? `${msgCharacter.name} (${timestampStr}): ${msg.content}` : `Unknown (${timestampStr}): ${msg.content}`;
                 }
             }).join('\n');
         }
@@ -3420,10 +3393,11 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
         const greeting = state.personalContext.name 
             ? `Hello ${state.personalContext.name}`
             : "Hello";
+        const timestampStr = formatTimestampForAI(new Date().toISOString()); // Current time for greeting
             
         formattedHistory.push({
             role: "user",
-            parts: [{ text: greeting }]
+            parts: [{ text: `${state.personalContext.name || "User"} (${timestampStr}): ${greeting}` }]
         });
         return formattedHistory;
     }
@@ -3441,56 +3415,78 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
     
     for (let i = 0; i < relevantMessages.length; i++) {
         const msg = relevantMessages[i];
+        const timestampStr = formatTimestampForAI(msg.timestamp);
         
         if (msg.isUser) {
+            const userIdentifier = state.personalContext.name || "User";
+            const messageText = `${userIdentifier} (${timestampStr}): ${msg.content}`;
             if (lastRole === "user" && combinedUserMessage) {
+                // This case might be redundant if we always push the last combined message
+                // but keeping for safety, though it might lead to split user messages if not handled carefully.
+                // For now, let's assume single message push after combining or at the end.
                 formattedHistory.push({
                     role: "user",
                     parts: [{ text: combinedUserMessage }]
                 });
-                combinedUserMessage = msg.content;
+                combinedUserMessage = messageText; // Start new combined message
             } else {
-                combinedUserMessage = msg.content;
-                lastRole = "user";
+                combinedUserMessage = combinedUserMessage ? `${combinedUserMessage}\n${messageText}` : messageText;
             }
+            lastRole = "user";
             
-            if (i === relevantMessages.length - 1 || !relevantMessages[i + 1].isUser) {
-                formattedHistory.push({
-                    role: "user",
-                    parts: [{ text: combinedUserMessage }]
-                });
-                combinedUserMessage = "";
+            // Push if it's the last message OR the next one is not a user message
+            if (i === relevantMessages.length - 1 || (relevantMessages[i + 1] && !relevantMessages[i + 1].isUser)) {
+                if (combinedUserMessage) {
+                    formattedHistory.push({
+                        role: "user",
+                        parts: [{ text: combinedUserMessage }]
+                    });
+                    combinedUserMessage = ""; // Reset for next block
+                }
             }
         } else if (msg.characterId === currentCharacter.id) {
+            if (combinedUserMessage) { // Push any pending user message first
+                formattedHistory.push({ role: "user", parts: [{ text: combinedUserMessage }] });
+                combinedUserMessage = "";
+            }
             formattedHistory.push({
                 role: "model",
-                parts: [{ text: msg.content }]
+                parts: [{ text: `${currentCharacter.name} (${timestampStr}): ${msg.content}` }]
             });
             lastRole = "model";
-            combinedUserMessage = "";
-        } else if (msg.characterId) {
+        } else if (msg.characterId) { // Other character's message, treat as user role for Gemini
+            if (combinedUserMessage) { // Push any pending user message first
+                formattedHistory.push({ role: "user", parts: [{ text: combinedUserMessage }] });
+                combinedUserMessage = "";
+            }
             const otherCharacter = state.characters.find(c => c.id === msg.characterId);
             const characterName = otherCharacter ? otherCharacter.name : "Another character";
             formattedHistory.push({
-                role: "user",
-                parts: [{ text: `[${characterName}] ${msg.content}` }]
+                role: "user", // Other characters' speech is framed as 'user' input to the current model
+                parts: [{ text: `${characterName} (${timestampStr}): ${msg.content}` }]
             });
-            lastRole = "user";
-            combinedUserMessage = "";
+            lastRole = "user"; // Since it's framed as user input
         }
+    }
+
+    // Push any remaining combined user message
+    if (combinedUserMessage) {
+        formattedHistory.push({
+            role: "user",
+            parts: [{ text: combinedUserMessage }]
+        });
     }
 
     // Ensure history ends with user message if needed
     if (formattedHistory.length > 0 && formattedHistory[formattedHistory.length - 1].role === "model") {
+        const timestampStr = formatTimestampForAI(new Date().toISOString());
         formattedHistory.push({
             role: "user",
-            parts: [{ text: state.personalContext.name 
-                ? `(${state.personalContext.name} continues listening)`
-                : "(continue the conversation)" }]
+            parts: [{ text: `User (${timestampStr}): ${state.personalContext.name ? `(${state.personalContext.name} continues listening)` : "(continue the conversation)"}` }]
         });
     }
 
-    return formattedHistory; // fixed bug: Error getting character response: TypeError: Assignment to constant variable. at convertHistoryForGemini
+    return formattedHistory;
     // Error sending message: ReferenceError: typingMsg is not defined at getCharacterResponse
 }
 
