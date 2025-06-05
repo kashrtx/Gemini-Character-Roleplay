@@ -1663,7 +1663,7 @@ function createMessageHTML(message) {
         editedSpan.textContent = 'edited';
         timestampSpan.appendChild(editedSpan);
     }
-    timestampSpan.appendChild(document.createTextNode(new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
+    timestampSpan.appendChild(document.createTextNode(new Date(message.timestamp).toLocaleString([], { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })));
     timestampDiv.appendChild(timestampSpan);
 
 
@@ -2316,7 +2316,7 @@ function showChatHistory() {
                 const messageTimestamp = new Date(lastMessage.timestamp).getTime();
                 if (messageTimestamp > 0) {
                     entry.timestamp = messageTimestamp;
-                    entry.date = new Date(messageTimestamp).toLocaleString();
+                    entry.date = new Date(messageTimestamp).toLocaleString([], { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
                 }
             }
         });
