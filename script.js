@@ -1663,7 +1663,7 @@ function createMessageHTML(message) {
         editedSpan.textContent = 'edited';
         timestampSpan.appendChild(editedSpan);
     }
-    timestampSpan.appendChild(document.createTextNode(new Date(message.timestamp).toLocaleString(undefined, { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })));
+    timestampSpan.appendChild(document.createTextNode(new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
     timestampDiv.appendChild(timestampSpan);
 
 
@@ -3297,34 +3297,6 @@ ROLEPLAY GUIDELINES:
 - Keep responses engaging and true to your character's personality
 - You can read () for thoughts or context.
 - If the user wants to end the conversation/roleplay by saying e.g. "The End", you can say naturally to your character "Goodbye!" or "It was nice talking to you!" or "It was fun roleplaying with you!"`;
-
-    let lastUserMessageTimestamp = null;
-    if (chatHistory && chatHistory.length > 0) {
-        for (let i = chatHistory.length - 1; i >= 0; i--) {
-            const message = chatHistory[i];
-            // Ensure message is valid and has a timestamp property
-            if (message && message.isUser && message.timestamp) {
-                lastUserMessageTimestamp = message.timestamp;
-                break;
-            }
-        }
-    }
-
-    // If we couldn't find a user message timestamp, use the current time as a fallback.
-    if (!lastUserMessageTimestamp) {
-        lastUserMessageTimestamp = new Date().toISOString();
-    }
-
-    const formattedTimestampForAI = new Date(lastUserMessageTimestamp).toLocaleString(undefined, {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
-
-    context += `\n[System note: The current time is ${formattedTimestampForAI}. Consider this for your response.]\n`;
 
     // Add conversation history with smart context management
     if (chatHistory.length > 0) {
