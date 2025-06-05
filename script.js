@@ -128,6 +128,31 @@ const setStoredItem = (key, value) => {
     }
 };
 
+// Format timestamp for LLM
+function formatTimestampForLLM(timestamp) {
+    const date = new Date(timestamp);
+    const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const dayOfWeek = daysOfWeek[date.getDay()];
+    const hour = date.getHours();
+    let timeOfDay;
+
+    if (hour >= 5 && hour < 8) {
+        timeOfDay = "early morning";
+    } else if (hour >= 8 && hour < 12) {
+        timeOfDay = "morning";
+    } else if (hour >= 12 && hour < 17) {
+        timeOfDay = "afternoon";
+    } else if (hour >= 17 && hour < 21) {
+        timeOfDay = "evening";
+    } else if (hour >= 21 && hour < 24) {
+        timeOfDay = "night";
+    } else { // Covers 00:00 to 04:59
+        timeOfDay = "late at night";
+    }
+
+    return `It's currently ${dayOfWeek} ${timeOfDay}.`;
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("DOM fully loaded - initializing app");
@@ -3270,9 +3295,27 @@ function removeTypingIndicator(typingMsgId) {
 function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
     // Calculate approximate word count based on token limit (0.75 tokens per word)
     const wordLimit = Math.floor(appSettings.conversationTokens * 0.75);
+    let timeString = "";
+
+    if (chatHistory && chatHistory.length > 0) {
+        // Iterate backwards to find the last non-system, non-typing message with a valid timestamp
+        for (let i = chatHistory.length - 1; i >= 0; i--) {
+            const lastMessage = chatHistory[i];
+            if (lastMessage && !lastMessage.isSystem && !lastMessage.isTyping && lastMessage.timestamp) {
+                try {
+                    timeString = formatTimestampForLLM(lastMessage.timestamp) + "\n\n";
+                    break;
+                } catch (e) {
+                    console.error("Error formatting timestamp:", e);
+                    // If error, proceed without timeString
+                    break;
+                }
+            }
+        }
+    }
     
     // Base context with character information and roleplay instructions
-    let context = `You are ${character.name}. You must maintain your character's personality and traits at all times.
+    let context = `${timeString}You are ${character.name}. You must maintain your character's personality and traits at all times.
 
 CHARACTER PROFILE:
 ${character.enhancedContext 
