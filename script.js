@@ -14,11 +14,11 @@ const VERSION = "1.1.3"; // Fixed character response isolation when switching ch
 // App Settings
 let appSettings = {
     allowGroupChats: false,
-    modelVersion: "gemini-2.0-flash", // default is flash 2.0
+    modelVersion: "gemini-2.5-flash-lite", // default - best responses per user testing
     temperature: 1.0, //  0.5 for a balance between randomness and coherence.
     enhancedContextTokens: 2000, // Controls token length for character context enhancement
-    conversationTokens: 300, // Controls token length for AI responses in chat
-    maxTokens: 300, // For backward compatibility
+    conversationTokens: 2048, // Controls token length for AI responses in chat
+    maxTokens: 2048, // For backward compatibility
     topK: 1, //Top-K changes how the model selects tokens for output. 
     // A top-K of 1 means the next selected token is the most probable 
     // among all tokens in the model's vocabulary (also called greedy decoding)
@@ -34,7 +34,7 @@ let state = {
     activeCharacters: [],
     activeChat: null,
     selectedCharacters: [], // For character selection in sidebar
-    geminiModel: null, // Store the model reference
+    genaiClient: null, // Store the GoogleGenAI client reference
     isApiConnected: false, // Track API connection status
     personalContext: {
         name: "",
@@ -49,31 +49,31 @@ let state = {
 };
 
 // Add Gemini AI SDK
-// Dynamically load the Gemini AI SDK
+// Dynamically load the Gemini AI SDK (new @google/genai)
 function loadGeminiSDK() {
     return new Promise((resolve, reject) => {
-        if (window.GoogleGenerativeAI) {
-            resolve(window.GoogleGenerativeAI);
+        if (window.GoogleGenAI) {
+            resolve(window.GoogleGenAI);
             return;
         }
 
-        // Use the official Gemini CDN URL
+        // Use the official Gemini CDN URL for the new SDK
         const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/@google/generative-ai@0.1.3/dist/index.min.js";
+        script.src = "https://cdn.jsdelivr.net/npm/@google/genai@1.0.0/dist/genai.bundled.js";
         script.async = true;
         script.onload = () => {
-            console.log("Gemini SDK loaded successfully");
-            resolve(window.GoogleGenerativeAI);
+            console.log("Gemini GenAI SDK loaded successfully");
+            resolve(window.GoogleGenAI);
         };
         script.onerror = () => {
-            console.error("Failed to load Gemini SDK from CDN");
-            reject(new Error("Failed to load Gemini SDK"));
+            console.error("Failed to load Gemini GenAI SDK from CDN");
+            reject(new Error("Failed to load Gemini GenAI SDK"));
         };
         document.head.appendChild(script);
     });
 }
 
-// Initialize Gemini API
+// Initialize Gemini API (new @google/genai SDK)
 async function initializeGeminiAPI() {
     if (!state.apiKey) {
         console.log("No API key available");
@@ -81,19 +81,19 @@ async function initializeGeminiAPI() {
     }
 
     try {
-        const { GoogleGenerativeAI } = await import("https://esm.run/@google/generative-ai");
+        // Import the new GoogleGenAI SDK
+        const { GoogleGenAI } = await import("https://esm.run/@google/genai");
 
-        // Create the Gemini instance
-        const genAI = new GoogleGenerativeAI(state.apiKey);
+        // Create the GoogleGenAI client instance
+        state.genaiClient = new GoogleGenAI({ apiKey: state.apiKey });
 
-        // Get model from settings and store it in state
-        state.geminiModel = genAI.getGenerativeModel({ 
-            model: appSettings.modelVersion || "gemini-2.0-flash" 
+        // Test the API connection with the selected model
+        const modelName = appSettings.modelVersion || "gemini-2.5-flash";
+        const result = await state.genaiClient.models.generateContent({
+            model: modelName,
+            contents: "Hello, testing Gemini API connection.",
         });
-
-        // Test the API connection
-        const result = await state.geminiModel.generateContent("Hello, testing Gemini API connection.");
-        console.log("API connection test successful:", result.response.text().substring(0, 20) + "...");
+        console.log("API connection test successful:", result.text.substring(0, 20) + "...");
 
         state.isApiConnected = true;
         return true;
@@ -131,25 +131,25 @@ const setStoredItem = (key, value) => {
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("DOM fully loaded - initializing app");
-    
+
     // Load data from localStorage
     loadStoredData();
 
     // Initialize views
     changeView('chat');
-    
+
     // Update character lists
     updateCharacterLists();
-    
+
     // Set up event listeners
     setupEventListeners();
-    
+
     // Add direct event listeners for critical functionality
     setupDirectListeners();
-    
+
     // Show API warning if needed
     checkApiKey();
-    
+
     // Initialize Gemini API if key is available
     if (state.apiKey) {
         try {
@@ -187,27 +187,27 @@ function initializeSidebar() {
     const showChatSidebarBtn = document.getElementById('show-chat-sidebar-btn');
     const chatView = document.getElementById('chat-view');
     const header = document.querySelector('header');
-    
+
     // Create overlay element
     const overlay = document.createElement('div');
     overlay.className = 'sidebar-overlay';
     document.body.appendChild(overlay);
-    
+
     // Toggle sidebar function
     function toggleSidebar() {
         sidebar.classList.toggle('sidebar-open');
-        
+
         // Only use overlay on non-mobile devices
         if (window.innerWidth > 768) {
             overlay.classList.toggle('active');
         }
-        
+
         // Ensure body scrolling is disabled when sidebar is open
         if (sidebar.classList.contains('sidebar-open')) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = '';
-            
+
             // Small delay to ensure overlay is fully hidden before allowing interaction
             if (window.innerWidth > 768) {
                 setTimeout(() => {
@@ -221,19 +221,19 @@ function initializeSidebar() {
             }
         }
     }
-    
+
     // Function to adjust sidebar position based on header height
     function adjustSidebarPosition() {
         if (window.innerWidth < 1024) {
             const headerHeight = header.offsetHeight;
             sidebar.style.top = `${headerHeight}px`;
-            
+
             // Update main content padding to account for fixed header
             const main = document.querySelector('main');
             if (main) {
                 main.style.paddingTop = `${headerHeight}px`;
             }
-            
+
             // Update height and max-height to ensure proper scrolling
             sidebar.style.height = `calc(100vh - ${headerHeight}px)`;
             sidebar.style.maxHeight = `calc(100vh - ${headerHeight}px)`;
@@ -241,7 +241,7 @@ function initializeSidebar() {
             sidebar.style.top = '';
             sidebar.style.height = '';
             sidebar.style.maxHeight = '';
-            
+
             // Reset main padding for desktop
             const main = document.querySelector('main');
             if (main) {
@@ -249,10 +249,10 @@ function initializeSidebar() {
             }
         }
     }
-    
+
     // Call initially to set the correct position
     adjustSidebarPosition();
-    
+
     // Add click events for all toggle buttons
     if (toggleBtn) {
         toggleBtn.addEventListener('click', (e) => {
@@ -260,26 +260,26 @@ function initializeSidebar() {
             toggleSidebar();
         });
     }
-    
+
     if (showCharactersBtn) {
         showCharactersBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent event bubbling
             toggleSidebar();
         });
     }
-    
+
     if (showChatSidebarBtn) {
         showChatSidebarBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent event bubbling
             toggleSidebar();
         });
     }
-    
+
     overlay.addEventListener('click', toggleSidebar);
-    
+
     // Close sidebar on chat start in mobile view
     const originalStartChat = startChat;
-    startChat = function() {
+    startChat = function () {
         originalStartChat();
         if (window.innerWidth < 1024) { // lg breakpoint
             sidebar.classList.remove('sidebar-open');
@@ -289,7 +289,7 @@ function initializeSidebar() {
             chatView.classList.add('chat-active');
         }
     };
-    
+
     // Handle scroll events to ensure sidebar stays fixed
     window.addEventListener('scroll', () => {
         if (window.innerWidth < 1024) {
@@ -297,7 +297,7 @@ function initializeSidebar() {
             // But we can add this as a hook for any future scroll-based adjustments
         }
     });
-    
+
     // Handle resize events
     window.addEventListener('resize', () => {
         if (window.innerWidth >= 1024) {
@@ -345,11 +345,11 @@ function setupTestChatForm() {
         // Remove existing listeners and add test listener
         const clonedForm = chatForm.cloneNode(true);
         chatForm.parentNode.replaceChild(clonedForm, chatForm);
-        
-        clonedForm.addEventListener('submit', function(e) {
+
+        clonedForm.addEventListener('submit', function (e) {
             e.preventDefault();
             console.log("Chat form submitted via test handler");
-            
+
             // Use API function if connected, otherwise fall back to test
             if (state.isApiConnected && state.apiKey) {
                 sendMessage();
@@ -363,37 +363,37 @@ function setupTestChatForm() {
 // Load data from localStorage
 function loadStoredData() {
     console.log("Loading stored data");
-    
+
     // Load API key
     state.apiKey = getStoredItem(STORAGE_KEYS.API_KEY, "");
-    
+
     // Load characters and chats
     state.characters = getStoredItem(STORAGE_KEYS.CHARACTERS, []);
     state.chats = getStoredItem(STORAGE_KEYS.CHATS, {});
     state.chatHistory = getStoredItem(STORAGE_KEYS.CHAT_HISTORY, {});
     state.lastActiveChats = getStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, {});
-    
+
     // Clean up any invalid chat history entries
     cleanupChatHistory();
-    
+
     // Load app settings
     const storedSettings = getStoredItem(STORAGE_KEYS.SETTINGS, null);
     if (storedSettings) {
-        appSettings = {...appSettings, ...storedSettings};
+        appSettings = { ...appSettings, ...storedSettings };
     }
-    
+
     // Load personal context
     const storedContext = getStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, null);
     if (storedContext) {
-        state.personalContext = {...state.personalContext, ...storedContext};
+        state.personalContext = { ...state.personalContext, ...storedContext };
     }
-    
+
     // Set up the UI based on loaded data
     const apiKeyInput = document.getElementById('api-key-input');
     if (apiKeyInput && state.apiKey) {
         apiKeyInput.value = state.apiKey;
     }
-    
+
     // Set the group chat checkbox state
     const groupChatCheckbox = document.getElementById('allow-group-chats');
     if (groupChatCheckbox) {
@@ -404,11 +404,11 @@ function loadStoredData() {
     const nameInput = document.getElementById('user-name');
     const personalityInput = document.getElementById('user-personality');
     const contextInput = document.getElementById('user-context');
-    
+
     if (nameInput) nameInput.value = state.personalContext.name;
     if (personalityInput) personalityInput.value = state.personalContext.personality;
     if (contextInput) contextInput.value = state.personalContext.context;
-    
+
     // Update UI
     updateSidebarCharacters();
     // Initialize search and sort UI elements
@@ -420,7 +420,7 @@ function loadStoredData() {
     if (sortSelect) {
         sortSelect.value = state.characterSortOrder;
     }
-    
+
     // Check API key
     checkApiKey();
 }
@@ -428,25 +428,25 @@ function loadStoredData() {
 // Function to clean up any invalid chat history entries
 function cleanupChatHistory() {
     let hasChanges = false;
-    
+
     // Loop through all character history entries
     for (const historyKey in state.chatHistory) {
         if (state.chatHistory.hasOwnProperty(historyKey)) {
             // Filter out undefined or invalid entries
-            const validEntries = state.chatHistory[historyKey].filter(entry => 
-                entry && 
-                entry.id && 
-                entry.characterIds && 
+            const validEntries = state.chatHistory[historyKey].filter(entry =>
+                entry &&
+                entry.id &&
+                entry.characterIds &&
                 entry.characterIds.length > 0 &&
                 state.chats[entry.id] // Only keep entries that have a corresponding chat
             );
-            
+
             // Check if any entries were removed
             if (validEntries.length !== state.chatHistory[historyKey].length) {
                 state.chatHistory[historyKey] = validEntries;
                 hasChanges = true;
             }
-            
+
             // Remove empty history keys
             if (state.chatHistory[historyKey].length === 0) {
                 delete state.chatHistory[historyKey];
@@ -454,7 +454,7 @@ function cleanupChatHistory() {
             }
         }
     }
-    
+
     // Save changes if needed
     if (hasChanges) {
         setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
@@ -509,7 +509,7 @@ function setupEventListeners() {
 
     // Make sidebar character items clickable
     updateSidebarCharacterListeners();
-    
+
     // Save API Key button
     const saveButton = document.getElementById('save-api-key-btn');
     if (saveButton) {
@@ -526,60 +526,60 @@ function setupEventListeners() {
             });
         }
     }
-    
+
     // Handle window resize for mobile/desktop detection
     window.addEventListener('resize', debounce(() => {
         initMessageDeleteButtons();
     }, 250));
-    
+
     // Setup character creation button
     const createCharacterBtn = document.getElementById('create-character-btn');
     if (createCharacterBtn) {
         createCharacterBtn.addEventListener('click', createNewCharacter);
     }
-    
+
     // Setup edit character modal
     setupEditCharacterModal();
-    
+
     // Setup character selection in sidebar
     updateSidebarCharacterListeners();
-    
+
     // Chat history and new chat buttons
     const newChatBtn = document.getElementById('new-chat-btn');
     if (newChatBtn) {
         newChatBtn.addEventListener('click', createNewChat);
     }
-    
+
     const chatHistoryBtn = document.getElementById('chat-history-btn');
     if (chatHistoryBtn) {
         chatHistoryBtn.addEventListener('click', showChatHistory);
     }
-    
+
     const closeHistoryModalBtn = document.getElementById('close-history-modal-btn');
     if (closeHistoryModalBtn) {
         closeHistoryModalBtn.addEventListener('click', closeChatHistoryModal);
     }
-    
+
     const closeHistoryBtn = document.getElementById('close-history-btn');
     if (closeHistoryBtn) {
         closeHistoryBtn.addEventListener('click', closeChatHistoryModal);
     }
-    
+
     // Setup data export and import buttons
     const exportDataBtn = document.getElementById('export-data-btn');
     const importDataBtn = document.getElementById('import-data-btn');
-    
+
     if (exportDataBtn) {
         exportDataBtn.addEventListener('click', exportAppData);
     }
-    
+
     if (importDataBtn) {
         importDataBtn.addEventListener('click', importAppData);
     }
-    
+
     // Setup profile picture handlers
     setupProfilePictureHandlers();
-    
+
     // Setup focus handling for mobile
     setupFocusHandling();
 
@@ -615,7 +615,7 @@ function updateSidebarCharacterListeners() {
             element.parentNode.replaceChild(newElement, element);
 
             // Add fresh event listener
-            newElement.addEventListener('click', function(event) {
+            newElement.addEventListener('click', function (event) {
                 event.preventDefault();
                 console.log("Character clicked via event listener:", character.id);
                 toggleCharacterSelection(character.id);
@@ -642,7 +642,7 @@ function changeView(viewName) {
             }
         }
     });
-    
+
     // Reset active buttons
     const buttons = ['chat-btn', 'characters-btn', 'settings-btn'];
     buttons.forEach(btn => {
@@ -652,14 +652,14 @@ function changeView(viewName) {
             element.classList.add('text-white');
         }
     });
-    
+
     // Toggle body class for fixed positioning only in chat view
     if (viewName === 'chat') {
         document.body.classList.add('chat-view-active');
     } else {
         document.body.classList.remove('chat-view-active');
     }
-    
+
     // Show selected view and activate button
     if (viewName === 'chat') {
         const view = document.getElementById('chat-view');
@@ -667,7 +667,7 @@ function changeView(viewName) {
         if (view) {
             view.classList.remove('hidden');
             updateCharacterLists(); // Refresh the list when switching views
-            
+
             // Add chat-active class if there's an active chat
             if (state.activeChat) {
                 view.classList.add('chat-active');
@@ -711,16 +711,16 @@ async function saveApiKey() {
     const apiKeyInput = document.getElementById('api-key-input');
     state.apiKey = apiKeyInput.value.trim();
     setStoredItem(STORAGE_KEYS.API_KEY, state.apiKey);
-    
+
     // Test API connection with new key
     const success = await initializeGeminiAPI();
-    
+
     // Show result message
     const savedMessage = document.getElementById('api-saved');
     if (savedMessage) {
         if (success) {
             savedMessage.textContent = "API key saved and connected successfully";
-            
+
             // Add a short delay before refreshing to allow the user to see the success message
             setTimeout(() => {
                 window.location.reload();
@@ -728,12 +728,12 @@ async function saveApiKey() {
         } else {
             savedMessage.textContent = "API key saved but connection failed";
         }
-    savedMessage.classList.remove('hidden');
-    setTimeout(() => {
-        savedMessage.classList.add('hidden');
+        savedMessage.classList.remove('hidden');
+        setTimeout(() => {
+            savedMessage.classList.add('hidden');
         }, 3000);
     }
-    
+
     // Update API warning
     checkApiKey();
 }
@@ -742,10 +742,10 @@ async function saveApiKey() {
 function showError(message) {
     const errorContainer = document.getElementById('error-container');
     const errorMessage = document.getElementById('error-message');
-    
+
     if (errorContainer && errorMessage) {
-    errorMessage.textContent = message;
-    errorContainer.classList.remove('hidden');
+        errorMessage.textContent = message;
+        errorContainer.classList.remove('hidden');
     } else {
         console.error("Error:", message);
         alert(message); // Fallback if error container not found
@@ -764,22 +764,22 @@ function createNewCharacter() {
     // Get input fields
     const nameInput = document.getElementById('character-name');
     const contextInput = document.getElementById('character-context');
-    
+
     if (!nameInput || !contextInput) {
         showError("Character creation form elements not found");
         return;
     }
-    
+
     const name = nameInput.value.trim();
     const context = contextInput.value.trim();
-    
+
     // Better validation with more specific error messages
     if (name === '') {
         showError("Please provide a name for your character");
         nameInput.focus();
         return false;
     }
-    
+
     if (context === '') {
         showError("Please provide context for your character");
         contextInput.focus();
@@ -789,7 +789,7 @@ function createNewCharacter() {
     // Get profile picture if available
     const profilePicturePreview = document.getElementById('profile-picture-preview');
     let profilePicture = null;
-    
+
     // Check if the preview has an image (not the default icon)
     if (profilePicturePreview && profilePicturePreview.querySelector('img')) {
         // Get the src attribute which contains the base64 data
@@ -805,29 +805,29 @@ function createNewCharacter() {
         profilePicture: profilePicture,
         createdAt: new Date().toISOString(),
     };
-    
+
     console.log("Creating new character:", newCharacter);
 
     // Add to state and save
     state.characters.push(newCharacter);
     setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
-    
+
     // Clear inputs AFTER validation and saving
     nameInput.value = '';
     contextInput.value = '';
-    
+
     // Reset profile picture preview
     if (profilePicturePreview) {
         profilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
         profilePicturePreview.classList.remove('has-image');
-        
+
         // Hide the remove button
         const removeButton = document.getElementById('remove-profile-picture');
         if (removeButton) {
             removeButton.classList.add('hidden');
         }
     }
-    
+
     // Show success message
     showSuccess(`Character "${name}" created successfully!`);
 
@@ -874,18 +874,18 @@ function createNewCharacter() {
                 </div>
             </div>
 
-            ${ newCharacter.enhancedContext ? `
+            ${newCharacter.enhancedContext ? `
             <div class="mt-3 bg-gray-50 p-2 rounded enhanced-context" id="enhanced-context-${newCharacter.id}">
                 <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
                 <div class="text-gray-600 text-sm mt-1 max-h-60 overflow-auto p-1 border rounded bg-white">
                     ${newCharacter.enhancedContext}
                 </div>
             </div>
-            ` : '' }
+            ` : ''}
 
             <div class="mt-3 flex justify-center">
                 <button id="enhance-btn-${newCharacter.id}" class="text-sm bg-secondary text-white px-3 py-1 rounded hover:bg-secondary/90 transition ${!state.apiKey ? 'disabled:bg-gray-400' : ''}" ${!state.apiKey ? 'disabled' : ''}>
-                    <i class="fas fa-magic mr-1"></i> ${ newCharacter.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context' }
+                    <i class="fas fa-magic mr-1"></i> ${newCharacter.enhancedContext ? 'Re-Enhance Context' : 'Enhance Context'}
                 </button>
             </div>
         `;
@@ -921,11 +921,11 @@ function createNewCharacter() {
 
     // Also update the sidebar if needed
     updateSidebarCharacters();
-    
+
     // Full UI update
     updateCharacterLists();
     window.scrollTo(0, document.body.scrollHeight); // scroll to bottom to see new character
-    
+
     // If the characters view is currently hidden, switch to it
     if (document.getElementById('characters-view').classList.contains('hidden')) {
         changeView('characters');
@@ -938,39 +938,39 @@ function setupCharacterItemListeners() {
     // Set up enhance button event listeners
     document.querySelectorAll('[id^="enhance-btn-"]').forEach(button => {
         const characterId = button.id.replace('enhance-btn-', '');
-        
+
         // Remove existing event listeners by cloning and replacing
         const newButton = button.cloneNode(true);
         button.parentNode.replaceChild(newButton, button);
-        
+
         newButton.addEventListener('click', (e) => {
             e.preventDefault();
             enhanceCharacterContext(characterId);
         });
     });
-    
+
     // Set up edit button event listeners
     document.querySelectorAll('[id^="edit-btn-"]').forEach(button => {
         const characterId = button.id.replace('edit-btn-', '');
-        
+
         // Remove existing event listeners by cloning and replacing
         const newButton = button.cloneNode(true);
         button.parentNode.replaceChild(newButton, button);
-        
+
         newButton.addEventListener('click', (e) => {
             e.preventDefault();
             editCharacter(characterId);
         });
     });
-    
+
     // Set up delete button event listeners
     document.querySelectorAll('[id^="delete-btn-"]').forEach(button => {
         const characterId = button.id.replace('delete-btn-', '');
-        
+
         // Remove existing event listeners by cloning and replacing
         const newButton = button.cloneNode(true);
         button.parentNode.replaceChild(newButton, button);
-        
+
         newButton.addEventListener('click', (e) => {
             e.preventDefault();
             deleteCharacter(characterId);
@@ -988,7 +988,7 @@ function generateCharacterListHTML() {
         } else {
             avatarHTML = `<div class="character-avatar bg-primary/20 text-primary mr-3">${character.name.charAt(0).toUpperCase()}</div>`;
         }
-        
+
         return `
         <div class="border rounded-lg p-4 hover:shadow-md transition" id="character-item-${character.id}">
                 <div class="flex justify-between items-start">
@@ -1048,12 +1048,12 @@ function generateCharacterListHTML() {
 function updateSidebarCharacters() {
     console.log("Updating sidebar characters list");
     const sidebarCharactersContainer = document.getElementById('sidebar-characters');
-    
+
     if (!sidebarCharactersContainer) {
         console.error("Sidebar characters container not found");
         return;
     }
-    
+
     try {
         if (state.characters.length === 0) {
             sidebarCharactersContainer.innerHTML = `
@@ -1098,7 +1098,7 @@ function updateSidebarCharacters() {
                 const lastMessageTime = getLastMessageTimestamp(character.id);
                 const hasRecentChat = lastMessageTime > 0;
                 const isActive = state.activeCharacters && state.activeCharacters.some(c => c.id === character.id);
-                
+
                 // Format date with time
                 const formatDateTime = (timestamp) => {
                     const date = new Date(timestamp);
@@ -1111,7 +1111,7 @@ function updateSidebarCharacters() {
                         hour12: true
                     });
                 };
-                
+
                 // Determine how to display the character avatar
                 let avatarHTML = '';
                 let avatarClass = '';
@@ -1122,15 +1122,14 @@ function updateSidebarCharacters() {
                     avatarHTML = character.name.charAt(0).toUpperCase();
                     avatarClass = '';
                 }
-                
+
                 return `
                 <div 
                     id="sidebar-char-${character.id}"
                     data-character-id="${character.id}"
-                    class="p-3 rounded mb-2 cursor-pointer character-item ${
-                        state.selectedCharacters.includes(character.id)
-                            ? 'bg-primary/10 border-primary/30 border' 
-                            : 'hover:bg-gray-100 border border-transparent'
+                    class="p-3 rounded mb-2 cursor-pointer character-item ${state.selectedCharacters.includes(character.id)
+                        ? 'bg-primary/10 border-primary/30 border'
+                        : 'hover:bg-gray-100 border border-transparent'
                     } ${isActive ? 'border-primary' : ''}"
                 >
                     <div class="flex items-center justify-between">
@@ -1155,10 +1154,10 @@ function updateSidebarCharacters() {
             // Use innerHTML for the sidebar update
             sidebarCharactersContainer.innerHTML = sidebarHTML;
         }
-    
+
         // Setup event listeners for the sidebar characters
         setupSidebarCharacterListeners();
-        
+
     } catch (error) {
         console.error("Error updating sidebar characters:", error);
     }
@@ -1167,26 +1166,26 @@ function updateSidebarCharacters() {
 // Function to setup sidebar character listeners
 function setupSidebarCharacterListeners() {
     console.log("Setting up sidebar character listeners");
-    
+
     document.querySelectorAll('[id^="sidebar-char-"]').forEach(element => {
         const characterId = element.getAttribute('data-character-id');
         if (!characterId) {
             console.warn("Character element without data-character-id:", element);
             return;
         }
-        
+
         // Remove any existing event listeners by cloning and replacing
         const newElement = element.cloneNode(true);
         element.parentNode.replaceChild(newElement, element);
-        
+
         // Add fresh event listener using the data attribute
-        newElement.addEventListener('click', function(e) {
+        newElement.addEventListener('click', function (e) {
             e.preventDefault();
             console.log("Character clicked in sidebar:", characterId);
             toggleCharacterSelection(characterId);
         });
     });
-    
+
     // Also set up the Start Chat button
     // removed it
 }
@@ -1194,20 +1193,20 @@ function setupSidebarCharacterListeners() {
 // Character selection in sidebar
 function toggleCharacterSelection(characterId) {
     console.log("Character selected:", characterId);
-    
+
     // Check if character exists
     const character = state.characters.find(c => c.id === characterId);
     if (!character) {
         console.error("Character not found:", characterId);
         return;
     }
-    
+
     // Check if this character is already selected
     const wasSelected = state.selectedCharacters.includes(characterId);
-    
+
     // Save the previous active chat to clean up in-progress system messages
     const previousActiveChat = state.activeChat;
-    
+
     // Handle selection based on group chat setting
     if (!appSettings.allowGroupChats) {
         // Single character mode - replace existing selection
@@ -1220,10 +1219,10 @@ function toggleCharacterSelection(characterId) {
             state.selectedCharacters.push(characterId);
         }
     }
-    
+
     // Update UI to reflect selection state
     updateSidebarCharacters();
-    
+
     // Close the sidebar on mobile after character selection
     if (window.innerWidth <= 768) {
         const sidebar = document.getElementById('character-sidebar');
@@ -1233,30 +1232,30 @@ function toggleCharacterSelection(characterId) {
             // No need to manage overlay on mobile as it's hidden via CSS
         }
     }
-    
+
     // If we're removing a character from an active chat
     if (wasSelected && state.selectedCharacters.length === 0) {
         // Show placeholder, hide chat
         const chatWindow = document.getElementById('chat-window');
         const placeholder = document.getElementById('chat-placeholder');
-        
+
         if (chatWindow) { chatWindow.classList.add('hidden'); }
         if (placeholder) { placeholder.classList.remove('hidden'); }
-        
+
         // Force a layout refresh
         setTimeout(() => {
             window.dispatchEvent(new Event('resize'));
         }, 10);
     }
-    
+
     // Clean up any completed pending responses 
     cleanupPendingResponses();
-    
+
     // Clean up any "continuing conversation" system messages in the previous chat
     if (previousActiveChat && state.chats[previousActiveChat]) {
         const messages = state.chats[previousActiveChat];
         let hasChanges = false;
-        
+
         // Look for system messages with "..." content (the continue indicator)
         messages.forEach(msg => {
             if (msg.isSystem && msg.content === "..." && !msg.isDeleted) {
@@ -1264,32 +1263,32 @@ function toggleCharacterSelection(characterId) {
                 hasChanges = true;
             }
         });
-        
+
         // Save changes if needed
         if (hasChanges) {
             setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         }
     }
-    
+
     // Auto-start chat in single character mode
     if (!appSettings.allowGroupChats && state.selectedCharacters.length === 1) {
         console.log("Auto-starting chat since character was selected");
-        
+
         // Ensure the character's chat reference is maintained
         ensureCharacterChatReference(characterId);
-        
+
         // Check if there's a last active chat for this character
         const lastChatId = state.lastActiveChats[characterId];
-        
+
         if (lastChatId && state.chats[lastChatId]) {
             console.log("Resuming last active chat:", lastChatId);
-            
+
             // Set as active chat
             state.activeChat = lastChatId;
-            
+
             // Update active characters
             state.activeCharacters = state.characters.filter(c => state.selectedCharacters.includes(c.id));
-            
+
             // Ensure the chat has at least one message (add a welcome message if empty)
             if (state.chats[lastChatId].length === 0) {
                 const welcomeMsg = {
@@ -1300,11 +1299,11 @@ function toggleCharacterSelection(characterId) {
                     timestamp: new Date().toISOString(),
                     isDeleted: false
                 };
-                
+
                 state.chats[lastChatId].push(welcomeMsg);
                 setStoredItem(STORAGE_KEYS.CHATS, state.chats);
             }
-            
+
             // Update UI
             changeView('chat');
             updateChatUI();
@@ -1323,12 +1322,12 @@ function startChat() {
         showError("Please select at least one character to chat with");
         return;
     }
-    
+
     // Clean up any existing chat's system messages before changing
     if (state.activeChat && state.chats[state.activeChat]) {
         const messages = state.chats[state.activeChat];
         let hasChanges = false;
-        
+
         // Look for system messages with "..." content (the continue indicator)
         messages.forEach(msg => {
             if (msg.isSystem && msg.content === "..." && !msg.isDeleted) {
@@ -1336,32 +1335,32 @@ function startChat() {
                 hasChanges = true;
             }
         });
-        
+
         // Save changes if needed
         if (hasChanges) {
             setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         }
     }
-    
+
     // Generate chat ID
     const chatId = state.selectedCharacters.sort().join('-');
     state.activeChat = chatId;
-    
+
     // Ensure chat exists in state
     if (!state.chats[chatId]) {
         state.chats[chatId] = [];
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
     }
-    
+
     // Update active characters
     state.activeCharacters = state.characters.filter(c => state.selectedCharacters.includes(c.id));
-    
+
     // Save the active chat ID for each selected character
     state.selectedCharacters.forEach(characterId => {
         state.lastActiveChats[characterId] = chatId;
     });
     setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
-    
+
     // Create a welcome message for the chat if it's empty
     if (state.chats[chatId].length === 0) {
         // Add greeting message to the chat
@@ -1373,22 +1372,22 @@ function startChat() {
             timestamp: new Date().toISOString(),
             isDeleted: false
         };
-        
+
         // Add welcome message to the chat
         state.chats[chatId].push(welcomeMsg);
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-        
+
         // For new conversations, let the character initialize with a greeting
         // But only do this if we're connected to the API
         if (state.isApiConnected && state.activeCharacters.length === 1) {
             // Update UI first
             changeView('chat');
             updateChatUI();
-            
+
             // Wait a moment for UI to update before triggering greeting
             setTimeout(() => {
                 const character = state.activeCharacters[0];
-                
+
                 // Create a special init message that won't be displayed
                 const initMsg = {
                     id: generateUniqueId(),
@@ -1398,7 +1397,7 @@ function startChat() {
                     isDeleted: true, // Won't be shown in UI
                     isInitializing: true // Special flag for first-time greeting
                 };
-                
+
                 // Generate character's greeting (async)
                 getCharacterResponse(character, initMsg);
             }, 500);
@@ -1407,24 +1406,24 @@ function startChat() {
         // Also clean up any continue messages in this chat
         const messages = state.chats[chatId];
         let hasChanges = false;
-        
+
         messages.forEach(msg => {
             if (msg.isSystem && msg.content === "..." && !msg.isDeleted) {
                 msg.isDeleted = true;
                 hasChanges = true;
             }
         });
-        
+
         // Save changes if needed
         if (hasChanges) {
             setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         }
     }
-    
+
     // Update UI - Make sure to switch to chat view first
     changeView('chat');
     updateChatUI();
-    
+
     // Update sidebar to show the most recent characters at the top
     updateSidebarCharacters();
 }
@@ -1434,16 +1433,16 @@ function ensureCharacterChatReference(characterId) {
     // Check if the character exists
     const character = state.characters.find(c => c.id === characterId);
     if (!character) return false;
-    
+
     // Check if there's a last active chat for this character
     const lastChatId = state.lastActiveChats[characterId];
-    
+
     // If no lastChatId or no chat data exists for it, create a new chat
     if (!lastChatId || !state.chats[lastChatId]) {
         const newChatId = characterId;
         state.lastActiveChats[characterId] = newChatId;
         state.chats[newChatId] = [];
-        
+
         // Add welcome message
         const welcomeMsg = {
             id: generateUniqueId(),
@@ -1453,63 +1452,63 @@ function ensureCharacterChatReference(characterId) {
             timestamp: new Date().toISOString(),
             isDeleted: false
         };
-        
+
         state.chats[newChatId].push(welcomeMsg);
-        
+
         // Save to storage
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
-        
+
         return true;
     }
-    
+
     return true;
 }
 
 // Update the updateChatUI function to check for completed responses
 function updateChatUI() {
     console.log("Updating chat UI"); // Debug log
-    
+
     // Hide placeholder, show chat window
     const placeholder = document.getElementById('chat-placeholder');
     const chatWindow = document.getElementById('chat-window');
-    
+
     if (placeholder) placeholder.classList.add('hidden');
     if (chatWindow) chatWindow.classList.remove('hidden');
-    
+
     // Update chat header
     const characterNames = state.activeCharacters.map(c => c.name).join(', ');
     const headerTitle = document.getElementById('chat-header-title');
     if (headerTitle) headerTitle.textContent = characterNames;
-    
+
     // Update chat header with profile pictures
     const chatHeaderAvatars = document.getElementById('chat-header-avatars');
     if (chatHeaderAvatars) {
         // Clear existing avatars
         chatHeaderAvatars.innerHTML = '';
-        
+
         // Add avatars for each active character
         state.activeCharacters.forEach(character => {
             const avatarElement = document.createElement('div');
             avatarElement.className = 'character-avatar bg-primary/20 text-primary mr-2';
-            
+
             if (character.profilePicture) {
                 avatarElement.innerHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
                 avatarElement.classList.add('has-image');
             } else {
                 avatarElement.textContent = character.name.charAt(0).toUpperCase();
             }
-            
+
             chatHeaderAvatars.appendChild(avatarElement);
         });
     }
-    
+
     // Check for completed responses for the active characters
     if (state.activeCharacters.length > 0 && state.activeChat) {
         state.activeCharacters.forEach(character => {
             if (state.pendingResponses[character.id]) {
                 const pendingData = state.pendingResponses[character.id];
-                
+
                 // If the pending response is for this chat but generation is complete
                 if (pendingData.chatId === state.activeChat && !pendingData.isGenerating) {
                     // Clean up this entry since we're displaying it now
@@ -1518,7 +1517,7 @@ function updateChatUI() {
             }
         });
     }
-    
+
     // Update messages
     updateChatMessages(); // This function populates the messages
 
@@ -1532,31 +1531,31 @@ function updateChatUI() {
 
 function updateChatMessages() {
     if (!state.activeChat) return;
-    
+
     const messagesContainer = document.getElementById('chat-messages');
     if (!messagesContainer) return;
-    
+
     const messages = state.chats[state.activeChat] || [];
-    
+
     // Filter out deleted messages
     const visibleMessages = messages.filter(message => !message.isDeleted);
-    
+
     if (visibleMessages.length === 0) {
         messagesContainer.innerHTML = `
             <div class="text-center text-gray-500 mt-8">
                 <p>No messages yet. Start the conversation!</p>
             </div>
         `;
-        
+
         // Make sure the chat window is visible even if empty
         const chatWindow = document.getElementById('chat-window');
         const placeholder = document.getElementById('chat-placeholder');
-        
+
         if (chatWindow) chatWindow.classList.remove('hidden');
         if (placeholder) placeholder.classList.add('hidden');
     } else {
         // Clear the container before adding new elements
-        messagesContainer.innerHTML = ''; 
+        messagesContainer.innerHTML = '';
         visibleMessages.forEach(message => {
             const messageElement = createMessageHTML(message);
             if (messageElement) { // Ensure messageElement is not null
@@ -1564,10 +1563,10 @@ function updateChatMessages() {
             }
         });
     }
-    
+
     // Scroll to bottom
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    
+
     // Initialize delete buttons based on device type
     initMessageDeleteButtons();
 }
@@ -1645,9 +1644,9 @@ function createMessageHTML(message) {
 
     const bubbleDiv = createElement('div', ['message-bubble']);
     // Create a specific element for the textual content
-    const textContentDiv = createElement('div', ['message-text-content']); 
+    const textContentDiv = createElement('div', ['message-text-content']);
     textContentDiv.innerHTML = processContent(message.content); // Processed content goes into textContentDiv
-    bubbleDiv.appendChild(textContentDiv); 
+    bubbleDiv.appendChild(textContentDiv);
 
     const deleteButton = createElement('button', ['absolute', '-top-3', '-right-3', 'bg-red-500', 'text-white', 'rounded-full', 'w-6', 'h-6', 'flex', 'items-center', 'justify-center', 'shadow', 'hover:bg-red-600', 'transition', 'hidden'], { id: `delete-msg-${message.id}` });
     deleteButton.innerHTML = '<i class="fas fa-times text-xs"></i>';
@@ -1716,7 +1715,7 @@ function createMessageHTML(message) {
             const characterMessages = messages.filter(m => !m.isUser && m.characterId === message.characterId && !m.isDeleted && !m.isTyping);
             return characterMessages.length > 0 && characterMessages[characterMessages.length - 1].id === message.id;
         })();
-        
+
         const isFollowedByUserMessage = (() => {
             if (!state.activeChat) return false;
             const messages = state.chats[state.activeChat] || [];
@@ -1759,7 +1758,7 @@ function showMessageActions(messageId) {
         if (deleteButton) {
             deleteButton.classList.remove('hidden');
         }
-        
+
         // Also show edit button with higher opacity
         const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
         if (messageElement) {
@@ -1778,7 +1777,7 @@ function hideMessageActions(messageId) {
         if (deleteButton) {
             deleteButton.classList.add('hidden');
         }
-        
+
         // Reduce opacity of edit button
         const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
         if (messageElement) {
@@ -1792,20 +1791,20 @@ function hideMessageActions(messageId) {
 
 function deleteMessage(messageId) {
     if (!state.activeChat) return;
-    
+
     // Get the messages array
     const messages = state.chats[state.activeChat];
     const messageIndex = messages.findIndex(m => m.id === messageId);
-    
+
     if (messageIndex !== -1) {
         const message = messages[messageIndex];
-        
+
         // If it's a typing indicator, remove it completely instead of marking as deleted
         if (message.isTyping) {
             // First find and remove any related continue system messages
             // These typically appear right before the typing indicator
             let continueMessageIndex = -1;
-            
+
             // Look for the continue system message that might be before this typing indicator
             for (let i = messageIndex - 1; i >= 0; i--) {
                 const prevMsg = messages[i];
@@ -1818,7 +1817,7 @@ function deleteMessage(messageId) {
                     break;
                 }
             }
-            
+
             // Remove messages in reverse order to avoid index issues
             if (continueMessageIndex !== -1) {
                 // Remove the continue system message first
@@ -1829,16 +1828,16 @@ function deleteMessage(messageId) {
                 // Just remove the typing indicator
                 messages.splice(messageIndex, 1);
             }
-            
+
             showSuccess("Typing indicator removed", 2000);
         } else {
             // Mark regular message as deleted
             messages[messageIndex].isDeleted = true;
         }
-        
+
         // Save changes
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-        
+
         // Update UI
         updateChatMessages();
     }
@@ -1847,87 +1846,87 @@ function deleteMessage(messageId) {
 // Start message editing mode
 function editMessage(messageId) {
     if (!state.activeChat) return;
-    
+
     // Get message element and validate ID
     const messages = state.chats[state.activeChat];
     const messageIndex = messages.findIndex(m => m.id === messageId);
-    
+
     if (messageIndex === -1) return;
-    
+
     const message = messages[messageIndex];
     const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
     if (!messageElement) return;
-    
+
     // Check if this is a user message - if so, only allow editing the most recent user message
     if (message.isUser) {
         const userMessages = messages.filter(m => m.isUser && !m.isDeleted && !m.isContinue);
-        const isLastUserMessage = userMessages.length > 0 && 
-                               userMessages[userMessages.length - 1].id === messageId;
-                               
+        const isLastUserMessage = userMessages.length > 0 &&
+            userMessages[userMessages.length - 1].id === messageId;
+
         if (!isLastUserMessage) {
             showError("You can only edit your most recent message");
             return;
         }
     } else {
         // For character messages, only allow editing the most recent message from that character
-        const characterMessages = messages.filter(m => 
-            !m.isUser && 
-            m.characterId === message.characterId && 
-            !m.isDeleted && 
+        const characterMessages = messages.filter(m =>
+            !m.isUser &&
+            m.characterId === message.characterId &&
+            !m.isDeleted &&
             !m.isTyping
         );
-        
-        const isLastCharacterMessage = characterMessages.length > 0 && 
-                                    characterMessages[characterMessages.length - 1].id === messageId;
-                                    
+
+        const isLastCharacterMessage = characterMessages.length > 0 &&
+            characterMessages[characterMessages.length - 1].id === messageId;
+
         if (!isLastCharacterMessage) {
             showError("You can only edit the most recent message from this character");
             return;
         }
     }
-    
+
     // Find the message content container
     const contentContainer = messageElement.querySelector('.message-bubble');
     if (!contentContainer) return;
-    
+
     // Store original content in case user cancels
     contentContainer.setAttribute('data-original-content', contentContainer.innerHTML);
-    
+
     // Create and set up the textarea
     const textarea = document.createElement('textarea');
     textarea.className = 'edit-message-textarea p-3 border rounded resize min-w-[300px] min-h-[150px]';
     textarea.style.width = '100%';
     textarea.style.maxWidth = '600px'; // Maximum width
-    textarea.style.fontSize = '1rem';   
+    textarea.style.fontSize = '1rem';
     textarea.value = message.content; // Raw content for editing
-    
+
     // Create save button
     const saveButton = document.createElement('button');
     saveButton.className = 'edit-save-btn bg-primary text-white px-4 py-2 rounded mt-2 text-sm';
     saveButton.innerHTML = '<i class="fas fa-check mr-1"></i> Save';
     saveButton.onclick = () => saveEditedMessage(messageId, textarea.value);
-    
+
     // Create cancel button
     const cancelButton = document.createElement('button');
     cancelButton.className = 'edit-cancel-btn bg-gray-400 text-white px-4 py-2 rounded mt-2 ml-3 text-sm';
     cancelButton.innerHTML = '<i class="fas fa-times mr-1"></i> Cancel';
     cancelButton.onclick = () => cancelEditMessage(messageId);
-    
+
     // Create button container
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'edit-buttons flex justify-end mt-3';
     buttonContainer.appendChild(saveButton);
     buttonContainer.appendChild(cancelButton);
-    
+
     // Clear the content container and add the editing elements
     contentContainer.innerHTML = '';
     contentContainer.appendChild(textarea);
     contentContainer.appendChild(buttonContainer);
-    
+
     // Focus the textarea and place cursor at the end
     textarea.focus();
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-    
+
     // Add editing class for styling
     contentContainer.classList.add('editing');
 }
@@ -1936,16 +1935,16 @@ function editMessage(messageId) {
 function cancelEditMessage(messageId) {
     const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
     if (!messageElement) return;
-    
+
     const contentContainer = messageElement.querySelector('.message-bubble');
     if (!contentContainer) return;
-    
+
     // Restore original content from attribute
     const originalContent = contentContainer.getAttribute('data-original-content');
     if (originalContent) {
         contentContainer.innerHTML = originalContent;
     }
-    
+
     // Remove editing class
     contentContainer.classList.remove('editing');
 }
@@ -1953,10 +1952,10 @@ function cancelEditMessage(messageId) {
 // Save edited message
 function saveEditedMessage(messageId, newContent) {
     if (!state.activeChat) return;
-    
+
     // Trim content but keep internal whitespace
     newContent = newContent.trim();
-    
+
     // If content is empty, don't save
     if (!newContent) {
         // Show a quick error message
@@ -1972,21 +1971,21 @@ function saveEditedMessage(messageId, newContent) {
         }
         return;
     }
-    
+
     const messages = state.chats[state.activeChat];
     const messageIndex = messages.findIndex(m => m.id === messageId);
-    
+
     if (messageIndex !== -1) {
         // Update message content
         messages[messageIndex].content = newContent;
-        
+
         // Add edited flag and timestamp
         messages[messageIndex].edited = true;
         messages[messageIndex].editedAt = new Date().toISOString();
-        
+
         // Save to storage
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-        
+
         // Update UI directly instead of full re-render
         const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
         if (messageElement) {
@@ -1998,7 +1997,7 @@ function saveEditedMessage(messageId, newContent) {
                     bubble.appendChild(deleteBtn); // Re-append delete button
                 }
             }
-            
+
             // Update timestamp and add/update "edited" badge
             const timestampDiv = messageElement.querySelector('.text-xs.text-gray-500.mt-1');
             if (timestampDiv) {
@@ -2006,24 +2005,24 @@ function saveEditedMessage(messageId, newContent) {
                 const message = messages[messageIndex];
                 const isUser = message.isUser;
                 const characterId = message.characterId;
-                
+
                 // Create new timestamp HTML
                 let newTimestampHtml = `<span>`;
                 if (message.edited) {
                     newTimestampHtml += `<span class="text-xs italic mr-1">edited</span>`;
                 }
-                newTimestampHtml += `${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
-                
+                newTimestampHtml += `${new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
+
                 // Set the new timestamp HTML
                 timestampDiv.innerHTML = newTimestampHtml;
-                
+
                 // Re-create buttons with proper event handlers instead of cloning
                 if (isUser) {
                     // For user messages, check if it's the last user message
                     const userMessages = messages.filter(m => m.isUser && !m.isDeleted && !m.isContinue);
-                    const isLastUserMessage = userMessages.length > 0 && 
-                                           userMessages[userMessages.length - 1].id === messageId;
-                    
+                    const isLastUserMessage = userMessages.length > 0 &&
+                        userMessages[userMessages.length - 1].id === messageId;
+
                     if (isLastUserMessage) {
                         // Create edit button with fresh event handler
                         const editButton = document.createElement('button');
@@ -2035,16 +2034,16 @@ function saveEditedMessage(messageId, newContent) {
                     }
                 } else {
                     // For character messages
-                    const characterMessages = messages.filter(m => 
-                        !m.isUser && 
-                        m.characterId === characterId && 
-                        !m.isDeleted && 
+                    const characterMessages = messages.filter(m =>
+                        !m.isUser &&
+                        m.characterId === characterId &&
+                        !m.isDeleted &&
                         !m.isTyping
                     );
-                    
-                    const isLastCharacterMessage = characterMessages.length > 0 && 
-                                                characterMessages[characterMessages.length - 1].id === messageId;
-                    
+
+                    const isLastCharacterMessage = characterMessages.length > 0 &&
+                        characterMessages[characterMessages.length - 1].id === messageId;
+
                     // Check if this message is followed by a user message
                     const isFollowedByUserMessage = (() => {
                         const messageIndex = messages.findIndex(m => m.id === messageId);
@@ -2053,9 +2052,9 @@ function saveEditedMessage(messageId, newContent) {
                         }
                         return false;
                     })();
-                    
+
                     const showRegenerateButton = isLastCharacterMessage && !isFollowedByUserMessage;
-                    
+
                     // Add regenerate button if needed
                     if (showRegenerateButton) {
                         const regenerateButton = document.createElement('button');
@@ -2065,7 +2064,7 @@ function saveEditedMessage(messageId, newContent) {
                         regenerateButton.onclick = () => regenerateMessage(characterId);
                         timestampDiv.appendChild(regenerateButton);
                     }
-                    
+
                     // Add edit button if it's the last character message
                     if (isLastCharacterMessage) {
                         const editButton = document.createElement('button');
@@ -2077,7 +2076,7 @@ function saveEditedMessage(messageId, newContent) {
                     }
                 }
             }
-            
+
             // Cancel editing mode styling
             const contentContainer = messageElement.querySelector('.message-bubble.editing');
             if (contentContainer) {
@@ -2087,7 +2086,7 @@ function saveEditedMessage(messageId, newContent) {
         } else {
             updateChatMessages(); // Fallback if element not found
         }
-        
+
         // Show success message
         showSuccess("Message updated", 1500);
     }
@@ -2095,15 +2094,15 @@ function saveEditedMessage(messageId, newContent) {
 
 function clearChatMessages() {
     if (!state.activeChat) return;
-    
+
     // Ask for confirmation
     if (!confirm("Are you sure you want to clear all messages in this chat?")) {
         return;
     }
-    
+
     // Clear messages
     state.chats[state.activeChat] = [];
-    
+
     // Add a system message to indicate the chat was cleared
     const welcomeMsg = {
         id: generateUniqueId(),
@@ -2113,16 +2112,16 @@ function clearChatMessages() {
         timestamp: new Date().toISOString(),
         isDeleted: false
     };
-    
+
     // Add welcome message to the chat
     state.chats[state.activeChat].push(welcomeMsg);
-    
+
     // Update storage
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-    
+
     // Update UI
     updateChatMessages();
-    
+
     // Show success message
     showSuccess("Chat cleared");
 }
@@ -2130,28 +2129,28 @@ function clearChatMessages() {
 // Function to create a new chat with the same character(s)
 function createNewChat() {
     if (state.activeCharacters.length === 0) return;
-    
+
     // Save current chat to history before creating a new one
     saveCurrentChatToHistory();
-    
+
     // Generate a new chat ID with timestamp to ensure uniqueness
     const timestamp = Date.now();
     const characterIds = state.activeCharacters.map(c => c.id).sort();
     const newChatId = `${characterIds.join('-')}-${timestamp}`;
-    
+
     // Set the new chat as active
     state.activeChat = newChatId;
     state.chats[newChatId] = [];
-    
+
     // Save to storage
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-    
+
     // Update the last active chat for each character
     characterIds.forEach(characterId => {
         state.lastActiveChats[characterId] = newChatId;
     });
     setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
-    
+
     // Create a welcome message for the new chat
     const welcomeMsg = {
         id: generateUniqueId(),
@@ -2161,11 +2160,11 @@ function createNewChat() {
         timestamp: new Date().toISOString(),
         isDeleted: false
     };
-    
+
     // Add welcome message to the chat
     state.chats[newChatId].push(welcomeMsg);
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-    
+
     // Save this new chat to history immediately
     const historyEntry = {
         id: newChatId,
@@ -2176,23 +2175,23 @@ function createNewChat() {
         lastMessage: `Start a new conversation with ${state.activeCharacters.map(c => c.name).join(', ')}`,
         date: new Date(timestamp).toLocaleString()
     };
-    
+
     // Initialize history for these characters if it doesn't exist
     const historyKey = characterIds.join('-');
     if (!state.chatHistory[historyKey]) {
         state.chatHistory[historyKey] = [];
     }
-    
+
     // Add to history and save
     state.chatHistory[historyKey].push(historyEntry);
     setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
-    
+
     // Update UI
     updateChatUI();
-    
+
     // Update sidebar to show the most recent characters at the top
     updateSidebarCharacters();
-    
+
     // Show success message
     showSuccess("Started a new chat");
 }
@@ -2202,24 +2201,24 @@ function saveCurrentChatToHistory() {
     if (!state.activeChat || !state.chats[state.activeChat] || state.chats[state.activeChat].length === 0) {
         return; // Don't save empty chats
     }
-    
+
     // Get the character IDs from the chat ID
     const chatParts = state.activeChat.split('-');
     const characterIds = chatParts.filter(part => !isNaN(parseInt(part, 36)) || part.length < 10);
-    
+
     // Skip if no valid character IDs found
     if (characterIds.length === 0 || !state.activeCharacters || state.activeCharacters.length === 0) {
         return;
     }
-    
+
     // Get the valid messages (not deleted)
     const validMessages = state.chats[state.activeChat].filter(msg => !msg.isDeleted);
     if (validMessages.length === 0) return; // Don't save if all messages are deleted
-    
+
     // Find the most recent non-system message for the title
     let lastMessage = validMessages[validMessages.length - 1];
     let lastNonSystemMessage = null;
-    
+
     // Look for the most recent non-system message
     for (let i = validMessages.length - 1; i >= 0; i--) {
         if (!validMessages[i].isSystem) {
@@ -2227,12 +2226,12 @@ function saveCurrentChatToHistory() {
             break;
         }
     }
-    
+
     // If we found a non-system message, use it for the title
     if (lastNonSystemMessage) {
         lastMessage = lastNonSystemMessage;
     }
-    
+
     // Create a history entry
     const timestamp = Date.now();
     const historyEntry = {
@@ -2244,16 +2243,16 @@ function saveCurrentChatToHistory() {
         lastMessage: lastMessage.content ? lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 'No content',
         date: new Date(timestamp).toLocaleString()
     };
-    
+
     // Initialize history for these characters if it doesn't exist
     const historyKey = characterIds.join('-');
     if (!state.chatHistory[historyKey]) {
         state.chatHistory[historyKey] = [];
     }
-    
+
     // Check if this chat is already in history
     const existingIndex = state.chatHistory[historyKey].findIndex(entry => entry.id === state.activeChat);
-    
+
     if (existingIndex >= 0) {
         // Update existing entry
         state.chatHistory[historyKey][existingIndex] = historyEntry;
@@ -2261,7 +2260,7 @@ function saveCurrentChatToHistory() {
         // Add new entry
         state.chatHistory[historyKey].push(historyEntry);
     }
-    
+
     // Save to storage
     setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
 }
@@ -2269,34 +2268,34 @@ function saveCurrentChatToHistory() {
 // Function to show chat history modal
 function showChatHistory() {
     if (state.activeCharacters.length === 0) return;
-    
+
     // Get character IDs
     const characterIds = state.activeCharacters.map(c => c.id).sort();
     const historyKey = characterIds.join('-');
-    
+
     // Get history for these characters
     const history = state.chatHistory[historyKey] || [];
-    
+
     // Update the modal content
     const historyList = document.getElementById('chat-history-list');
-    
+
     if (history.length === 0) {
         historyList.innerHTML = `<p class="text-gray-500 italic text-center">No chat history available</p>`;
     } else {
         // Sort by timestamp, newest first
         const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
-        
+
         // Update each history entry with the most recent message
         sortedHistory.forEach(entry => {
             if (!entry || !entry.id || !state.chats[entry.id]) return;
-            
+
             // Get the valid messages (not deleted)
             const validMessages = state.chats[entry.id].filter(msg => !msg.isDeleted);
             if (validMessages.length === 0) return;
-            
+
             // Find the most recent non-system message for the title
             let lastMessage = validMessages[validMessages.length - 1];
-            
+
             // Look for the most recent non-system message
             for (let i = validMessages.length - 1; i >= 0; i--) {
                 if (!validMessages[i].isSystem) {
@@ -2304,13 +2303,13 @@ function showChatHistory() {
                     break;
                 }
             }
-            
+
             // Update the entry with the most recent message
-            entry.lastMessage = lastMessage.content ? 
-                lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') : 
+            entry.lastMessage = lastMessage.content ?
+                lastMessage.content.substring(0, 50) + (lastMessage.content.length > 50 ? '...' : '') :
                 'No content';
             entry.messageCount = validMessages.length;
-            
+
             // Update the timestamp and date with the most recent message timestamp
             if (lastMessage.timestamp) {
                 const messageTimestamp = new Date(lastMessage.timestamp).getTime();
@@ -2320,11 +2319,11 @@ function showChatHistory() {
                 }
             }
         });
-        
+
         let html = '';
         sortedHistory.forEach(entry => {
             if (!entry || !entry.id) return; // Skip undefined entries
-            
+
             html += `
                 <div class="mb-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer chat-history-item" data-chat-id="${entry.id}">
                     <div class="flex justify-between items-start">
@@ -2346,9 +2345,9 @@ function showChatHistory() {
                 </div>
             `;
         });
-        
+
         historyList.innerHTML = html;
-        
+
         // Add click listeners to history items
         const historyItems = document.querySelectorAll('.chat-history-item');
         historyItems.forEach(item => {
@@ -2358,7 +2357,7 @@ function showChatHistory() {
                 closeChatHistoryModal();
             });
         });
-        
+
         // Add click listeners to delete buttons
         const deleteButtons = document.querySelectorAll('.delete-history-btn');
         deleteButtons.forEach(button => {
@@ -2369,7 +2368,7 @@ function showChatHistory() {
             });
         });
     }
-    
+
     // Show the modal
     const modal = document.getElementById('chat-history-modal');
     modal.classList.remove('hidden');
@@ -2379,7 +2378,7 @@ function showChatHistory() {
 function closeChatHistoryModal() {
     const modal = document.getElementById('chat-history-modal');
     modal.classList.add('hidden');
-    
+
     // Ensure the chat UI is updated when closing the modal
     // This helps especially after deletion operations
     if (state.activeChat) {
@@ -2393,12 +2392,12 @@ function loadChatFromHistory(chatId) {
         showError("Chat not found");
         return;
     }
-    
+
     // Clean up any "continuing conversation" system messages
     if (state.chats[chatId]) {
         const messages = state.chats[chatId];
         let hasChanges = false;
-        
+
         // Look for system messages with "..." content (the continue indicator)
         messages.forEach(msg => {
             if (msg.isSystem && msg.content === "..." && !msg.isDeleted) {
@@ -2406,36 +2405,36 @@ function loadChatFromHistory(chatId) {
                 hasChanges = true;
             }
         });
-        
+
         // Save changes if needed
         if (hasChanges) {
             setStoredItem(STORAGE_KEYS.CHATS, state.chats);
         }
     }
-    
+
     // Set as active chat
     state.activeChat = chatId;
-    
+
     // Update active characters based on the chat ID
     const chatParts = chatId.split('-');
     const characterIds = chatParts.filter(part => !isNaN(parseInt(part, 36)) || part.length < 10);
     state.activeCharacters = state.characters.filter(c => characterIds.includes(c.id));
-    
+
     // Update the last active chat for each character
     characterIds.forEach(characterId => {
         state.lastActiveChats[characterId] = chatId;
     });
     setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
-    
+
     // Update UI
     updateChatUI();
-    
+
     // Show success message
     showSuccess("Loaded chat from history");
-    
+
     // Update sidebar to show the most recent characters at the top
     updateSidebarCharacters();
-    
+
     // Close the chat history modal
     closeChatHistoryModal();
 }
@@ -2446,30 +2445,30 @@ function deleteChatHistory(chatId, historyKey) {
     if (!confirm("Are you sure you want to delete this chat history?")) {
         return;
     }
-    
+
     // Check if this is the currently active chat
     const isActiveChatDeleted = (state.activeChat === chatId);
-    
+
     // Remove from history
     if (state.chatHistory[historyKey]) {
         state.chatHistory[historyKey] = state.chatHistory[historyKey].filter(entry => entry.id !== chatId);
-        
+
         // If history is empty for this character, remove the key
         if (state.chatHistory[historyKey].length === 0) {
             delete state.chatHistory[historyKey];
         }
-        
+
         // Save to storage
         setStoredItem(STORAGE_KEYS.CHAT_HISTORY, state.chatHistory);
-        
+
         // If we deleted the active chat, load another chat
         if (isActiveChatDeleted) {
             // Get the character IDs from the history key
             const characterIds = historyKey.split('-');
-            
+
             // Find another chat for the same character(s)
             let foundAnotherChat = false;
-            
+
             // First try to find another chat with the same characters
             if (state.chatHistory[historyKey] && state.chatHistory[historyKey].length > 0) {
                 // Sort chats by timestamp, newest first
@@ -2481,7 +2480,7 @@ function deleteChatHistory(chatId, historyKey) {
                     showSuccess("Deleted chat and loaded most recent conversation");
                 }
             }
-            
+
             // If we couldn't find another chat for the same character, create a new one
             if (!foundAnotherChat) {
                 // Get the actual character objects based on IDs
@@ -2502,7 +2501,7 @@ function deleteChatHistory(chatId, historyKey) {
         } else {
             // Refresh the history modal
             showChatHistory();
-            
+
             // Show success message
             showSuccess("Chat history deleted");
         }
@@ -2515,29 +2514,29 @@ async function sendMessage() {
         showError("No active chat. Please select a character to chat with.");
         return;
     }
-    
+
     // Ensure we have active characters
     if (!state.activeCharacters || state.activeCharacters.length === 0) {
         console.error("No active characters found");
         state.activeCharacters = [];
-        
+
         // Try to recover the active characters from the active chat ID
         // The chat ID should contain the character IDs
         const chatParts = state.activeChat.split('-');
         const characterIds = chatParts.filter(part => part.length < 10);
-        
+
         if (characterIds.length > 0) {
             // Recover the characters from the IDs
             console.log("Attempting to recover characters from chat ID:", characterIds);
-            state.activeCharacters = characterIds.map(id => 
+            state.activeCharacters = characterIds.map(id =>
                 state.characters.find(c => c.id === id)
             ).filter(c => c); // Remove any undefined entries
-            
+
             if (state.activeCharacters.length === 0) {
                 showError("Could not recover characters for this chat. Please start a new chat.");
                 return;
             }
-            
+
             console.log("Recovered characters:", state.activeCharacters);
         } else {
             // If we can't recover the characters, suggest creating a new chat
@@ -2545,23 +2544,23 @@ async function sendMessage() {
             return;
         }
     }
-    
+
     // If a response is already in progress, prevent sending another message
     if (state.isResponseInProgress) {
         console.log("Response is already in progress, ignoring send request");
         return;
     }
-    
+
     const messageInput = document.getElementById('message-input');
     const userMessage = messageInput.value.trim();
-    
+
     // Clear input regardless of content
     messageInput.value = '';
-    
+
     // Set UI to show that a response is in progress
     state.isResponseInProgress = true;
     updateSendButtonState();
-    
+
     try {
         // Check if we have an empty message
         if (!userMessage) {
@@ -2571,20 +2570,20 @@ async function sendMessage() {
                 const messages = state.chats[state.activeChat] || [];
                 const userMsgs = messages.filter(m => m.isUser && !m.isDeleted && !m.isContinue);
                 const charMsgs = messages.filter(m => !m.isUser && !m.isDeleted && !m.isSystem);
-                
+
                 return userMsgs.length > 0 && charMsgs.length > 0;
             })();
-            
+
             if (!hasExchanges) {
                 showError("Please start the conversation before using the 'continue' feature");
                 state.isResponseInProgress = false;
                 updateSendButtonState();
                 return;
             }
-            
+
             // Track the current chat ID to ensure we remove the message from the correct chat
             const currentChatId = state.activeChat;
-            
+
             // For empty messages, add a subtle system message indicating the continue action
             const continueSystemMsg = {
                 id: generateUniqueId(),
@@ -2594,13 +2593,13 @@ async function sendMessage() {
                 timestamp: new Date().toISOString(),
                 isDeleted: false
             };
-            
+
             // Add this subtle indicator to the UI but mark it for auto-removal
             addMessage(continueSystemMsg);
-            
+
             // Track the system message ID so we can ensure it's removed in cleanup
             let continueSystemMsgId = continueSystemMsg.id;
-            
+
             // Remove the system message after a short delay or on error
             const removeSystemMessage = () => {
                 // Use the stored chatId rather than the possibly changed active chat
@@ -2610,7 +2609,7 @@ async function sendMessage() {
                     if (msgIndex !== -1) {
                         messages[msgIndex].isDeleted = true;
                         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-                        
+
                         // Only update UI if we're still on the same chat
                         if (state.activeChat === currentChatId) {
                             updateChatMessages();
@@ -2618,10 +2617,10 @@ async function sendMessage() {
                     }
                 }
             };
-            
+
             // Set a timeout to remove the message regardless of what happens
             setTimeout(removeSystemMessage, 1500);
-            
+
             // Get response from each character using async/await and Promise.all for concurrency
             try {
                 await Promise.all(state.activeCharacters.map(async (character) => {
@@ -2634,14 +2633,14 @@ async function sendMessage() {
                         isDeleted: true, // Mark as deleted so it won't show in the UI
                         isContinue: true // Special flag to mark this as a continue message
                     };
-                    
+
                     // Generate a response without adding the continue message to the visible chat history
                     await getCharacterResponse(character, continueMsg);
                 }));
-                
+
                 // Ensure message is removed even if responses complete quickly
                 removeSystemMessage();
-                
+
             } catch (error) {
                 // Make sure the system message is cleaned up on error
                 removeSystemMessage();
@@ -2650,7 +2649,7 @@ async function sendMessage() {
         } else {
             // Store current active chat ID to track if user switches chats during response
             const currentChatId = state.activeChat;
-            
+
             // Add user message
             const userMsg = {
                 id: generateUniqueId(),
@@ -2659,12 +2658,12 @@ async function sendMessage() {
                 timestamp: new Date().toISOString(),
                 isDeleted: false,
             };
-            
+
             // Add the user message to the chat
             addMessage(userMsg);
-            
+
             // Get response from each character using async/await and Promise.all
-            await Promise.all(state.activeCharacters.map(character => 
+            await Promise.all(state.activeCharacters.map(character =>
                 getCharacterResponse(character, userMsg)
             ));
         }
@@ -2688,7 +2687,7 @@ function updateSendButtonState() {
             sendButton.classList.add('opacity-50');
             sendButton.classList.add('cursor-not-allowed');
             sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            
+
             // Also disable the message input
             const messageInput = document.getElementById('message-input');
             if (messageInput) {
@@ -2704,7 +2703,7 @@ function updateSendButtonState() {
             sendButton.classList.remove('opacity-50');
             sendButton.classList.remove('cursor-not-allowed');
             sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
-            
+
             // Re-enable the message input
             const messageInput = document.getElementById('message-input');
             if (messageInput) {
@@ -2722,44 +2721,44 @@ function addMessage(message) {
     // Store it in the right chat but don't update the UI
     if (message.characterId && state.pendingResponses[message.characterId]) {
         const chatId = state.pendingResponses[message.characterId].chatId;
-        
+
         // Make sure the chat exists
         if (!state.chats[chatId]) {
             state.chats[chatId] = [];
         }
-        
+
         // Add message to the correct chat
         state.chats[chatId].push(message);
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-        
+
         // Only update UI if this is for the active chat
         if (chatId === state.activeChat) {
             updateChatMessages();
-            
+
             if (!message.isTyping) {
                 updateSidebarCharacters();
-                
+
                 // Update chat history entry if this is a real message (not typing indicator)
                 if (!message.isSystem) {
                     saveCurrentChatToHistory();
                 }
             }
         }
-        
+
         return;
     }
 
     // Normal flow for active chat
     if (!state.activeChat) return;
-    
+
     // Add message to chat
     if (!state.chats[state.activeChat]) {
         state.chats[state.activeChat] = [];
     }
-    
+
     state.chats[state.activeChat].push(message);
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-    
+
     // Create the DOM element for the new message
     const messageElement = createMessageHTML(message);
     const messagesContainer = document.getElementById('chat-messages');
@@ -2787,11 +2786,11 @@ function addMessage(message) {
         // it might be a non-renderable message, do nothing to the DOM here.
         // updateChatMessages() would be too broad.
     }
-    
+
     // Update sidebar to reflect new message timestamp
     if (!message.isTyping) {
         updateSidebarCharacters();
-        
+
         // Update chat history entry if this is a real message (not typing indicator)
         if (!message.isSystem) {
             saveCurrentChatToHistory();
@@ -2802,31 +2801,31 @@ function addMessage(message) {
 async function getCharacterResponse(character, userMsg) {
     // Determine which chat this response belongs to
     const chatId = state.activeChat;
-    
+
     // Track that we're generating a response for this character in this chat
     state.pendingResponses[character.id] = {
         chatId: chatId,
         isGenerating: true
     };
-    
+
     try {
         // Get visible messages for context (excluding any that are marked as deleted)
         const visibleMessages = state.chats[chatId].filter(m => !m.isDeleted);
-        
+
         // Check if this is the first message in the conversation
         const isFirstMessage = (() => {
-            const characterMessages = visibleMessages.filter(m => 
-                !m.isUser && 
-                m.characterId === character.id && 
-                !m.isSystem && 
+            const characterMessages = visibleMessages.filter(m =>
+                !m.isUser &&
+                m.characterId === character.id &&
+                !m.isSystem &&
                 !m.isTyping
             );
             return characterMessages.length === 0;
         })();
-        
+
         // Check if this is a continue message
         const isContinue = userMsg && userMsg.isContinue === true;
-        
+
         // Add typing indicator for better UX
         const typingMsg = {
             id: generateUniqueId(),
@@ -2837,24 +2836,24 @@ async function getCharacterResponse(character, userMsg) {
             isTyping: true,
             isDeleted: false
         };
-        
+
         // Add the typing indicator
         addMessage(typingMsg);
-        
+
         // Simulate a minimal typing delay based on character and context
         // This makes the interaction feel more natural
         const minTypingDelay = 500; // base minimum delay
-        
+
         // Calculate a more natural variable typing delay based on message complexity
         // Consider character complexity, previous message length, and a bit of randomness
         const baseDelay = Math.max(minTypingDelay, Math.min(2000, visibleMessages.length * 100));
         const randomVariation = Math.floor(Math.random() * 800) - 400; // -400 to +400ms variation
         const typingDelay = Math.max(minTypingDelay, baseDelay + randomVariation);
-        
+
         await new Promise(resolve => setTimeout(resolve, typingDelay));
-        
+
         let promptContext;
-        
+
         if (isFirstMessage && !isContinue) {
             // For the first message, we include the full character context
             console.log("First message in conversation, using full character context");
@@ -2863,16 +2862,16 @@ async function getCharacterResponse(character, userMsg) {
                 visibleMessages,
                 state.characters.filter(c => chatId.includes(c.id)) // Use characters for this specific chat
             );
-            
+
             try {
                 // Use a simpler approach for the first message
                 const result = await callGeminiAPI(promptContext);
-                
+
                 // Check if we're still generating a response for this character
                 if (state.pendingResponses[character.id] && state.pendingResponses[character.id].chatId === chatId) {
                     // Remove typing indicator
                     removeTypingIndicator(typingMsg.id);
-                    
+
                     // Add the response as a message
                     addMessage({
                         id: generateUniqueId(),
@@ -2888,38 +2887,38 @@ async function getCharacterResponse(character, userMsg) {
                 removeTypingIndicator(typingMsg.id);
                 throw error; // Re-throw to be caught by outer try-catch
             }
-            
+
             return;
         }
-        
+
         // For subsequent messages, use the conversation history approach with Gemini Chat
         console.log("Using chat history approach for response");
-        
+
         // Convert visible history for Gemini API
         const history = convertHistoryForGemini(visibleMessages, character);
-        
+
         // Log the history for debugging
         if (window.debugApp) {
             console.log("History being sent to API:", JSON.stringify(history));
         }
-        
+
         // Check if history is valid
         if (history.length === 0) {
             console.warn("Empty history after conversion, falling back to basic prompt");
             // Remove typing indicator
             removeTypingIndicator(typingMsg.id);
-            
+
             // Create a basic prompt instead
             promptContext = prepareContextForAPI(
                 character,
                 visibleMessages,
                 state.characters.filter(c => chatId.includes(c.id)) // Use characters for this specific chat
             );
-            
+
             try {
                 // Use a simpler approach as fallback
                 const result = await callGeminiAPI(promptContext);
-                
+
                 // Only add the response if we're still responding to the same chat
                 if (state.pendingResponses[character.id] && state.pendingResponses[character.id].chatId === chatId) {
                     // Add the response as a message
@@ -2937,7 +2936,7 @@ async function getCharacterResponse(character, userMsg) {
                 throw new Error("Failed to get response with fallback method: " + error.message);
             }
         }
-        
+
         // Get character-specific instructions without sending the full context
         let instructions = "";
 
@@ -2958,22 +2957,31 @@ Do not acknowledge this as a command or mention that the user sent an empty mess
             instructions = `Remember that you are roleplaying as ${character.name}. 
 Stay in character and respond naturally to the user's message.`;
         }
-        
+
         try {
-            // Create a chat with the history
-            const chat = state.geminiModel.startChat({
+            // Create a chat with the history using new @google/genai SDK
+            const modelName = appSettings.modelVersion || "gemini-2.5-flash";
+            console.log("Creating chat with model:", modelName, "config:", {
+                temperature: appSettings.temperature,
+                maxOutputTokens: parseInt(appSettings.conversationTokens || appSettings.maxTokens),
+                topK: appSettings.topK,
+                topP: appSettings.topP
+            });
+
+            const chat = state.genaiClient.chats.create({
+                model: modelName,
                 history: history,
-                generationConfig: {
+                config: {
                     temperature: appSettings.temperature,
-                    maxOutputTokens: parseInt(appSettings.conversationTokens || appSettings.maxTokens), // Use conversationTokens with fallback
+                    maxOutputTokens: parseInt(appSettings.conversationTokens || appSettings.maxTokens),
                     topK: appSettings.topK,
                     topP: appSettings.topP,
                 }
             });
-            
+
             // Important: First remove the typing indicator before adding the empty message
             removeTypingIndicator(typingMsg.id);
-            
+
             // Prepare for the new response
             let fullResponse = "";
             const responseMsg = {
@@ -2984,39 +2992,43 @@ Stay in character and respond naturally to the user's message.`;
                 timestamp: new Date().toISOString(),
                 isDeleted: false,
             };
-            
+
             // Add the initial empty message
             addMessage(responseMsg);
-            
+
             // Determine typing speed based on character personality
             // This makes characters with verbose personalities type slower than terse ones
-            const baseCharSpeed = character.enhancedContext ? 
-                (character.enhancedContext.includes("talkative") || 
-                 character.enhancedContext.includes("verbose") ? 30 : 50) : 40;
-            
+            const baseCharSpeed = character.enhancedContext ?
+                (character.enhancedContext.includes("talkative") ||
+                    character.enhancedContext.includes("verbose") ? 30 : 50) : 40;
+
             // Track the last update time for natural typing simulation
             let lastUpdateTime = Date.now();
             // let accumulatedText = ""; // Replaced by accumulatedRawResponse for clarity
             let accumulatedRawResponse = ""; // Accumulates raw text for final state update & processing
-            
+
             // Function to simulate natural typing behavior - RETHINKING THIS
             // The main streaming loop will call updateMessageContent directly.
             // We don't strictly need updateWithTypingEffect anymore if logic is in the main loop.
 
             try {
                 const streamSource = (isContinue || userMsg.isInitializing) ? instructions : instructions; // Simplified, actual message is sent via chat.sendMessageStream
-                const result = await chat.sendMessageStream(streamSource);
+                console.log("Sending message stream...");
+                const result = await chat.sendMessageStream({ message: streamSource });
 
-                for await (const chunk of result.stream) {
-                    const chunkText = chunk.text();
+                for await (const chunk of result) {
+                    // Handle cases where chunk.text might be undefined
+                    const chunkText = chunk.text || "";
+                    if (!chunkText) continue; // Skip empty chunks
+
                     if (!state.pendingResponses[character.id] || state.pendingResponses[character.id].chatId !== chatId) {
                         break; // Stop processing if chat context changed or response cancelled
                     }
-                    
+
                     updateMessageContent(responseMsg.id, chunkText, false); // Stream update (isFinalUpdate = false)
                     accumulatedRawResponse += chunkText; // Accumulate raw text
                 }
-                
+
                 // Final update after loop: Process content and save final raw state
                 if (state.pendingResponses[character.id] && state.pendingResponses[character.id].chatId === chatId) {
                     const finalMessageInState = state.chats[chatId].find(m => m.id === responseMsg.id);
@@ -3025,16 +3037,16 @@ Stay in character and respond naturally to the user's message.`;
                         setStoredItem(STORAGE_KEYS.CHATS, state.chats); // Save state with final raw content
                     }
                     // Call updateMessageContent with isFinalUpdate = true to apply processContent
-                    updateMessageContent(responseMsg.id, accumulatedRawResponse, true); 
+                    updateMessageContent(responseMsg.id, accumulatedRawResponse, true);
                 }
-                
+
                 console.log("Full response complete, length:", accumulatedRawResponse.length);
             } catch (error) {
                 console.error("Stream error:", error);
                 // If streaming fails, try to process and display what was received, or an error message.
-                if (state.pendingResponses[character.id] && 
+                if (state.pendingResponses[character.id] &&
                     state.pendingResponses[character.id].chatId === chatId) {
-                    
+
                     if (fullResponse.length < 10) {
                         // If we've barely started, try to get at least something to display
                         try {
@@ -3052,15 +3064,15 @@ Stay in character and respond naturally to the user's message.`;
             }
         } catch (error) {
             // Only handle specific API errors if this response is still relevant
-            if (state.pendingResponses[character.id] && 
+            if (state.pendingResponses[character.id] &&
                 state.pendingResponses[character.id].chatId === chatId) {
-                
+
                 if (error.message && error.message.includes('First content should be with role')) {
                     console.error("History format error:", error.message);
-                    
+
                     // Try a simplified approach
                     removeTypingIndicator(typingMsg.id);
-                    
+
                     // Add a system message
                     addMessage({
                         id: generateUniqueId(),
@@ -3070,7 +3082,7 @@ Stay in character and respond naturally to the user's message.`;
                         timestamp: new Date().toISOString(),
                         isDeleted: false
                     });
-                    
+
                     // Create a new empty typing indicator
                     const newTypingMsg = {
                         id: generateUniqueId(),
@@ -3081,13 +3093,13 @@ Stay in character and respond naturally to the user's message.`;
                         isTyping: true,
                         isDeleted: false
                     };
-                    
+
                     // Add it
                     addMessage(newTypingMsg);
-                    
+
                     // Small delay
                     await new Promise(resolve => setTimeout(resolve, 500));
-                    
+
                     try {
                         // Try a direct prompt approach instead
                         const promptContext = prepareContextForAPI(
@@ -3095,12 +3107,12 @@ Stay in character and respond naturally to the user's message.`;
                             visibleMessages.slice(-5), // Use only the last 5 messages to reduce context
                             state.characters.filter(c => chatId.includes(c.id))
                         );
-                        
+
                         const result = await callGeminiAPI(promptContext + `\nRespond as ${character.name} to the last message from the user: "${userMsg.content || 'Continue the conversation naturally'}"`);
-                        
+
                         // Remove typing indicator
                         removeTypingIndicator(newTypingMsg.id);
-                        
+
                         // Add response
                         addMessage({
                             id: generateUniqueId(),
@@ -3110,14 +3122,14 @@ Stay in character and respond naturally to the user's message.`;
                             timestamp: new Date().toISOString(),
                             isDeleted: false
                         });
-                        
+
                         return;
                     } catch (fallbackError) {
                         console.error("Fallback attempt also failed:", fallbackError);
-                        
+
                         // Remove typing indicator
                         removeTypingIndicator(newTypingMsg.id);
-                        
+
                         // Add error message
                         addMessage({
                             id: generateUniqueId(),
@@ -3135,22 +3147,22 @@ Stay in character and respond naturally to the user's message.`;
             }
         } finally {
             // Clean up the pending response status when done
-            if (state.pendingResponses[character.id] && 
+            if (state.pendingResponses[character.id] &&
                 state.pendingResponses[character.id].chatId === chatId) {
                 state.pendingResponses[character.id].isGenerating = false;
             }
         }
     } catch (error) {
         console.error("Error in getCharacterResponse:", error);
-        
+
         // Make sure any pending statuses for this character/chat are cleaned up
-        if (state.pendingResponses[character.id] && 
+        if (state.pendingResponses[character.id] &&
             state.pendingResponses[character.id].chatId === chatId) {
             state.pendingResponses[character.id].isGenerating = false;
         }
     }
 }
-        
+
 // Process content with markdown - moved to a higher scope
 const processContent = (content) => {
     marked.setOptions({
@@ -3206,9 +3218,9 @@ function updateMessageContent(messageId, newContent, isFinalUpdate = false) {
                 if (!isFinalUpdate) {
                     // If it's the first chunk for a message that was previously empty
                     if (state.chats[chatId][messageIndex].content === "") {
-                         state.chats[chatId][messageIndex].content = newContent;
+                        state.chats[chatId][messageIndex].content = newContent;
                     } else {
-                         state.chats[chatId][messageIndex].content += newContent;
+                        state.chats[chatId][messageIndex].content += newContent;
                     }
                 } else {
                     state.chats[chatId][messageIndex].content = newContent; // Set the final raw content
@@ -3234,20 +3246,20 @@ function removeTypingIndicator(typingMsgId) {
     for (const characterId in state.pendingResponses) {
         const pendingData = state.pendingResponses[characterId];
         const chatId = pendingData.chatId;
-        
+
         if (chatId && state.chats[chatId]) {
             const messages = state.chats[chatId];
             const typingIndex = messages.findIndex(m => m.id === typingMsgId);
-            
+
             if (typingIndex !== -1) {
                 messages.splice(typingIndex, 1);
                 setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-                
+
                 // Only update UI if this is for the active chat
                 if (chatId === state.activeChat) {
                     updateChatMessages();
                 }
-                
+
                 return;
             }
         }
@@ -3255,10 +3267,10 @@ function removeTypingIndicator(typingMsgId) {
 
     // Normal flow for active chat
     if (!state.activeChat) return;
-    
+
     const messages = state.chats[state.activeChat];
     const typingIndex = messages.findIndex(m => m.id === typingMsgId);
-        
+
     if (typingIndex !== -1) {
         messages.splice(typingIndex, 1);
         setStoredItem(STORAGE_KEYS.CHATS, state.chats);
@@ -3270,14 +3282,14 @@ function removeTypingIndicator(typingMsgId) {
 function prepareContextForAPI(character, chatHistory, activeCharacters = []) {
     // Calculate approximate word count based on token limit (0.75 tokens per word)
     const wordLimit = Math.floor(appSettings.conversationTokens * 0.75);
-    
+
     // Base context with character information and roleplay instructions
     let context = `You are ${character.name}. You must maintain your character's personality and traits at all times.
 
 CHARACTER PROFILE:
-${character.enhancedContext 
-    ? character.enhancedContext
-    : character.userContext}
+${character.enhancedContext
+            ? character.enhancedContext
+            : character.userContext}
 
 ${state.personalContext.name || state.personalContext.personality || state.personalContext.context ? `ABOUT THE PERSON YOU ARE TALKING TO:
 ${state.personalContext.name ? `Their name is ${state.personalContext.name}. Always use their name when appropriate.` : ''}
@@ -3301,14 +3313,14 @@ ROLEPLAY GUIDELINES:
     // Add conversation history with smart context management
     if (chatHistory.length > 0) {
         const relevantMessages = chatHistory.filter(msg => !msg.isDeleted && !msg.isTyping);
-        
+
         if (relevantMessages.length > 0) {
             // Always include the first exchange to maintain the conversation's origin
             const firstExchange = relevantMessages.slice(0, 2);
-            
+
             // Get the most recent messages
             const recentMessages = relevantMessages.slice(-5);
-            
+
             // If we have a long conversation, add a summary of key points
             if (relevantMessages.length > 7) {
                 // Add first exchange
@@ -3319,11 +3331,11 @@ ROLEPLAY GUIDELINES:
                         return `${character.name}: ${msg.content}`;
                     }
                 }).join('\n');
-                
+
                 // Add a transition
                 context += "\n\n[Several messages exchanged, maintaining the conversation's flow and themes...]\n\n";
             }
-            
+
             // Add recent messages
             context += "RECENT CONVERSATION:\n" + recentMessages.map(msg => {
                 if (msg.isUser) {
@@ -3343,13 +3355,13 @@ ROLEPLAY GUIDELINES:
         context += "\n\nOTHER CHARACTERS PRESENT:\n";
         activeCharacters.forEach(char => {
             if (char.id !== character.id) {
-                context += `- ${char.name}: ${char.enhancedContext 
+                context += `- ${char.name}: ${char.enhancedContext
                     ? summarizeContext(char.enhancedContext, 150)
                     : char.userContext}\n`;
             }
         });
     }
-    
+
     return context;
 }
 
@@ -3374,10 +3386,10 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
 
     // If no user messages, create a natural conversation starter
     if (!hasUserMessage) {
-        const greeting = state.personalContext.name 
+        const greeting = state.personalContext.name
             ? `Hello ${state.personalContext.name}`
             : "Hello";
-            
+
         formattedHistory.push({
             role: "user",
             parts: [{ text: greeting }]
@@ -3391,14 +3403,14 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
         if (msg.isContinue) return false;
         return msg.isUser || msg.characterId === currentCharacter.id || msg.characterId;
     });
-    
+
     // Process messages
     let lastRole = null;
     let combinedUserMessage = "";
-    
+
     for (let i = 0; i < relevantMessages.length; i++) {
         const msg = relevantMessages[i];
-        
+
         if (msg.isUser) {
             if (lastRole === "user" && combinedUserMessage) {
                 formattedHistory.push({
@@ -3410,7 +3422,7 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
                 combinedUserMessage = msg.content;
                 lastRole = "user";
             }
-            
+
             if (i === relevantMessages.length - 1 || !relevantMessages[i + 1].isUser) {
                 formattedHistory.push({
                     role: "user",
@@ -3441,9 +3453,11 @@ function convertHistoryForGemini(chatHistory, currentCharacter) {
     if (formattedHistory.length > 0 && formattedHistory[formattedHistory.length - 1].role === "model") {
         formattedHistory.push({
             role: "user",
-            parts: [{ text: state.personalContext.name 
-                ? `(${state.personalContext.name} continues listening)`
-                : "(continue the conversation)" }]
+            parts: [{
+                text: state.personalContext.name
+                    ? `(${state.personalContext.name} continues listening)`
+                    : "(continue the conversation)"
+            }]
         });
     }
 
@@ -3567,7 +3581,7 @@ function forceOpenChat() {
 }
 
 // Override the normal setup to prioritize test chat
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Normal initialization
     loadStoredData();
     setupEventListeners();
@@ -3589,7 +3603,7 @@ document.addEventListener('DOMContentLoaded', function() {
         chatForm.parentNode.replaceChild(clonedForm, chatForm);
 
         // Add our test listener
-        clonedForm.addEventListener('submit', function(e) {
+        clonedForm.addEventListener('submit', function (e) {
             e.preventDefault();
             console.log("Chat form submitted");
 
@@ -3704,7 +3718,7 @@ async function getTestCharacterResponse(character, customResponse = null) {
 
     // Check if this is a continue message
     const isContinue = userMessages.length > 0 &&
-                       userMessages[userMessages.length - 1]?.isContinue === true;
+        userMessages[userMessages.length - 1]?.isContinue === true;
 
     // If a custom response was provided, use that instead of generating one
     if (customResponse) {
@@ -3756,29 +3770,29 @@ async function getTestCharacterResponse(character, customResponse = null) {
     });
 }
 
-// API communication with the Gemini SDK
+// API communication with the Gemini SDK (new @google/genai)
 async function callGeminiAPI(prompt) {
     try {
-        if (!state.apiKey || !state.geminiModel) {
+        if (!state.apiKey || !state.genaiClient) {
             const initialized = await initializeGeminiAPI();
             if (!initialized) {
-                throw new Error("API key not set or Gemini model not initialized.");
+                throw new Error("API key not set or Gemini client not initialized.");
             }
         }
-        
-        const generationConfig = {
-            temperature: appSettings.temperature,
-            maxOutputTokens: appSettings.enhancedContextTokens || appSettings.maxTokens, // Use enhancedContextTokens with fallback
-            topK: appSettings.topK,
-            topP: appSettings.topP,
-        };
-        
-        const result = await state.geminiModel.generateContent({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig
+
+        const modelName = appSettings.modelVersion || "gemini-2.5-flash";
+        const result = await state.genaiClient.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+                temperature: appSettings.temperature,
+                maxOutputTokens: appSettings.enhancedContextTokens || appSettings.maxTokens,
+                topK: appSettings.topK,
+                topP: appSettings.topP,
+            },
         });
-        
-        return result.response.text();
+
+        return result.text;
     } catch (error) {
         console.error("Gemini API call failed:", error);
         if (error.message.includes("API key")) {
@@ -3794,13 +3808,13 @@ async function enhanceCharacterContext(characterId) {
         showError("Please set your Gemini API key in settings first");
         return;
     }
-    
+
     const character = state.characters.find(c => c.id === characterId);
     if (!character) {
         showError("Character not found");
         return;
     }
-    
+
     // Find the enhance button directly - don't rely on previous selectors
     const enhanceButton = document.querySelector(`#enhance-btn-${characterId}`);
     if (enhanceButton) {
@@ -3810,7 +3824,7 @@ async function enhanceCharacterContext(characterId) {
     } else {
         console.warn(`Enhance button for character ${characterId} not found`);
     }
-    
+
     // Ensure API is initialized
     if (!state.isApiConnected) {
         try {
@@ -3826,18 +3840,18 @@ async function enhanceCharacterContext(characterId) {
             return;
         }
     }
-    
+
     // Call API
     try {
         const enhancedContext = await callEnhanceAPI(character.name, character.userContext);
-        
+
         // Update character
         character.enhancedContext = enhancedContext;
         setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
-        
+
         // Show success message
         showSuccess(`Character ${character.name} has been enhanced!`);
-        
+
         // Update the container of this specific character if it exists
         const characterItem = document.getElementById(`character-item-${characterId}`);
         if (characterItem) {
@@ -3846,7 +3860,7 @@ async function enhanceCharacterContext(characterId) {
             if (!enhancedContainer) {
                 enhancedContainer = document.createElement('div');
                 enhancedContainer.className = 'mt-3 bg-gray-50 p-2 rounded enhanced-context';
-                
+
                 // Insert before the button container
                 const buttonContainer = characterItem.querySelector('.mt-3');
                 if (buttonContainer) {
@@ -3855,7 +3869,7 @@ async function enhanceCharacterContext(characterId) {
                     characterItem.appendChild(enhancedContainer);
                 }
             }
-            
+
             // Update the content
             enhancedContainer.innerHTML = `
                 <p class="text-sm text-gray-700 font-semibold">Enhanced Context:</p>
@@ -3863,7 +3877,7 @@ async function enhanceCharacterContext(characterId) {
                     ${enhancedContext}
                 </div>
             `;
-            
+
             // Reset the enhance button
             resetEnhanceButton(enhanceButton, "Re-Enhance Context");
         } else {
@@ -3894,7 +3908,7 @@ function showSuccess(message, duration = 3000) {
     // Remove any existing success messages
     const existingMessages = document.querySelectorAll('.success-message');
     existingMessages.forEach(msg => msg.remove());
-    
+
     // Create a new success message element
     const successMessage = document.createElement('div');
     successMessage.className = 'success-message';
@@ -3909,10 +3923,10 @@ function showSuccess(message, duration = 3000) {
             </button>
         </div>
     `;
-    
+
     // Add to document
     document.body.appendChild(successMessage);
-    
+
     // Auto-remove after duration
     if (duration > 0) {
         setTimeout(() => {
@@ -3926,7 +3940,7 @@ function showSuccess(message, duration = 3000) {
 async function callEnhanceAPI(characterName, userContext) {
     // Calculate approximate word count based on token limit (0.75 tokens per word)
     const wordLimit = Math.floor(appSettings.enhancedContextTokens * 0.75);
-    
+
     const prompt = `
 You are an expert character developer for roleplaying. Transform this brief character description into a detailed character profile that can guide an AI in consistently roleplaying as this character.
 Fill in the details about but dont sound like the character, because this is for generating a character context which will be used to roleplay with the user. Importantly do not have a starting message at
@@ -3966,25 +3980,25 @@ FORMAT AS A COHESIVE PROFILE THAT DEFINES THE CHARACTER'S ESSENCE.
 
 function deleteCharacter(characterId) {
     console.log("Deleting character:", characterId);
-    
+
     // Remove from characters array
     state.characters = state.characters.filter(c => c.id !== characterId);
     setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
-    
+
     // Remove from selected characters
     state.selectedCharacters = state.selectedCharacters.filter(id => id !== characterId);
-    
+
     // Remove from active characters if present
     if (state.activeCharacters) {
         state.activeCharacters = state.activeCharacters.filter(c => c.id !== characterId);
     }
-    
+
     // Remove from last active chats
     if (state.lastActiveChats[characterId]) {
         delete state.lastActiveChats[characterId];
         setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, state.lastActiveChats);
     }
-    
+
     // Remove associated chats
     let chatsRemoved = 0;
     for (const chatId in state.chats) {
@@ -3994,7 +4008,7 @@ function deleteCharacter(characterId) {
         }
     }
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-    
+
     console.log(`Character deleted, removed ${chatsRemoved} associated chats`);
 
     // Remove the HTML element directly
@@ -4005,20 +4019,20 @@ function deleteCharacter(characterId) {
 
     // Optionally, update the sidebar if needed
     updateSidebarCharacters();
-    
+
     // Show success message
     showSuccess("Character deleted successfully");
-    
+
     // Comprehensive UI update
     updateCharacterLists();
-    
+
     // Make sure we update the chat view too if needed
     if (state.activeChat && state.activeChat.includes(characterId)) {
         // Reset active chat if it contained the deleted character
         state.activeChat = null;
         changeView('chat'); // Force refresh of chat view
     }
-    
+
     return true;
 }
 
@@ -4032,16 +4046,16 @@ function updateCharacterLists() {
     try {
         // This part is for the main "Characters" view
         renderFilteredAndSortedCharacters();
-        
+
         // This updates the sidebar, which has its own sorting logic
         updateSidebarCharacters();
-        
+
         // If we're in an active chat with no data, reset the active chat
         if (state.activeChat && (!state.chats[state.activeChat] || state.chats[state.activeChat].length === 0)) {
             // Check if any characters in activeChat were deleted
             const chatCharIds = state.activeChat.split('-');
             const allExist = chatCharIds.every(id => state.characters.some(c => c.id === id));
-            
+
             if (!allExist) {
                 // Reset the active chat and update UI
                 state.activeChat = null;
@@ -4129,7 +4143,7 @@ function createCharacterItemHTML(character) {
 function filterCharacters(characters, searchTerm) {
     if (!searchTerm || searchTerm.trim() === "") {
         return characters;
-        }
+    }
     const lowerSearchTerm = searchTerm.trim().toLowerCase(); // Trim before converting to lowercase
     return characters.filter(character => {
         const nameMatch = character.name ? character.name.toLowerCase().includes(lowerSearchTerm) : false;
@@ -4235,7 +4249,7 @@ function renderFilteredAndSortedCharacters() {
 // Save app settings to local storage
 function saveAppSettings() {
     setStoredItem(STORAGE_KEYS.SETTINGS, appSettings);
-    
+
     // If we have an API key and the model is initialized, reinitialize with new settings
     if (state.apiKey && state.isApiConnected) {
         console.log("Settings changed, reinitializing model with new configuration");
@@ -4260,7 +4274,7 @@ function saveAppSettings() {
 function toggleGroupChats(allowed) {
     appSettings.allowGroupChats = allowed;
     saveAppSettings();
-    
+
     // If disabling group chats, limit selection to one character
     if (!allowed && state.selectedCharacters.length > 1) {
         // Keep only the first selected character
@@ -4268,7 +4282,7 @@ function toggleGroupChats(allowed) {
         // Update the sidebar to reflect the change
         updateSidebarCharacters();
     }
-    
+
     console.log("Group chats setting updated:", allowed ? "Enabled" : "Disabled");
 }
 
@@ -4293,7 +4307,7 @@ function initializeModelSettings() {
         temperatureRange.value = appSettings.temperature;
         temperatureValue.textContent = appSettings.temperature;
     }
-    
+
     // Initialize enhanced context tokens (default: 2000)
     if (appSettings.enhancedContextTokens) {
         enhancedContextTokens.value = appSettings.enhancedContextTokens;
@@ -4301,7 +4315,7 @@ function initializeModelSettings() {
         appSettings.enhancedContextTokens = 2000;
         enhancedContextTokens.value = 2000;
     }
-    
+
     // Initialize conversation tokens (default: 300)
     if (appSettings.conversationTokens) {
         conversationTokens.value = appSettings.conversationTokens;
@@ -4309,7 +4323,7 @@ function initializeModelSettings() {
         appSettings.conversationTokens = 300;
         conversationTokens.value = 300;
     }
-    
+
     // For backward compatibility, if maxTokens exists but the new settings don't
     if (appSettings.maxTokens && (!appSettings.enhancedContextTokens || !appSettings.conversationTokens)) {
         // Use the old maxTokens value for both new settings if they weren't set
@@ -4322,7 +4336,7 @@ function initializeModelSettings() {
             conversationTokens.value = appSettings.conversationTokens;
         }
     }
-    
+
     if (appSettings.topK) {
         topKRange.value = appSettings.topK;
         topKValue.textContent = appSettings.topK;
@@ -4352,7 +4366,7 @@ function initializeModelSettings() {
         appSettings.enhancedContextTokens = parseInt(e.target.value);
         saveAppSettings();
     });
-    
+
     conversationTokens.addEventListener('change', (e) => {
         const value = parseInt(e.target.value);
         // Enforce min/max constraints
@@ -4413,21 +4427,17 @@ async function testModelConfiguration() {
             topP: appSettings.topP
         });
 
-        // Try to initialize with the selected model
-        const { GoogleGenerativeAI } = await import("https://esm.run/@google/generative-ai");
-        const genAI = new GoogleGenerativeAI(state.apiKey);
-        
-        // Get model with current settings
-        const model = genAI.getGenerativeModel({ 
-            model: appSettings.modelVersion
-        });
+        // Try to initialize with the selected model using new @google/genai SDK
+        const { GoogleGenAI } = await import("https://esm.run/@google/genai");
+        const ai = new GoogleGenAI({ apiKey: state.apiKey });
 
         // Test the configuration with current settings
         testDetails.textContent = 'Testing model response...';
-        
-        const result = await model.generateContent({
-            contents: [{ parts: [{ text: "Respond with 'Configuration test successful' if you receive this message." }] }],
-            generationConfig: {
+
+        const result = await ai.models.generateContent({
+            model: appSettings.modelVersion,
+            contents: "Respond with 'Configuration test successful' if you receive this message.",
+            config: {
                 temperature: appSettings.temperature,
                 maxOutputTokens: parseInt(appSettings.conversationTokens || appSettings.maxTokens),
                 topK: appSettings.topK,
@@ -4435,10 +4445,10 @@ async function testModelConfiguration() {
             }
         });
 
-        const response = result.response.text();
-        
-        // Update state with the working model
-        state.geminiModel = model;
+        const response = result.text;
+
+        // Update state with the working client
+        state.genaiClient = ai;
         state.isApiConnected = true;
 
         // Show success
@@ -4471,10 +4481,10 @@ async function testModelConfiguration() {
 function initMessageDeleteButtons() {
     // Check if we're on mobile or desktop
     const isMobile = window.innerWidth <= 768;
-    
+
     // Get all delete buttons
     const deleteButtons = document.querySelectorAll('button[id^="delete-msg-"]');
-    
+
     // Set initial visibility based on screen size
     deleteButtons.forEach(button => {
         if (isMobile) {
@@ -4488,7 +4498,7 @@ function initMessageDeleteButtons() {
 // Utility function to debounce frequent events like resize
 function debounce(func, wait) {
     let timeout;
-    return function() {
+    return function () {
         const context = this;
         const args = arguments;
         clearTimeout(timeout);
@@ -4503,22 +4513,22 @@ function savePersonalContext() {
     const nameInput = document.getElementById('user-name');
     const personalityInput = document.getElementById('user-personality');
     const contextInput = document.getElementById('user-context');
-    
+
     // Update state with new values
     state.personalContext = {
         name: nameInput.value.trim(),
         personality: personalityInput.value.trim(),
         context: contextInput.value.trim()
     };
-    
+
     // Save to storage
     setStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, state.personalContext);
-    
+
     // If there's an active chat, update the chat UI to reflect changes
     if (state.activeChat && state.chats[state.activeChat]) {
         // Save current chat to history to preserve context
         saveCurrentChatToHistory();
-        
+
         // Show success message
         showSuccess("Personal context updated! Changes will be reflected in your next interactions.", 3000);
     } else {
@@ -4530,12 +4540,12 @@ function savePersonalContext() {
 function getLastMessageTimestamp(characterId) {
     // Find all chats with this character
     const chatsWithCharacter = Object.keys(state.chats).filter(chatId => chatId.includes(characterId));
-    
+
     if (chatsWithCharacter.length === 0) return 0;
-    
+
     // Track the latest timestamp found
     let latestTimestamp = 0;
-    
+
     // Find the most recent message in any chat with this character
     chatsWithCharacter.forEach(chatId => {
         const messages = state.chats[chatId] || [];
@@ -4549,12 +4559,12 @@ function getLastMessageTimestamp(characterId) {
             }
             return;
         }
-        
+
         const lastMessage = messages
             .filter(msg => !msg.isDeleted)
             .reverse()
             .find(msg => true); // Get first non-deleted message
-        
+
         if (lastMessage) {
             const msgTimestamp = new Date(lastMessage.timestamp).getTime();
             if (msgTimestamp > latestTimestamp) {
@@ -4562,12 +4572,12 @@ function getLastMessageTimestamp(characterId) {
             }
         }
     });
-    
+
     // If this character is in the active chat, prioritize it by using current time
     if (state.activeChat && state.activeChat.includes(characterId) && state.activeCharacters.some(c => c.id === characterId)) {
         return Date.now();
     }
-    
+
     return latestTimestamp;
 }
 
@@ -4577,35 +4587,35 @@ async function regenerateMessage(characterId) {
         showError("No active chat or characters selected");
         return;
     }
-    
+
     // Get the messages in the current chat
     const messages = state.chats[state.activeChat] || [];
     if (messages.length === 0) return;
-    
+
     // Find the last message from the specified character
     const characterMessages = messages
         .filter(m => !m.isUser && m.characterId === characterId && !m.isDeleted && !m.isTyping)
         .reverse();
-    
+
     if (characterMessages.length === 0) return;
-    
+
     // Get the last message from this character
     const lastMessage = characterMessages[0];
-    
+
     // Delete the last message
     lastMessage.isDeleted = true;
     setStoredItem(STORAGE_KEYS.CHATS, state.chats);
-    
+
     // Update UI
     updateChatMessages();
-    
+
     // Find the character object
     const character = state.characters.find(c => c.id === characterId);
     if (!character) return;
-    
+
     // Find the message before this one to determine the user message that triggered it
     const messageIndex = messages.findIndex(m => m.id === lastMessage.id);
-    
+
     // Find the last user message that was sent before this AI message, including continue messages
     let lastUserMsg = null;
     for (let i = messageIndex - 1; i >= 0; i--) {
@@ -4614,7 +4624,7 @@ async function regenerateMessage(characterId) {
             break;
         }
     }
-    
+
     // If no user message was found, create a special "regenerate" message
     if (!lastUserMsg) {
         lastUserMsg = {
@@ -4626,7 +4636,7 @@ async function regenerateMessage(characterId) {
             isContinue: true // Treat like a continue message for regeneration
         };
     }
-    
+
     // Generate a new response
     await getCharacterResponse(character, lastUserMsg);
 }
@@ -4634,38 +4644,38 @@ async function regenerateMessage(characterId) {
 // After the dismissError function
 function editCharacter(characterId) {
     console.log("Editing character:", characterId);
-    
+
     // Find character in state
     const character = state.characters.find(c => c.id === characterId);
     if (!character) {
         showError("Character not found");
         return;
     }
-    
+
     // Populate the edit form
     const nameInput = document.getElementById('edit-character-name');
     const contextInput = document.getElementById('edit-character-context');
     const idInput = document.getElementById('edit-character-id');
-    
+
     if (!nameInput || !contextInput || !idInput) {
         showError("Edit form elements not found");
         return;
     }
-    
+
     nameInput.value = character.name;
     contextInput.value = character.userContext;
     idInput.value = character.id;
-    
+
     // Set profile picture if available
     const profilePicturePreview = document.getElementById('edit-profile-picture-preview');
     const removeButton = document.getElementById('edit-remove-profile-picture');
-    
+
     if (profilePicturePreview) {
         if (character.profilePicture) {
             // Display the existing profile picture
             profilePicturePreview.innerHTML = `<img src="${character.profilePicture}" alt="${character.name}" class="w-full h-full object-cover">`;
             profilePicturePreview.classList.add('has-image');
-            
+
             // Show the remove button
             if (removeButton) {
                 removeButton.classList.remove('hidden');
@@ -4674,14 +4684,14 @@ function editCharacter(characterId) {
             // Display the default icon
             profilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
             profilePicturePreview.classList.remove('has-image');
-            
+
             // Hide the remove button
             if (removeButton) {
                 removeButton.classList.add('hidden');
             }
         }
     }
-    
+
     // Show the edit modal
     const modal = document.getElementById('edit-character-modal');
     if (modal) {
@@ -4694,56 +4704,56 @@ function saveEditedCharacter() {
     const nameInput = document.getElementById('edit-character-name');
     const contextInput = document.getElementById('edit-character-context');
     const idInput = document.getElementById('edit-character-id');
-    
+
     if (!nameInput || !contextInput || !idInput) {
         showError("Edit form elements not found");
         return;
     }
-    
+
     const name = nameInput.value.trim();
     const context = contextInput.value.trim();
     const id = idInput.value;
-    
+
     // Validate inputs
     if (name === '') {
         showError("Please provide a name for your character");
         nameInput.focus();
         return false;
     }
-    
+
     if (context === '') {
         showError("Please provide context for your character");
         contextInput.focus();
         return false;
     }
-    
+
     // Get profile picture if available
     const profilePicturePreview = document.getElementById('edit-profile-picture-preview');
     let profilePicture = null;
-    
+
     // Check if the preview has an image (not the default icon)
     if (profilePicturePreview && profilePicturePreview.querySelector('img')) {
         // Get the src attribute which contains the base64 data
         profilePicture = profilePicturePreview.querySelector('img').src;
     }
-    
+
     // Find character in state and update it
     const characterIndex = state.characters.findIndex(c => c.id === id);
     if (characterIndex === -1) {
         showError("Character not found");
         return;
     }
-    
+
     // Store old name for success message
     const oldName = state.characters[characterIndex].name;
     const oldEnhancedContext = state.characters[characterIndex].enhancedContext; // Store old enhanced context
-    
+
     // Update character and REMOVE the enhanced context since we've changed the user context
     state.characters[characterIndex].name = name;
     state.characters[characterIndex].userContext = context;
     state.characters[characterIndex].enhancedContext = null; // Clear enhanced context when editing
     state.characters[characterIndex].profilePicture = profilePicture; // Update profile picture
-    
+
     // IMPORTANT: Update the character in the activeCharacters array as well
     // This ensures the chat immediately uses the new context
     if (state.activeCharacters) {
@@ -4756,15 +4766,15 @@ function saveEditedCharacter() {
             console.log("Updated active character with new context");
         }
     }
-    
+
     // If name changed and character is in selected characters, update the chat title
     if (oldName !== name && state.selectedCharacters.includes(id)) {
         updateChatUI();
     }
-    
+
     // Save to storage
     setStoredItem(STORAGE_KEYS.CHARACTERS, state.characters);
-    
+
     // Update the specific character element directly for immediate feedback
     const charElement = document.getElementById(`character-item-${id}`);
     if (charElement) {
@@ -4775,7 +4785,7 @@ function saveEditedCharacter() {
         } else {
             avatarHTML = `<div class="character-avatar bg-primary/20 text-primary mr-3">${name.charAt(0).toUpperCase()}</div>`;
         }
-        
+
         // Find and update the character header with name and avatar
         const headerElement = charElement.querySelector('.flex.justify-between.items-start');
         if (headerElement) {
@@ -4785,38 +4795,38 @@ function saveEditedCharacter() {
                     <h3 class="font-bold text-lg">${name}</h3>
                 </div>
             `;
-            
+
             // Replace the first child (which should be either the name or the flex container with avatar and name)
             const firstChild = headerElement.firstElementChild;
             if (firstChild) {
                 // Create a temporary container
                 const temp = document.createElement('div');
                 temp.innerHTML = nameWithAvatarHTML.trim();
-                
+
                 // Replace the first child with our new element
                 headerElement.replaceChild(temp.firstElementChild, firstChild);
             }
         }
-        
+
         // Find and update the user context
         const contextElement = charElement.querySelector('.text-gray-600.text-sm.mt-1.max-h-32');
         if (contextElement) {
             contextElement.textContent = context;
         }
-        
+
         // Remove enhanced context if it exists
         const enhancedContextElement = charElement.querySelector(`#enhanced-context-${id}`);
         if (enhancedContextElement) {
             enhancedContextElement.remove();
         }
-        
+
         // Update enhance button text (since enhanced context was removed)
         const enhanceBtn = charElement.querySelector(`#enhance-btn-${id}`);
         if (enhanceBtn) {
             enhanceBtn.innerHTML = '<i class="fas fa-magic mr-1"></i> Enhance Context';
         }
     }
-    
+
     // Update sidebar character for immediate feedback
     const sidebarCharElement = document.getElementById(`sidebar-char-${id}`);
     if (sidebarCharElement) {
@@ -4825,7 +4835,7 @@ function saveEditedCharacter() {
         if (sidebarNameElement) {
             sidebarNameElement.textContent = name;
         }
-        
+
         // Update the avatar
         const avatarElement = sidebarCharElement.querySelector('.character-avatar');
         if (avatarElement) {
@@ -4838,17 +4848,17 @@ function saveEditedCharacter() {
             }
         }
     }
-    
+
     // Update UI
     updateSidebarCharacters();
     renderFilteredAndSortedCharacters(); // Re-render the main list if filters/sorts are active
-    
+
     // Close the modal
     const modal = document.getElementById('edit-character-modal');
     if (modal) {
         modal.classList.add('hidden');
     }
-    
+
     // Notify in active chat if the character is part of it
     if (state.activeChat && state.activeChat.includes(id)) {
         let notificationContent = `System: ${name}'s context has been updated.`;
@@ -4883,13 +4893,13 @@ function setupEditCharacterModal() {
             }
         });
     }
-    
+
     // Set up save button
     const saveButton = document.getElementById('save-character-btn');
     if (saveButton) {
         saveButton.addEventListener('click', saveEditedCharacter);
     }
-    
+
     // Close modal when clicking outside
     const modal = document.getElementById('edit-character-modal');
     if (modal) {
@@ -4916,33 +4926,33 @@ function exportAppData() {
             version: VERSION,
             exportDate: new Date().toISOString()
         };
-        
+
         // Convert to JSON string
         const jsonData = JSON.stringify(appData, null, 2);
-        
+
         // Create a Blob with the JSON data
         const blob = new Blob([jsonData], { type: 'application/json' });
-        
+
         // Create a download link
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        
+
         // Generate filename with timestamp
         const date = new Date();
         const timestamp = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         a.href = url;
         a.download = `characterChatBackup_${timestamp}.json`;
-        
+
         // Trigger download
         document.body.appendChild(a);
         a.click();
-        
+
         // Clean up
         setTimeout(() => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }, 100);
-        
+
         showSuccess("Data exported successfully!", 3000);
     } catch (error) {
         console.error("Error exporting data:", error);
@@ -4956,61 +4966,61 @@ function importAppData() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = '.json';
-    
+
     // Handle file selection
     fileInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (!file) return;
-        
+
         // Confirm before proceeding
         if (!confirm("Warning: This will replace all your current data including characters, chats, and settings. Are you sure you want to continue?")) {
             return;
         }
-        
+
         const reader = new FileReader();
-        
+
         reader.onload = (e) => {
             try {
                 // Parse the JSON data
                 const importedData = JSON.parse(e.target.result);
-                
+
                 // Validate the imported data
                 if (!importedData || typeof importedData !== 'object') {
                     throw new Error("Invalid data format");
                 }
-                
+
                 // Store each data type in localStorage
                 if (importedData.apiKey !== undefined) {
                     setStoredItem(STORAGE_KEYS.API_KEY, importedData.apiKey);
                 }
-                
+
                 if (importedData.characters) {
                     setStoredItem(STORAGE_KEYS.CHARACTERS, importedData.characters);
                 }
-                
+
                 if (importedData.chats) {
                     setStoredItem(STORAGE_KEYS.CHATS, importedData.chats);
                 }
-                
+
                 if (importedData.settings) {
                     setStoredItem(STORAGE_KEYS.SETTINGS, importedData.settings);
                 }
-                
+
                 if (importedData.personalContext) {
                     setStoredItem(STORAGE_KEYS.PERSONAL_CONTEXT, importedData.personalContext);
                 }
-                
+
                 if (importedData.chatHistory) {
                     setStoredItem(STORAGE_KEYS.CHAT_HISTORY, importedData.chatHistory);
                 }
-                
+
                 if (importedData.lastActiveChats) {
                     setStoredItem(STORAGE_KEYS.LAST_ACTIVE_CHATS, importedData.lastActiveChats);
                 }
-                
+
                 // Show success message
                 showSuccess("Data imported successfully! Refreshing page...", 2000);
-                
+
                 // Refresh the page after a short delay to show the success message
                 setTimeout(() => {
                     window.location.reload();
@@ -5020,10 +5030,10 @@ function importAppData() {
                 showError(`Failed to import data: ${error.message}`);
             }
         };
-        
+
         reader.readAsText(file);
     });
-    
+
     // Trigger file input click
     fileInput.click();
 }
@@ -5033,7 +5043,7 @@ function setupProfilePictureHandlers() {
     const profilePictureUpload = document.getElementById('profile-picture-upload');
     const profilePicturePreview = document.getElementById('profile-picture-preview');
     const removeProfilePictureBtn = document.getElementById('remove-profile-picture');
-    
+
     if (profilePictureUpload && profilePicturePreview) {
         // Handle file selection
         profilePictureUpload.addEventListener('change', (e) => {
@@ -5041,48 +5051,48 @@ function setupProfilePictureHandlers() {
             if (file) {
                 // Validate file type
                 const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-                
+
                 // Additional check for GIF files (in case the browser ignores the accept attribute)
                 const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
                 if (isGif) {
                     showError("GIF files are not supported to prevent performance issues. Please use JPG, PNG or WebP instead.");
                     return;
                 }
-                
+
                 if (!validTypes.includes(file.type)) {
                     showError("Please select a valid image file (JPG, PNG or WebP only)");
                     return;
                 }
-                
+
                 // Validate file size (2MB max)
                 const maxSize = 2 * 1024 * 1024; // 2MB in bytes
                 if (file.size > maxSize) {
                     showError("Image file is too large. Maximum size is 2MB.");
                     return;
                 }
-                
+
                 // Read the file and create a preview
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     // Create an image element to get dimensions
                     const img = new Image();
-                    img.onload = function() {
+                    img.onload = function () {
                         // Check if dimensions are reasonable
                         if (img.width < 50 || img.height < 50) {
                             showError("Image is too small. Minimum dimensions are 50x50 pixels.");
                             return;
                         }
-                        
+
                         // Check for animated PNG (APNG)
                         if (event.target.result.indexOf('ANIM') !== -1 || event.target.result.indexOf('acTL') !== -1) {
                             showError("Animated images are not supported to prevent performance issues. Please use a static image instead.");
                             return;
                         }
-                        
+
                         // Update the preview
                         profilePicturePreview.innerHTML = `<img src="${event.target.result}" alt="Profile Preview" class="w-full h-full object-cover">`;
                         profilePicturePreview.classList.add('has-image');
-                        
+
                         // Show the remove button
                         if (removeProfilePictureBtn) {
                             removeProfilePictureBtn.classList.remove('hidden');
@@ -5093,28 +5103,28 @@ function setupProfilePictureHandlers() {
                 reader.readAsDataURL(file);
             }
         });
-        
+
         // Handle remove button click
         if (removeProfilePictureBtn) {
             removeProfilePictureBtn.addEventListener('click', () => {
                 // Reset the file input
                 profilePictureUpload.value = '';
-                
+
                 // Reset the preview
                 profilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
                 profilePicturePreview.classList.remove('has-image');
-                
+
                 // Hide the remove button
                 removeProfilePictureBtn.classList.add('hidden');
             });
         }
     }
-    
+
     // Setup for the edit character modal
     const editProfilePictureUpload = document.getElementById('edit-profile-picture-upload');
     const editProfilePicturePreview = document.getElementById('edit-profile-picture-preview');
     const editRemoveProfilePictureBtn = document.getElementById('edit-remove-profile-picture');
-    
+
     if (editProfilePictureUpload && editProfilePicturePreview) {
         // Handle file selection
         editProfilePictureUpload.addEventListener('change', (e) => {
@@ -5122,48 +5132,48 @@ function setupProfilePictureHandlers() {
             if (file) {
                 // Validate file type
                 const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-                
+
                 // Additional check for GIF files (in case the browser ignores the accept attribute)
                 const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
                 if (isGif) {
                     showError("GIF files are not supported to prevent performance issues. Please use JPG, PNG or WebP instead.");
                     return;
                 }
-                
+
                 if (!validTypes.includes(file.type)) {
                     showError("Please select a valid image file (JPG, PNG or WebP only)");
                     return;
                 }
-                
+
                 // Validate file size (2MB max)
                 const maxSize = 2 * 1024 * 1024; // 2MB in bytes
                 if (file.size > maxSize) {
                     showError("Image file is too large. Maximum size is 2MB.");
                     return;
                 }
-                
+
                 // Read the file and create a preview
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     // Create an image element to get dimensions
                     const img = new Image();
-                    img.onload = function() {
+                    img.onload = function () {
                         // Check if dimensions are reasonable
                         if (img.width < 50 || img.height < 50) {
                             showError("Image is too small. Minimum dimensions are 50x50 pixels.");
                             return;
                         }
-                        
+
                         // Check for animated PNG (APNG)
                         if (event.target.result.indexOf('ANIM') !== -1 || event.target.result.indexOf('acTL') !== -1) {
                             showError("Animated images are not supported to prevent performance issues. Please use a static image instead.");
                             return;
                         }
-                        
+
                         // Update the preview
                         editProfilePicturePreview.innerHTML = `<img src="${event.target.result}" alt="Profile Preview" class="w-full h-full object-cover">`;
                         editProfilePicturePreview.classList.add('has-image');
-                        
+
                         // Show the remove button
                         if (editRemoveProfilePictureBtn) {
                             editRemoveProfilePictureBtn.classList.remove('hidden');
@@ -5174,17 +5184,17 @@ function setupProfilePictureHandlers() {
                 reader.readAsDataURL(file);
             }
         });
-        
+
         // Handle remove button click
         if (editRemoveProfilePictureBtn) {
             editRemoveProfilePictureBtn.addEventListener('click', () => {
                 // Reset the file input
                 editProfilePictureUpload.value = '';
-                
+
                 // Reset the preview
                 editProfilePicturePreview.innerHTML = '<i class="fas fa-user"></i>';
                 editProfilePicturePreview.classList.remove('has-image');
-                
+
                 // Hide the remove button
                 editRemoveProfilePictureBtn.classList.add('hidden');
             });
@@ -5217,13 +5227,13 @@ function setupFocusHandling() {
 
     // Detect if we're on iOS for specific resize logic
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    
+
     if (!messageInput) return;
-    
+
     // Focus handling function - ensures input is visible when focused
     const handleFocus = () => {
         body.classList.add('keyboard-visible');
-        
+
         // Set fixed position style for message container to prevent jumping (from old setupMobileViewportFix)
         const messageContainer = document.querySelector('.p-4.bg-white.border-t');
         if (messageContainer) {
@@ -5233,8 +5243,8 @@ function setupFocusHandling() {
         // Wait for keyboard to appear
         setTimeout(() => {
             // Generic scroll to the input field
-            messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
-            
+            messageInput.scrollIntoView({ block: 'end', behavior: 'smooth' });
+
             // Scroll to bottom of chat window
             const chatMessages = document.getElementById('chat-messages');
             if (chatMessages) {
@@ -5242,16 +5252,16 @@ function setupFocusHandling() {
             }
         }, 300);
     };
-    
+
     // Blur handling function - resets when keyboard is hidden
     const handleBlur = () => {
         body.classList.remove('keyboard-visible');
     };
-    
+
     // Add event listeners
     messageInput.addEventListener('focus', handleFocus);
     messageInput.addEventListener('blur', handleBlur);
-    
+
     // Setup resize event listener for keyboard detection on Android (non-IOS devices)
     if (!isIOS) {
         const initialHeight = window.innerHeight;
@@ -5259,11 +5269,11 @@ function setupFocusHandling() {
             // If height is significantly smaller, keyboard is likely visible
             if (window.innerHeight < initialHeight * 0.75) {
                 body.classList.add('keyboard-visible');
-                
+
                 // Adjust messages container position
                 setTimeout(() => {
                     if (messageInput) { // Check if messageInput is still valid
-                        messageInput.scrollIntoView({block: 'end', behavior: 'smooth'});
+                        messageInput.scrollIntoView({ block: 'end', behavior: 'smooth' });
                     }
                 }, 100);
             } else {

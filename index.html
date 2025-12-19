@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -33,6 +34,7 @@
     <!-- Custom styles -->
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="bg-background font-['Inter',sans-serif] text-gray-900 antialiased">
     <div id="app" class="min-h-screen flex flex-col">
         <!-- Header -->
@@ -40,25 +42,13 @@
             <div class="container mx-auto flex justify-between items-center">
                 <h1 class="text-xl font-bold">GCCRP</h1>
                 <nav class="flex space-x-4">
-                    <button 
-                        onclick="changeView('chat')"
-                        id="chat-btn"
-                        class="px-3 py-1 rounded bg-white text-primary"
-                    >
+                    <button onclick="changeView('chat')" id="chat-btn" class="px-3 py-1 rounded bg-white text-primary">
                         <i class="fas fa-comments mr-1"></i> Chat
                     </button>
-                    <button 
-                        onclick="changeView('characters')"
-                        id="characters-btn"
-                        class="px-3 py-1 rounded text-white"
-                    >
+                    <button onclick="changeView('characters')" id="characters-btn" class="px-3 py-1 rounded text-white">
                         <i class="fas fa-user-circle mr-1"></i> Characters
                     </button>
-                    <button 
-                        onclick="changeView('settings')"
-                        id="settings-btn"
-                        class="px-3 py-1 rounded text-white"
-                    >
+                    <button onclick="changeView('settings')" id="settings-btn" class="px-3 py-1 rounded text-white">
                         <i class="fas fa-cog mr-1"></i> Settings
                         <span id="api-warning" class="ml-1 text-red-300 hidden">*</span>
                     </button>
@@ -67,15 +57,13 @@
         </header>
 
         <!-- Error Message -->
-        <div id="error-container" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded shadow-md hidden">
+        <div id="error-container"
+            class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded shadow-md hidden">
             <div class="flex">
                 <div class="py-1"><i class="fas fa-exclamation-circle"></i></div>
                 <div class="ml-3">
                     <p id="error-message"></p>
-                    <button 
-                        onclick="dismissError()"
-                        class="text-sm font-semibold mt-1"
-                    >
+                    <button onclick="dismissError()" class="text-sm font-semibold mt-1">
                         Dismiss
                     </button>
                 </div>
@@ -89,23 +77,18 @@
                 <div class="container mx-auto p-6 max-w-2xl">
                     <div class="bg-white rounded-lg shadow-lg p-6">
                         <h2 class="text-2xl font-bold mb-6 text-gray-800">Settings</h2>
-                        
+
                         <div class="mb-8">
                             <h3 class="text-lg font-semibold mb-3 text-gray-700">Google Gemini API Key</h3>
                             <p class="mb-4 text-gray-600">
-                                Your API key is stored locally in your browser and is only sent to Google's servers when making API calls.
+                                Your API key is stored locally in your browser and is only sent to Google's servers when
+                                making API calls.
                             </p>
                             <div class="flex">
-                                <input
-                                    type="password"
-                                    id="api-key-input"
-                                    placeholder="Enter your Google Gemini API key"
-                                    class="flex-grow p-2 border rounded-l focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
-                                <button
-                                    onclick="saveApiKey()"
-                                    class="bg-primary text-white px-4 py-2 rounded-r hover:bg-primary/90 transition"
-                                >
+                                <input type="password" id="api-key-input" placeholder="Enter your Google Gemini API key"
+                                    class="flex-grow p-2 border rounded-l focus:outline-none focus:ring-2 focus:ring-primary" />
+                                <button onclick="saveApiKey()"
+                                    class="bg-primary text-white px-4 py-2 rounded-r hover:bg-primary/90 transition">
                                     Save
                                 </button>
                             </div>
@@ -113,10 +96,12 @@
                                 <i class="fas fa-check-circle mr-1"></i> API key saved successfully
                             </p>
                             <p class="mt-2 text-sm text-gray-500">
-                                <i class="fas fa-info-circle mr-1"></i> Get your Gemini API key from <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" class="text-primary underline">Google AI Studio</a>
+                                <i class="fas fa-info-circle mr-1"></i> Get your Gemini API key from <a
+                                    href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer"
+                                    class="text-primary underline">Google AI Studio</a>
                             </p>
                         </div>
-                        
+
                         <div class="mb-8 border-t pt-6">
                             <h3 class="text-lg font-semibold mb-3 text-gray-700">Model Settings</h3>
                             <div class="space-y-4">
@@ -124,83 +109,62 @@
                                     <label for="model-select" class="block text-gray-600 mb-2">
                                         Model Version
                                     </label>
-                                    <select 
-                                        id="model-select" 
-                                        class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                    >
-                                        <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash (Preview) - Price/Performance</option>
-                                        <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro (Preview) - Advanced Reasoning</option>
-                                        <option value="gemini-2.0-flash">Gemini 2.0 Flash - Fast & Responsive</option>
-                                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite - Lightweight</option>
-                                        <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro Experimental - Advanced</option>
-                                        <option value="gemini-2.0-flash-thinking-exp-01-21">Gemini 2.0 Flash Thinking - Creative</option>
+                                    <select id="model-select"
+                                        class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="gemini-2.5-flash-lite" selected>Gemini 2.5 Flash-Lite ⭐
+                                            Recommended</option>
+                                        <option value="gemini-2.5-flash">Gemini 2.5 Flash - Stable Balanced</option>
+                                        <option value="gemini-3-flash-preview">Gemini 3 Flash (Preview) - Fast</option>
+                                        <option value="gemini-3-pro-preview">Gemini 3 Pro (Preview) - Best Reasoning ⚠️
+                                            Quota Limits</option>
                                     </select>
+                                    <p class="text-xs text-gray-500 mt-1">⭐ Flash-Lite gives best responses. Preview
+                                        models have stricter quota limits.</p>
                                 </div>
-                                
+
                                 <div>
                                     <label for="temperature-range" class="block text-gray-600 mb-2">
                                         Temperature (Creativity): <span id="temperature-value">0.7</span>
                                     </label>
-                                    <input 
-                                        type="range" 
-                                        id="temperature-range" 
-                                        min="0" 
-                                        max="2" 
-                                        step="0.1" 
-                                        value="0.7"
-                                        class="w-full accent-primary"
-                                    >
+                                    <input type="range" id="temperature-range" min="0" max="2" step="0.1" value="0.7"
+                                        class="w-full accent-primary">
                                     <div class="flex justify-between text-sm text-gray-500">
                                         <span>Focused (0)</span>
                                         <span>Balanced (1)</span>
                                         <span>Creative (2)</span>
                                     </div>
                                 </div>
-                                
+
                                 <div>
                                     <label for="enhanced-context-tokens" class="block text-gray-600 mb-2">
                                         Enhanced Character Context Token Length
                                     </label>
-                                    <input 
-                                        type="number" 
-                                        id="enhanced-context-tokens" 
+                                    <input type="number" id="enhanced-context-tokens"
                                         class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                        min="1"
-                                        max="8192"
-                                        value="2000"
-                                    >
-                                    <p class="text-xs text-gray-500 mt-1">Controls token length for character context enhancement (1-8192)</p>
+                                        min="1" max="8192" value="2000">
+                                    <p class="text-xs text-gray-500 mt-1">Controls token length for character context
+                                        enhancement (1-8192)</p>
                                 </div>
-                                
+
                                 <div>
                                     <label for="conversation-tokens" class="block text-gray-600 mb-2">
                                         AI Conversation Message Token Length
                                     </label>
-                                    <input 
-                                        type="number" 
-                                        id="conversation-tokens" 
+                                    <input type="number" id="conversation-tokens"
                                         class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                        min="1"
-                                        max="8192"
-                                        value="300"
-                                    >
-                                    <p class="text-xs text-gray-500 mt-1">Controls token length for AI responses in chat (1-8192)</p>
+                                        min="1" max="8192" value="300">
+                                    <p class="text-xs text-gray-500 mt-1">Controls token length for AI responses in chat
+                                        (1-8192)</p>
                                 </div>
 
                                 <div>
                                     <label for="top-k" class="block text-gray-600 mb-2">
                                         Top-K: <span id="top-k-value">1</span>
-                                        <span class="text-xs text-gray-500 ml-1">(Controls token selection diversity)</span>
+                                        <span class="text-xs text-gray-500 ml-1">(Controls token selection
+                                            diversity)</span>
                                     </label>
-                                    <input 
-                                        type="range" 
-                                        id="top-k" 
-                                        min="1" 
-                                        max="40" 
-                                        step="1" 
-                                        value="1"
-                                        class="w-full accent-primary"
-                                    >
+                                    <input type="range" id="top-k" min="1" max="40" step="1" value="1"
+                                        class="w-full accent-primary">
                                     <div class="flex justify-between text-sm text-gray-500">
                                         <span>Focused (1)</span>
                                         <span>Balanced (20)</span>
@@ -211,17 +175,11 @@
                                 <div>
                                     <label for="top-p" class="block text-gray-600 mb-2">
                                         Top-P: <span id="top-p-value">0.90</span>
-                                        <span class="text-xs text-gray-500 ml-1">(Controls response predictability)</span>
+                                        <span class="text-xs text-gray-500 ml-1">(Controls response
+                                            predictability)</span>
                                     </label>
-                                    <input 
-                                        type="range" 
-                                        id="top-p" 
-                                        min="0.1" 
-                                        max="1" 
-                                        step="0.05" 
-                                        value="0.90"
-                                        class="w-full accent-primary"
-                                    >
+                                    <input type="range" id="top-p" min="0.1" max="1" step="0.05" value="0.90"
+                                        class="w-full accent-primary">
                                     <div class="flex justify-between text-sm text-gray-500">
                                         <span>Focused (0.1)</span>
                                         <span>Balanced (0.5)</span>
@@ -229,62 +187,51 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <!-- Personal Context Settings -->
                             <div class="mb-8 border-t pt-6">
                                 <h3 class="text-lg font-semibold mb-3 text-gray-700">Personal Context</h3>
                                 <p class="mb-4 text-gray-600">
-                                    Add information about yourself to help the AI better understand and interact with you.
+                                    Add information about yourself to help the AI better understand and interact with
+                                    you.
                                 </p>
                                 <div class="space-y-4">
                                     <div>
                                         <label for="user-name" class="block text-gray-600 mb-2">
                                             Your Name
                                         </label>
-                                        <input
-                                            type="text"
-                                            id="user-name"
-                                            placeholder="Enter your name"
-                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                        />
+                                        <input type="text" id="user-name" placeholder="Enter your name"
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
                                     </div>
                                     <div>
                                         <label for="user-personality" class="block text-gray-600 mb-2">
                                             Your Personality
                                         </label>
-                                        <textarea
-                                            id="user-personality"
+                                        <textarea id="user-personality"
                                             placeholder="Describe your personality traits, interests, and communication style..."
                                             rows="3"
-                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                                        ></textarea>
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea>
                                     </div>
                                     <div>
                                         <label for="user-context" class="block text-gray-600 mb-2">
                                             Additional Context
                                         </label>
-                                        <textarea
-                                            id="user-context"
+                                        <textarea id="user-context"
                                             placeholder="Add any other relevant information about yourself, preferences, or background..."
                                             rows="4"
-                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                                        ></textarea>
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea>
                                     </div>
-                                    <button
-                                        onclick="savePersonalContext()"
-                                        class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition"
-                                    >
+                                    <button onclick="savePersonalContext()"
+                                        class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition">
                                         Save Personal Context
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <!-- Add Test Configuration Button -->
                             <div class="mt-6 border-t pt-4">
-                                <button
-                                    id="test-model-btn"
-                                    class="w-full bg-accent text-white px-4 py-2 rounded hover:bg-accent/90 transition flex items-center justify-center gap-2"
-                                >
+                                <button id="test-model-btn"
+                                    class="w-full bg-accent text-white px-4 py-2 rounded hover:bg-accent/90 transition flex items-center justify-center gap-2">
                                     <i class="fas fa-vial"></i>
                                     Test Configuration
                                 </button>
@@ -299,55 +246,50 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="mb-8 border-t pt-6">
                             <h3 class="text-lg font-semibold mb-3 text-gray-700">Chat Settings</h3>
                             <div class="flex items-center mb-4">
-                                <input 
-                                    type="checkbox" 
-                                    id="allow-group-chats" 
-                                    class="mr-2 h-5 w-5 accent-primary"
-                                    onclick="toggleGroupChats(this.checked)"
-                                >
+                                <input type="checkbox" id="allow-group-chats" class="mr-2 h-5 w-5 accent-primary"
+                                    onclick="toggleGroupChats(this.checked)">
                                 <label for="allow-group-chats" class="text-gray-600">
                                     Allow multiple character selection (Group chats) (Not implemented yet)
                                 </label>
                             </div>
                             <p class="text-sm text-gray-500 mb-4">
-                                <i class="fas fa-info-circle mr-1"></i> When disabled, only one character can be selected at a time for chat.
+                                <i class="fas fa-info-circle mr-1"></i> When disabled, only one character can be
+                                selected at a time for chat.
                             </p>
                         </div>
-                        
+
                         <div class="border-t pt-6">
                             <h3 class="text-lg font-semibold mb-3 text-gray-700">About</h3>
                             <p class="text-gray-600">
-                                This application uses the Google Gemini API to power character interactions. 
-                                All data is stored locally in your browser. No information is sent to any server 
-                                other than directly to Google's API. Uses Gemini 2.0 Flash for quick and witted responses!
+                                This application uses the Google Gemini API to power character interactions.
+                                All data is stored locally in your browser. No information is sent to any server
+                                other than directly to Google's API. Uses Gemini Flash for quick and witted
+                                responses!
                             </p>
                         </div>
-                        
+
                         <!-- Data Backup and Restore Section -->
                         <div class="border-t pt-6 mt-6">
                             <h3 class="text-lg font-semibold mb-3 text-gray-700">Data Backup & Restore</h3>
                             <p class="text-gray-600 mb-4">
                                 Export your data for backup or import previously exported data.
                                 <span class="text-red-500 font-medium block mt-1">
-                                    <i class="fas fa-exclamation-triangle mr-1"></i> Warning: Never share your backup file with others as it contains your API key.
+                                    <i class="fas fa-exclamation-triangle mr-1"></i> Warning: Never share your backup
+                                    file with others as it contains your API key.
                                 </span>
                             </p>
                             <div class="flex flex-col sm:flex-row gap-3">
-                                <button
-                                    id="export-data-btn"
-                                    class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition flex items-center justify-center gap-2"
-                                >
+                                <button id="export-data-btn"
+                                    class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition flex items-center justify-center gap-2">
                                     <i class="fas fa-download"></i>
                                     Export Data
                                 </button>
-                                <button
-                                    id="import-data-btn"
-                                    class="bg-secondary text-white px-4 py-2 rounded hover:bg-secondary/90 transition flex items-center justify-center gap-2"
-                                >
+                                <button id="import-data-btn"
+                                    class="bg-secondary text-white px-4 py-2 rounded hover:bg-secondary/90 transition flex items-center justify-center gap-2">
                                     <i class="fas fa-upload"></i>
                                     Load Data
                                 </button>
@@ -364,76 +306,70 @@
                         <!-- Create Character -->
                         <div class="bg-white rounded-lg shadow-lg p-6">
                             <h2 class="text-2xl font-bold mb-6 text-gray-800">Create New Character</h2>
-                            
+
                             <div class="mb-4">
                                 <label class="block text-gray-700 mb-2">Profile Picture</label>
                                 <div class="flex flex-col items-center">
-                                    <div id="profile-picture-preview" class="w-32 h-32 rounded-full bg-gray-200 mb-3 flex items-center justify-center text-gray-500 text-4xl overflow-hidden">
+                                    <div id="profile-picture-preview"
+                                        class="w-32 h-32 rounded-full bg-gray-200 mb-3 flex items-center justify-center text-gray-500 text-4xl overflow-hidden">
                                         <i class="fas fa-user"></i>
                                     </div>
                                     <div class="flex space-x-2 justify-center">
-                                        <label for="profile-picture-upload" class="cursor-pointer bg-secondary text-white px-3 py-2 rounded hover:bg-secondary/90 transition">
+                                        <label for="profile-picture-upload"
+                                            class="cursor-pointer bg-secondary text-white px-3 py-2 rounded hover:bg-secondary/90 transition">
                                             <i class="fas fa-upload mr-1"></i> Upload Picture
                                         </label>
-                                        <button id="remove-profile-picture" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition hidden">
+                                        <button id="remove-profile-picture"
+                                            class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition hidden">
                                             <i class="fas fa-trash mr-1"></i> Remove
                                         </button>
                                     </div>
-                                    <input type="file" id="profile-picture-upload" accept="image/jpeg, image/png, image/webp" class="hidden" />
-                                    <p class="text-xs text-gray-500 mt-2 text-center">Supported formats: JPG, PNG, WebP. Max size: 2MB. Recommended: 200x200px.</p>
+                                    <input type="file" id="profile-picture-upload"
+                                        accept="image/jpeg, image/png, image/webp" class="hidden" />
+                                    <p class="text-xs text-gray-500 mt-2 text-center">Supported formats: JPG, PNG, WebP.
+                                        Max size: 2MB. Recommended: 200x200px.</p>
                                 </div>
                             </div>
-                            
+
                             <div class="mb-4">
                                 <label class="block text-gray-700 mb-2">Character Name</label>
-                                <input
-                                    type="text"
-                                    id="character-name"
-                                    placeholder="e.g., Sherlock Holmes"
-                                    class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
+                                <input type="text" id="character-name" placeholder="e.g., Sherlock Holmes"
+                                    class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
                             </div>
-                            
+
                             <div class="mb-4">
                                 <label class="block text-gray-700 mb-2">Character Context</label>
-                                <textarea
-                                    id="character-context"
+                                <textarea id="character-context"
                                     placeholder="Describe the character (e.g., Sherlock Holmes, a brilliant detective from Victorian London)"
                                     rows="5"
-                                    class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-y overflow-auto max-h-60"
-                                ></textarea>
+                                    class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-y overflow-auto max-h-60"></textarea>
                             </div>
-                            
+
                             <div class="flex justify-center">
-                                <button
-                                    id="create-character-btn"
-                                    class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition disabled:bg-gray-400"
-                                >
+                                <button id="create-character-btn"
+                                    class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition disabled:bg-gray-400">
                                     Create Character
                                 </button>
                             </div>
                         </div>
-                        
+
                         <!-- Character List -->
                         <div class="bg-white rounded-lg shadow-lg p-6">
                             <div class="mb-6 p-4 border rounded-lg bg-gray-50">
                                 <h3 class="text-lg font-semibold mb-3 text-gray-700">Filter & Sort Characters</h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label for="search-characters-input" class="block text-sm font-medium text-gray-700 mb-1">Search:</label>
-                                        <input
-                                            type="search"
-                                            id="search-characters-input"
+                                        <label for="search-characters-input"
+                                            class="block text-sm font-medium text-gray-700 mb-1">Search:</label>
+                                        <input type="search" id="search-characters-input"
                                             placeholder="Search by name or context..."
-                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                        />
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
                                     </div>
                                     <div>
-                                        <label for="sort-characters-select" class="block text-sm font-medium text-gray-700 mb-1">Sort by:</label>
-                                        <select
-                                            id="sort-characters-select"
-                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                                        >
+                                        <label for="sort-characters-select"
+                                            class="block text-sm font-medium text-gray-700 mb-1">Sort by:</label>
+                                        <select id="sort-characters-select"
+                                            class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary">
                                             <option value="createdAt_desc">Latest Created</option>
                                             <option value="createdAt_asc">Oldest Created</option>
                                             <option value="name_asc">Name (A-Z)</option>
@@ -444,7 +380,7 @@
                                 </div>
                             </div>
                             <h2 class="text-2xl font-bold mb-6 text-gray-800">Your Characters</h2>
-                            
+
                             <div id="character-list" class="space-y-4">
                                 <p id="no-characters" class="text-gray-500 italic">No characters created yet</p>
                             </div>
@@ -456,18 +392,16 @@
             <!-- Chat View -->
             <div id="chat-view" class="w-full flex h-full">
                 <!-- Character Sidebar -->
-                <div id="character-sidebar" class="w-64 bg-white border-r flex flex-col h-full transition-all duration-300 ease-in-out lg:translate-x-0">
+                <div id="character-sidebar"
+                    class="w-64 bg-white border-r flex flex-col h-full transition-all duration-300 ease-in-out lg:translate-x-0">
                     <div class="p-4 border-b flex justify-between items-center">
                         <h2 class="font-bold text-gray-800">Chat With Characters</h2>
-                        <button
-                            id="toggle-sidebar-btn"
-                            class="text-gray-600 hover:text-primary lg:hidden"
-                            aria-label="Toggle Character Menu"
-                        >
+                        <button id="toggle-sidebar-btn" class="text-gray-600 hover:text-primary lg:hidden"
+                            aria-label="Toggle Character Menu">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    
+
                     <div id="sidebar-characters" class="flex-grow overflow-y-auto">
                         <p class="text-gray-500 italic p-4 text-sm">
                             No characters created yet. Go to Characters tab to create some.
@@ -476,11 +410,9 @@
                 </div>
 
                 <div id="chat-placeholder" class="flex-grow flex items-center justify-center bg-gray-50 p-4">
-                    <button
-                        id="show-characters-btn"
+                    <button id="show-characters-btn"
                         class="text-gray-600 hover:text-primary absolute top-4 left-4 lg:hidden"
-                        aria-label="Show Characters"
-                    >
+                        aria-label="Show Characters">
                         <i class="fas fa-bars"></i>
                     </button>
                     <div class="text-center">
@@ -493,69 +425,55 @@
                     <!-- Chat header -->
                     <div class="p-4 bg-white border-b flex justify-between items-center shadow-sm">
                         <div class="flex items-center space-x-4 max-w-[60%]">
-                            <button
-                                id="show-chat-sidebar-btn"
+                            <button id="show-chat-sidebar-btn"
                                 class="text-gray-600 hover:text-primary lg:hidden flex-shrink-0"
-                                aria-label="Show Characters"
-                            >
+                                aria-label="Show Characters">
                                 <i class="fas fa-bars"></i>
                             </button>
                             <div class="flex items-center">
                                 <div id="chat-header-avatars" class="flex mr-2"></div>
                                 <div class="overflow-hidden">
-                                    <h2 id="chat-header-title" class="font-bold text-gray-800 truncate">Character Name</h2>
-                                    <p id="chat-header-subtitle" class="text-sm text-gray-500 truncate">Private conversation</p>
+                                    <h2 id="chat-header-title" class="font-bold text-gray-800 truncate">Character Name
+                                    </h2>
+                                    <p id="chat-header-subtitle" class="text-sm text-gray-500 truncate">Private
+                                        conversation</p>
                                 </div>
                             </div>
                         </div>
                         <div class="flex items-center space-x-2 flex-wrap justify-end">
-                            <button
-                                id="new-chat-btn"
+                            <button id="new-chat-btn"
                                 class="text-primary hover:text-primary/80 px-2 py-1 rounded text-sm md:text-base"
-                                title="Start a new chat with this character"
-                            >
+                                title="Start a new chat with this character">
                                 <i class="fas fa-plus-circle"></i> <span class="hidden sm:inline">New Chat</span>
                             </button>
-                            <button
-                                id="chat-history-btn"
+                            <button id="chat-history-btn"
                                 class="text-primary hover:text-primary/80 px-2 py-1 rounded text-sm md:text-base"
-                                title="View chat history"
-                            >
+                                title="View chat history">
                                 <i class="fas fa-history"></i> <span class="hidden sm:inline">History</span>
                             </button>
-                            <button
-                                onclick="clearChatMessages()"
+                            <button onclick="clearChatMessages()"
                                 class="text-red-500 hover:text-red-700 px-2 py-1 rounded text-sm md:text-base"
-                                title="Clear chat"
-                            >
+                                title="Clear chat">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     </div>
-                    
+
                     <!-- Chat messages -->
                     <div id="chat-messages" class="flex-grow overflow-y-auto p-4 chat-window">
                         <div class="text-center text-gray-500 mt-8">
                             <p>No messages yet. Start the conversation!</p>
                         </div>
                     </div>
-                    
+
                     <!-- Message input -->
                     <div class="p-4 bg-white border-t">
                         <form id="chat-form" class="flex space-x-2">
-                            <textarea
-                                id="message-input"
-                                placeholder="Type your message... (Enter for new line)"
+                            <textarea id="message-input" placeholder="Type your message... (Enter for new line)"
                                 class="flex-grow p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-y overflow-y-auto min-h-[40px] max-h-[200px]"
-                                rows="3"
-                                autocomplete="off"
-                                spellcheck="true"
-                            ></textarea>
-                            <button
-                                type="submit"
-                                id="send-message-btn"
-                                class="bg-primary text-white p-3 w-12 rounded-full hover:bg-primary/90 transition disabled:bg-gray-400"
-                            >
+                                rows="3" autocomplete="off" spellcheck="true"></textarea>
+                            <button type="submit" id="send-message-btn"
+                                class="bg-primary text-white p-3 w-12 rounded-full hover:bg-primary/90 transition disabled:bg-gray-400">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
                         </form>
@@ -565,7 +483,8 @@
         </main>
 
         <!-- Chat History Modal -->
-        <div id="chat-history-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden p-4">
+        <div id="chat-history-modal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden p-4">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
                 <div class="p-4 border-b flex justify-between items-center">
                     <h3 class="text-lg font-bold text-gray-800">Chat History</h3>
@@ -577,26 +496,27 @@
                     <p class="text-gray-500 italic text-center">No chat history available</p>
                 </div>
                 <div class="p-3 border-t flex justify-end">
-                    <button id="close-history-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded">
+                    <button id="close-history-btn"
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded">
                         Close
                     </button>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <!-- Load Gemini SDK -->
     <script>
         // Initialize global variable for debugging
         window.debugApp = false;
-        
+
         // Optional debugging function for console
         function toggleDebug() {
             window.debugApp = !window.debugApp;
             console.log("Debug mode:", window.debugApp ? "ON" : "OFF");
             return "Debug mode " + (window.debugApp ? "enabled" : "disabled");
         }
-        
+
         // Ensure the sidebar position is adjusted when the DOM content is loaded
         document.addEventListener('DOMContentLoaded', () => {
             const adjustLayout = () => {
@@ -655,14 +575,15 @@
             setTimeout(() => requestAnimationFrame(adjustLayout), 300); // One delayed call
         });
     </script>
-    
+
     <!-- Marked.js for Markdown support -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- DOMPurify for sanitizing HTML -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
-    
+
     <!-- Edit Character Modal -->
-    <div id="edit-character-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="edit-character-modal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold text-gray-800">Edit Character</h2>
@@ -670,51 +591,46 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            
+
             <div class="mb-4">
                 <label class="block text-gray-700 mb-2">Profile Picture</label>
                 <div class="flex flex-col items-center">
-                    <div id="edit-profile-picture-preview" class="w-32 h-32 rounded-full bg-gray-200 mb-3 flex items-center justify-center text-gray-500 text-4xl overflow-hidden">
+                    <div id="edit-profile-picture-preview"
+                        class="w-32 h-32 rounded-full bg-gray-200 mb-3 flex items-center justify-center text-gray-500 text-4xl overflow-hidden">
                         <i class="fas fa-user"></i>
                     </div>
                     <div class="flex space-x-2 justify-center">
-                        <label for="edit-profile-picture-upload" class="cursor-pointer bg-secondary text-white px-3 py-2 rounded hover:bg-secondary/90 transition">
+                        <label for="edit-profile-picture-upload"
+                            class="cursor-pointer bg-secondary text-white px-3 py-2 rounded hover:bg-secondary/90 transition">
                             <i class="fas fa-upload mr-1"></i> Upload Picture
                         </label>
-                        <button id="edit-remove-profile-picture" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition hidden">
+                        <button id="edit-remove-profile-picture"
+                            class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition hidden">
                             <i class="fas fa-trash mr-1"></i> Remove
                         </button>
                     </div>
-                    <input type="file" id="edit-profile-picture-upload" accept="image/jpeg, image/png, image/webp" class="hidden" />
-                    <p class="text-xs text-gray-500 mt-2 text-center">Supported formats: JPG, PNG, WebP. Max size: 2MB. Recommended: 200x200px.</p>
+                    <input type="file" id="edit-profile-picture-upload" accept="image/jpeg, image/png, image/webp"
+                        class="hidden" />
+                    <p class="text-xs text-gray-500 mt-2 text-center">Supported formats: JPG, PNG, WebP. Max size: 2MB.
+                        Recommended: 200x200px.</p>
                 </div>
             </div>
-            
+
             <div class="mb-4">
                 <label class="block text-gray-700 mb-2">Character Name</label>
-                <input
-                    type="text"
-                    id="edit-character-name"
-                    placeholder="e.g., Sherlock Holmes"
-                    class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                <input type="text" id="edit-character-name" placeholder="e.g., Sherlock Holmes"
+                    class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
                 <input type="hidden" id="edit-character-id">
             </div>
-            
+
             <div class="mb-4">
                 <label class="block text-gray-700 mb-2">Character Context</label>
-                <textarea
-                    id="edit-character-context"
-                    placeholder="Describe the character"
-                    rows="5"
-                    class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-y overflow-auto max-h-60"
-                ></textarea>
+                <textarea id="edit-character-context" placeholder="Describe the character" rows="5"
+                    class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-y overflow-auto max-h-60"></textarea>
             </div>
-            
-            <button
-                id="save-character-btn"
-                class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition w-full"
-            >
+
+            <button id="save-character-btn"
+                class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition w-full">
                 Save Changes
             </button>
         </div>
@@ -722,4 +638,5 @@
 
     <script src="script.js"></script>
 </body>
+
 </html>
